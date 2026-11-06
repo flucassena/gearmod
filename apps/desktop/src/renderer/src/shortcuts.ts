@@ -2,18 +2,45 @@
  * Keyboard shortcuts for the app: each action has a default shortcut that the user can change in Settings > Shortcuts.
  * What they choose is stored on this computer (localStorage) and applies to all app windows.
  */
+import { isMac } from './platform'
+
 export type ShortcutId = 'toggleSidebar' | 'toggleQuickView' | 'toggleFiles' | 'toggleTerminal' | 'viewBoard' | 'viewChats' | 'viewGit' | 'viewDatabase' | 'nextView' | 'previousView' | 'projectSettings' | 'quickOpenFile' | 'searchInFiles' | 'searchSymbols'
 
 export const shortcutIds: ShortcutId[] = ['toggleSidebar', 'toggleQuickView', 'toggleFiles', 'toggleTerminal', 'viewBoard', 'viewChats', 'viewGit', 'viewDatabase', 'nextView', 'previousView', 'projectSettings', 'quickOpenFile', 'searchInFiles', 'searchSymbols']
-export const shortcutDefaults: Record<ShortcutId, string> = {
+/** Default shortcuts on Windows and Linux. */
+const pcDefaults: Record<ShortcutId, string> = {
   toggleSidebar: 'Ctrl+B', toggleQuickView: 'Ctrl+Alt+B', toggleFiles: 'Ctrl+Shift+E', toggleTerminal: 'Ctrl+`',
   // Project views. Ctrl+Tab inside the file panel still switches between file tabs.
   viewBoard: 'Ctrl+1', viewChats: 'Ctrl+2', viewGit: 'Ctrl+3', viewDatabase: 'Ctrl+4', nextView: 'Ctrl+Tab', previousView: 'Ctrl+Shift+Tab', projectSettings: 'Ctrl+,',
   // File panel searches: they work from anywhere (they open the panel if it is closed).
   quickOpenFile: 'Ctrl+P', searchInFiles: 'Ctrl+Shift+F', searchSymbols: 'Ctrl+T'
 }
+/** Kept with Ctrl on the Mac: Cmd+Tab switches apps, and Ctrl+` is the terminal there too (as in VS Code). */
+const macKeepsCtrl: ShortcutId[] = ['toggleTerminal', 'nextView', 'previousView']
+
+/** Default shortcuts: on the Mac, Cmd (Meta) takes the place of Ctrl, except where the system already uses Cmd. */
+export function shortcutDefaultsFor(mac: boolean): Record<ShortcutId, string> {
+  if (!mac) return { ...pcDefaults }
+  return Object.fromEntries(shortcutIds.map((id) => [id, macKeepsCtrl.includes(id) ? pcDefaults[id] : pcDefaults[id].replace(/^Ctrl\+/, 'Meta+')])) as Record<ShortcutId, string>
+}
+export const shortcutDefaults: Record<ShortcutId, string> = shortcutDefaultsFor(isMac())
+
 /** Combinations that the system, text fields or the app itself already use: they cannot be chosen. */
-const reserved = new Set(['Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+A', 'Ctrl+Z', 'Ctrl+Y', 'Ctrl+F', 'Ctrl+S', 'Ctrl+W', 'Ctrl+R', 'Ctrl+N', 'F5', 'F12', 'Shift+F12'])
+const reserved = new Set([
+  'Ctrl+C', 'Ctrl+V', 'Ctrl+X', 'Ctrl+A', 'Ctrl+Z', 'Ctrl+Y', 'Ctrl+F', 'Ctrl+S', 'Ctrl+W', 'Ctrl+R', 'Ctrl+N', 'F5', 'F12', 'Shift+F12',
+  // Mac: edit, close, hide, minimize and quit go through Cmd.
+  'Meta+C', 'Meta+V', 'Meta+X', 'Meta+A', 'Meta+Z', 'Meta+Shift+Z', 'Meta+F', 'Meta+S', 'Meta+W', 'Meta+R', 'Meta+N', 'Meta+Q', 'Meta+H', 'Meta+M', 'Meta+Tab',
+])
+
+/** How a combination is shown: as stored on Windows/Linux (`Ctrl+Shift+F`), with the Mac symbols on the Mac (`⇧⌘F`). */
+export function displayCombo(combo: string, mac: boolean = isMac()): string {
+  if (!mac) return combo
+  const parts = combo.split('+'), key = parts.pop()!
+  const symbols: Record<string, string> = { Ctrl: '⌃', Alt: '⌥', Shift: '⇧', Meta: '⌘' }
+  // Apple's order: Control, Option, Shift, Command.
+  const order = ['Ctrl', 'Alt', 'Shift', 'Meta']
+  return parts.sort((a, b) => order.indexOf(a) - order.indexOf(b)).map((part) => symbols[part] ?? part).join('') + (key === 'Tab' ? '⇥' : key)
+}
 
 const storeKey = 'gearmod.shortcuts'
 export const shortcutsChangedEvent = 'gearmod:shortcuts-changed'

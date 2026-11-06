@@ -13,6 +13,8 @@ export function shellCommand(platform: NodeJS.Platform, userShell?: string): { f
     const pwsh = (process.env.PATH ?? '').split(delimiter).map((folder) => join(folder, 'pwsh.exe')).find((path) => existsSync(path))
     return { file: pwsh ?? 'powershell.exe', args: ['-NoLogo'], prelude: '' }
   }
+  // The Mac default shell is zsh, and Terminal.app opens it as a login shell (reads ~/.zprofile, where Homebrew sets itself up).
+  if (platform === 'darwin') return { file: userShell || '/bin/zsh', args: ['-l'], prelude: '' }
   return { file: userShell || '/bin/sh', args: [], prelude: '' }
 }
 /** Real PTY sessions, shared with the standalone window by ID. */

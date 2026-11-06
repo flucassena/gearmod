@@ -32,6 +32,7 @@ import { plainError } from './NoticeDialog'
 import { useT } from './i18n'
 import { refreshGit } from './gitConfigCache'
 import type { FileChange } from './changes'
+import { markPlatform } from './platform'
 import { hasAttachmentTarget, hasCommentTarget, queueContextFile, queueContextText } from './Attachments'
 
 const defaultSettings: AppSettings = { tema: 'green', idioma: 'pt-BR', voz: 'small', notificacoes: true, retomarSozinho: true, fotosGravatar: false, execucoesSimultaneas: null }
@@ -203,4 +204,5 @@ function App(): React.JSX.Element {
 }
 
 applyMessageSpacing()
+markPlatform(document.documentElement)
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>)

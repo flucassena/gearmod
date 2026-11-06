@@ -52,7 +52,7 @@ Everything runs on your machine. GearMod drives the agent CLIs you already use a
 ## Install
 
 **Requirements**
-- Windows 10 or 11, 64-bit, or Linux x64 with a desktop (tested on Ubuntu 22.04 and newer). macOS is not supported yet.
+- Windows 10 or 11, 64-bit, or Linux x64 with a desktop (tested on Ubuntu 22.04 and newer). macOS 12 or later is in preview: packages are built, but not tested by users yet.
 - [Git](https://git-scm.com/downloads).
 - At least one agent CLI, installed and signed in: [Claude Code](https://docs.claude.com/en/docs/claude-code) or [Codex](https://github.com/openai/codex).
 
@@ -97,6 +97,18 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 ```
 
 GearMod stores secrets (API keys, tokens) in the system keyring, so Linux needs **gnome-keyring** or **KWallet** running. Without one, GearMod still opens, but it refuses to save secrets and says why. Signing in, installing or updating an agent CLI opens a terminal window (your `$TERMINAL`, or the first of `x-terminal-emulator`, GNOME Terminal, Konsole, Xfce Terminal, kitty, Alacritty and xterm found).
+
+**Steps on macOS (preview)**
+
+1. Open the [latest release](https://github.com/flucassena/gearmod/releases/latest) and download `GearMod-<version>-arm64.dmg` (Apple Silicon: M1 and later) or `GearMod-<version>-x64.dmg` (Intel).
+2. Open the `.dmg` and drag GearMod to **Applications**.
+3. The app is not notarized by Apple yet, so macOS blocks the first launch (it says GearMod "is damaged" or "cannot be opened"). Run this once in Terminal, then open GearMod normally:
+
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/GearMod.app
+   ```
+
+To check the download, run `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` in the folder with the `.dmg` and `SHA256SUMS.txt`. To update, download the new `.dmg` and replace the app in Applications; your data is kept. Signing in, installing or updating an agent CLI opens a Terminal window. GearMod reads your shell's PATH (zsh by default), so CLIs installed with Homebrew, npm or nvm are found.
 
 ## Quick start
 
@@ -236,7 +248,7 @@ Card ──► Git worktree + branch ──► Agent CLI (Claude Code / Codex)
 
 ## Your data
 
-Everything lives on your machine, under `%APPDATA%\GearMod` on Windows or `~/.config/GearMod` on Linux: the SQLite database, attachments, backups and card worktrees. GearMod itself sends nothing anywhere. Optional features reach the network only when you turn them on; [SECURITY.md](SECURITY.md) lists them.
+Everything lives on your machine, under `%APPDATA%\GearMod` on Windows, `~/.config/GearMod` on Linux or `~/Library/Application Support/GearMod` on macOS: the SQLite database, attachments, backups and card worktrees. GearMod itself sends nothing anywhere. Optional features reach the network only when you turn them on; [SECURITY.md](SECURITY.md) lists them.
 
 GearMod is **not a sandbox**: agents run with your user's permissions, within the permission mode you choose. Read [SECURITY.md](SECURITY.md) for what is and isn't promised.
 
@@ -249,7 +261,7 @@ GearMod is **source-available** under the [PolyForm Shield License 1.0.0](LICENS
 GearMod is free to use. The agents use your own Claude or OpenAI plan.
 
 **Does it work on macOS or Linux?**
-Not yet. Windows is the only supported platform for now.
+Linux x64 is supported (see the install steps above). macOS packages are in preview: they are built for every release, but have not been tested by users yet.
 
 **Which agents are supported?**
 Claude Code and Codex. Gemini CLI support exists but is disabled for now.

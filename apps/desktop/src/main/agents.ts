@@ -9,6 +9,7 @@ import { applyEnvPolicy } from './env-policy'
 import type { ProfileRepository } from './projects'
 import { tm } from './i18n'
 import { openInTerminal } from './linux-terminal'
+import { openInMacTerminal } from './mac-terminal'
 
 const exec = promisify(execFile)
 export interface CommandRunner { run(command: string, args: string[], env: NodeJS.ProcessEnv): Promise<{ stdout: string; stderr: string }> }
@@ -21,13 +22,13 @@ const systemRunner: CommandRunner = { async run(command, args, env) {
   return exec(executable, args, { env, timeout: 10_000, windowsHide: true })
 } }
 
-/** How install/update/login open a terminal: `cmd` on Windows, a terminal emulator window elsewhere. Injectable for tests. */
+/** How install/update/login open a terminal: `cmd` on Windows, Terminal.app on the Mac, a terminal emulator window on Linux. Injectable for tests. */
 export interface TerminalLaunch {
   platform: NodeJS.Platform
   spawn: typeof spawn
-  openInTerminal: typeof openInTerminal
+  openInTerminal(command: string, args: string[], env: NodeJS.ProcessEnv): void
 }
-const systemLaunch: TerminalLaunch = { platform: process.platform, spawn, openInTerminal }
+const systemLaunch: TerminalLaunch = { platform: process.platform, spawn, openInTerminal: process.platform === 'darwin' ? openInMacTerminal : openInTerminal }
 
 export class AgentProbeService {
   constructor(private readonly profiles: ProfileRepository, private readonly runner: CommandRunner = systemRunner, private readonly launch: TerminalLaunch = systemLaunch) {}

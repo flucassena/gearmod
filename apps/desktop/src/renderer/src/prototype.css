@@ -2274,6 +2274,9 @@ button.pathchip.tb-path svg{width:13px;height:13px}
 .tb-actions.narrow{margin-right:140px}
 .tb-actions.narrow .tb-tray{display:none;position:absolute;top:calc(100% + 6px);right:0;flex-direction:row;align-items:center;gap:6px;padding:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 30px var(--cs-00000088)}
 .tb-actions.narrow.open .tb-tray{display:flex}
+/* Mac: the window buttons (close, minimize, zoom) sit on the left, so the brand moves right and the actions no longer leave room on the right. */
+:root[data-platform="mac"] .tb-brand{padding-left:82px}
+:root[data-platform="mac"] .tb-actions,:root[data-platform="mac"] .tb-actions.narrow{margin-right:12px}
 /* Chat three-dot menu: icon before each action, in the same stroke as the header buttons. */
 .pm-item.pm-ico{display:flex;align-items:center;gap:9px}
 .pm-item.pm-ico svg{flex:none;width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;color:var(--muted)}

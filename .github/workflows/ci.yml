@@ -116,3 +116,34 @@ jobs:
             apps/desktop/dist/GearMod-*.AppImage
             apps/desktop/dist/GearMod-*.deb
           if-no-files-found: error
+
+  installer-mac:
+    needs: check
+    # Apple Silicon runner; the Intel package is cross-built on it (electron-rebuild -a x64).
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm dist:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: The native modules are in both Mac packages, built for the right processor
+        run: |
+          for pair in "mac-arm64:arm64" "mac:x86_64"; do
+            folder=${pair%%:*}; arch=${pair##*:}
+            unpacked="apps/desktop/dist/$folder/GearMod.app/Contents/Resources/app.asar.unpacked/node_modules"
+            for module in node-pty/build/Release/pty.node better-sqlite3/build/Release/better_sqlite3.node; do
+              file "$unpacked/$module" | tee /dev/stderr | grep -q "$arch" || { echo "::error::$module is not built for $arch in $folder"; exit 1; }
+            done
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: GearMod-Mac
+          path: apps/desktop/dist/GearMod-*.dmg
+          if-no-files-found: error

@@ -23,7 +23,8 @@
     "prebuild": "pnpm run rebuild:native",
     "build": "electron-vite build",
     "dist": "pnpm run build && electron-builder --win nsis",
-    "dist:linux": "pnpm run build && electron-rebuild -f -o node-pty && electron-builder --linux AppImage deb"
+    "dist:linux": "pnpm run build && electron-rebuild -f -o node-pty && electron-builder --linux AppImage deb",
+    "dist:mac": "pnpm run build && electron-rebuild -f -a arm64 -o better-sqlite3,node-pty && electron-builder --mac --arm64 && electron-rebuild -f -a x64 -o better-sqlite3,node-pty && electron-builder --mac --x64 && pnpm run rebuild:native"
   },
   "dependencies": {
     "@gearmod/contracts": "workspace:*",
@@ -166,6 +167,24 @@
       ]
     },
     "deb": {
+      "artifactName": "GearMod-${version}-${arch}.${ext}"
+    },
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.developer-tools",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "artifactName": "GearMod-${version}-${arch}.${ext}",
+      "target": [
+        {
+          "target": "dmg"
+        }
+      ],
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "GearMod uses the microphone for voice dictation in the chat."
+      }
+    },
+    "dmg": {
       "artifactName": "GearMod-${version}-${arch}.${ext}"
     }
   }

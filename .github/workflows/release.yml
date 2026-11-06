@@ -1,8 +1,8 @@
 name: Release
 
-# A version tag (e.g. v0.1.0) builds the Windows installer and the Linux packages (AppImage and deb, x64) and publishes
-# one Release with the three files and a single SHA256SUMS.txt. Nothing is published unless every package builds.
-# The tag version must match apps/desktop/package.json. The packages are not code-signed yet.
+# A version tag (e.g. v0.1.0) builds the Windows installer, the Linux packages (AppImage and deb, x64) and the Mac disk
+# images (Apple Silicon and Intel) and publishes one Release with the five files and a single SHA256SUMS.txt. Nothing is published unless every package builds.
+# The tag version must match apps/desktop/package.json. The packages are not code-signed yet (the Mac ones are only ad-hoc signed).
 on:
   push:
     tags: ['v*']
@@ -109,9 +109,45 @@ jobs:
             apps/desktop/dist/GearMod-${{ env.VERSION }}-amd64.deb
           if-no-files-found: error
 
+  installer-mac:
+    needs: version
+    runs-on: macos-15
+    timeout-minutes: 40
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Git identity (some tests commit in temporary repositories)
+        run: |
+          git config --global user.email "ci@example.invalid"
+          git config --global user.name "CI"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+      - run: pnpm dist:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Disk images exist
+        run: |
+          for file in "GearMod-$VERSION-arm64.dmg" "GearMod-$VERSION-x64.dmg"; do
+            [ -f "apps/desktop/dist/$file" ] || { echo "::error::Disk image not found: $file"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-mac
+          path: |
+            apps/desktop/dist/GearMod-${{ env.VERSION }}-arm64.dmg
+            apps/desktop/dist/GearMod-${{ env.VERSION }}-x64.dmg
+          if-no-files-found: error
+
   publish:
-    # Runs only when both package jobs succeed, so a Release never goes out with missing files.
-    needs: [version, installer-windows, installer-linux]
+    # Runs only when every package job succeeds, so a Release never goes out with missing files.
+    needs: [version, installer-windows, installer-linux, installer-mac]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
@@ -128,10 +164,12 @@ jobs:
           exe="GearMod-Setup-$VERSION-x64.exe"
           appimage="GearMod-$VERSION-x86_64.AppImage"
           deb="GearMod-$VERSION-amd64.deb"
-          for file in "$exe" "$appimage" "$deb"; do
+          dmg_arm="GearMod-$VERSION-arm64.dmg"
+          dmg_intel="GearMod-$VERSION-x64.dmg"
+          for file in "$exe" "$appimage" "$deb" "$dmg_arm" "$dmg_intel"; do
             [ -f "$file" ] || { echo "::error::Missing file: $file"; exit 1; }
           done
-          sha256sum "$exe" "$appimage" "$deb" > SHA256SUMS.txt
+          sha256sum "$exe" "$appimage" "$deb" "$dmg_arm" "$dmg_intel" > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Publish the release
@@ -164,6 +202,18 @@ jobs:
           ```
 
           To save secrets (API keys, tokens), GearMod needs a keyring: gnome-keyring or KWallet.
+
+          ### macOS
+
+          Download **GearMod-@VERSION@-arm64.dmg** (Apple Silicon: M1 and later) or **GearMod-@VERSION@-x64.dmg** (Intel), open it and drag GearMod to Applications. macOS 12 or later.
+
+          The app is not notarized by Apple yet, so macOS blocks the first launch ("GearMod is damaged" or "cannot be opened"). After copying it to Applications, run once in Terminal:
+
+          ```sh
+          xattr -dr com.apple.quarantine /Applications/GearMod.app
+          ```
+
+          Check the downloads with `shasum -a 256 -c SHA256SUMS.txt --ignore-missing`.
           NOTES
           sed -i "s/@VERSION@/$VERSION/g" notes.md
           extra=()

@@ -70,8 +70,9 @@ import { CodeIndexService, type HostProcess } from './code-index/service'
 import { CodeIndexSettings } from './code-index/project-setting'
 import { loadShellPath } from './shell-path'
 import { titleBarOverlay } from './title-bar'
+import { appMenuTemplate, primaryModifier, titleBarOptions } from './mac'
 
-// Linux: the PATH of the user's shell (nvm, ~/.npm-global/bin...), so the agent CLIs are found when the app is opened from the menu.
+// Linux and macOS: the PATH of the user's shell (Homebrew, nvm, ~/.npm-global/bin...), so the agent CLIs are found when the app is opened from the menu or the Dock.
 loadShellPath()
 
 // Fixed data folder at %APPDATA%\GearMod, independent of the npm package name.
@@ -273,9 +274,8 @@ async function createWindow(popout?: { target: PopoutTarget; bounds: Electron.Re
     show: false,
     backgroundColor: '#0b0b0b',
     // Custom title bar: the app draws the top strip (and it can be dragged); the minimize, maximize and
-    // close buttons remain Windows', on top, with a transparent background to follow the theme.
-    titleBarStyle: 'hidden',
-    titleBarOverlay: titleBarOverlay(process.platform, false, titleBarHeight),
+    // close buttons remain the system's (on the right on Windows/Linux, on the left on the Mac).
+    ...titleBarOptions(process.platform, titleBarHeight),
     icon: brandIcons?.app ?? appIcon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
@@ -298,8 +298,9 @@ async function createWindow(popout?: { target: PopoutTarget; bounds: Electron.Re
   if (!app.isPackaged) window.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return
     const key = input.key.toLowerCase()
-    if (key === 'f12' || (input.control && input.shift && key === 'i')) { event.preventDefault(); window.webContents.toggleDevTools() }
-    else if (input.control && key === 'r') { event.preventDefault(); window.webContents.reload() }
+    const primary = primaryModifier(process.platform, input)
+    if (key === 'f12' || (primary && input.shift && key === 'i')) { event.preventDefault(); window.webContents.toggleDevTools() }
+    else if (primary && key === 'r') { event.preventDefault(); window.webContents.reload() }
   })
   // Closing the window only hides the app in the tray: agents keep working. Quit is via the tray icon.
   if (!popout) window.on('close', (event) => {
@@ -441,9 +442,16 @@ let brandIcons: { color: string; app: Electron.NativeImage; tray: Electron.Nativ
 function setBrandColor(color: string): void {
   if (brandIcons?.color === color) return
   brandIcons = { color, app: tintIcon(nativeImage.createFromPath(appIcon), color), tray: tintIcon(nativeImage.createFromPath(trayIconPath), color) }
-  for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setIcon(brandIcons.app)
+  // `win.setIcon` does not exist on the Mac: there the Dock icon is the one that follows the theme.
+  if (process.platform === 'darwin') app.dock?.setIcon(brandIcons.app)
+  else for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setIcon(brandIcons.app)
   void applyTaskbarIcon(brandIcons.app)
-  if (tray && !tray.isDestroyed()) tray.setImage(brandIcons.tray)
+  if (tray && !tray.isDestroyed()) tray.setImage(menuBarSize(brandIcons.tray))
+}
+
+/** The Mac menu bar is 22 points tall and shows a 32 px image at 32 points: there the tray icon is drawn at 18 points. */
+function menuBarSize(icon: Electron.NativeImage): Electron.NativeImage {
+  return process.platform === 'darwin' && !icon.isEmpty() ? icon.resize({ width: 18, height: 18 }) : icon
 }
 
 /**
@@ -467,7 +475,7 @@ let lastTaskbarIcon: string | null = null
 
 function createTray(): void {
   const icon = brandIcons?.tray ?? nativeImage.createFromPath(trayIconPath)
-  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon)
+  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : menuBarSize(icon))
   tray.on('click', showWindow)
   onMainLocaleChange(() => updateTray())
   updateTray()
@@ -482,8 +490,10 @@ app.whenReady().then(async () => {
   await openDatabase()
   setMainLocale(settings.get().idioma)  // only after opening the database: before that the settings cannot be read
   await mcpBridge.listen()
-  disposeIpc = registerIpc(ipcMain, { updates, storage, about: () => readAbout(app.getAppPath(), appVersion, { versions: process.versions, system: `${osVersion()} ${osRelease()} (${process.arch})`, buildDate: aboutBuildDate(), dataDir }), database, speckit, pullRequests, gitAccounts, mcp: mcpRegistry, backups, notes, settings, profiles, projects, board, git, chooseDirectory, chooseFiles, agentProbes, conversations, orchestrator, worktrees, quality, executions, agentConfigs, skills, constitution, checklists, voice, usage, collab, gitManager, history, playwright, specTools, toolUpdates, approvals, sddResolver, sddWriter, dbManager, fileWatch, terminals, returnFile, codeIndex, codeRoots: projectCodeRoots, codeIndexSettings, ...fileActions, openExternal: (url) => shell.openExternal(url), setBrandColor, setTitleBarTheme: (light) => { for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay(process.platform, light, titleBarHeight)) }, openWindow: openPopout, placeWindow: (placement) => { const window = BrowserWindow.getFocusedWindow(); if (window) placeWindow(window, placement) }, openPath: async (path) => { await mkdir(path, { recursive: true }); const error = await shell.openPath(path); if (error) throw new Error(error) }, chooseSkillSource, saveTextFile, appVersion, dataDir, reopen: openDatabase })
-  Menu.setApplicationMenu(null)  // no File/Edit/View/Window/Help: the top strip belongs to the app
+  disposeIpc = registerIpc(ipcMain, { updates, storage, about: () => readAbout(app.getAppPath(), appVersion, { versions: process.versions, system: `${osVersion()} ${osRelease()} (${process.arch})`, buildDate: aboutBuildDate(), dataDir }), database, speckit, pullRequests, gitAccounts, mcp: mcpRegistry, backups, notes, settings, profiles, projects, board, git, chooseDirectory, chooseFiles, agentProbes, conversations, orchestrator, worktrees, quality, executions, agentConfigs, skills, constitution, checklists, voice, usage, collab, gitManager, history, playwright, specTools, toolUpdates, approvals, sddResolver, sddWriter, dbManager, fileWatch, terminals, returnFile, codeIndex, codeRoots: projectCodeRoots, codeIndexSettings, ...fileActions, openExternal: (url) => shell.openExternal(url), setBrandColor, setTitleBarTheme: (light) => { if (process.platform === 'darwin') return; for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay(process.platform, light, titleBarHeight)) }, openWindow: openPopout, placeWindow: (placement) => { const window = BrowserWindow.getFocusedWindow(); if (window) placeWindow(window, placement) }, openPath: async (path) => { await mkdir(path, { recursive: true }); const error = await shell.openPath(path); if (error) throw new Error(error) }, chooseSkillSource, saveTextFile, appVersion, dataDir, reopen: openDatabase })
+  // No File/Edit/View/Window/Help: the top strip belongs to the app. On the Mac only the app, Edit and Window menus (copy/paste need them).
+  const menu = appMenuTemplate(process.platform)
+  Menu.setApplicationMenu(menu ? Menu.buildFromTemplate(menu) : null)
   if (app.isPackaged) updates.start()  // the development build does not look for releases
   createTray()
   await createWindow()
