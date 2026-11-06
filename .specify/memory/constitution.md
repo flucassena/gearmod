@@ -1,6 +1,6 @@
 # Constituição — GearMod
 
-App desktop Electron (Windows 10/11, 64 bits) que entrega cards de um kanban a agentes de programação (Claude Code, Codex, Gemini), cada card na sua worktree Git. Monorepo pnpm em TypeScript strict: `apps/desktop` (main em `src/main`, preload em `src/preload`, renderer React em `src/renderer/src`) e `packages/contracts` (tipos e esquemas Zod compartilhados). Estas regras protegem a fronteira de segurança entre a interface, o sistema e os agentes, os dados do usuário e a consistência da interface.
+App desktop Electron (Windows 10/11 x64, Linux x64 e macOS 12+) que entrega cards de um kanban a agentes de programação (Claude Code, Codex, Gemini), cada card na sua worktree Git. Monorepo pnpm em TypeScript strict: `apps/desktop` (main em `src/main`, preload em `src/preload`, renderer React em `src/renderer/src`) e `packages/contracts` (tipos e esquemas Zod compartilhados). Estas regras protegem a fronteira de segurança entre a interface, o sistema e os agentes, os dados do usuário e a consistência da interface.
 
 ## Princípios
 
@@ -78,7 +78,10 @@ App desktop Electron (Windows 10/11, 64 bits) que entrega cards de um kanban a a
 
 ## Restrições
 
-- Plataforma: só Windows 10/11 x64. Código específico de outra plataforma não é exigido, mas **NÃO DEVE** quebrar o build do Windows.
+- Plataformas: Windows 10/11 x64, Linux x64 (AppImage e `.deb`) e macOS 12+ (Apple Silicon e Intel, em preview). Mudança **NÃO DEVE** quebrar o build nem o comportamento de nenhuma delas; o CI empacota as três.
+- Lógica que muda por plataforma **DEVE** ficar numa função que recebe o `platform` como parâmetro (quem chama passa `process.platform`, como em `mac.ts`, `title-bar.ts` e `shell-path.ts`), para ser testada em qualquer sistema, com o caso de cada plataforma no teste.
+- Caminho, separador de PATH, shell e terminal **NÃO DEVEM** ser assumidos do Windows: usar `path.join`/`delimiter`, e no Linux e no macOS o PATH do shell de login do usuário (`shell-path.ts`).
+- Atalho de teclado **DEVE** usar Cmd no macOS e Ctrl nas outras plataformas (pela tabela de `shortcuts.ts`), e módulo nativo novo **DEVE** ser compilado para o Electron em todos os pacotes.
 - Tudo roda local: sem servidor nem conta do GearMod. **NÃO DEVE** haver telemetria ou envio de dados do usuário para serviço do GearMod. Chamadas externas só para o que o usuário configurou (CLIs de agente, GitHub/GitLab, Groq, bancos).
 - Dependência nova empacotada no app **DEVE** ter licença compatível com a PolyForm Shield e entrar no `THIRD-PARTY-NOTICES.md` (`pnpm notices`).
 - `src/main/generated/` é gerado por `scripts/generate-codex-types.mjs` e **NÃO DEVE** ser editado à mão.
@@ -87,4 +90,4 @@ App desktop Electron (Windows 10/11, 64 bits) que entrega cards de um kanban a a
 
 - O checkout principal do usuário **NÃO DEVE** ser alterado pelo trabalho de um card: o agente trabalha na worktree do card.
 - Integração com o Spec Kit **DEVE** respeitar a versão máxima suportada (`specKitUpdateCeiling` em `specKitUpdates.ts`) e não reinstalar nem sobrescrever o que o projeto já tem em `.specify/`.
-- Atualizar instalando por cima e desinstalar **NÃO DEVEM** apagar os dados do usuário (`%APPDATA%\GearMod`).
+- Atualizar instalando por cima e desinstalar **NÃO DEVEM** apagar os dados do usuário (`%APPDATA%\GearMod` no Windows, `~/.config/GearMod` no Linux, `~/Library/Application Support/GearMod` no macOS).
