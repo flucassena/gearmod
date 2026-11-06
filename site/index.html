@@ -7,7 +7,7 @@
 <meta name="description" content="GearMod turns your work into kanban cards and hands each one to a coding agent (Claude Code or Codex) in its own Git worktree. Everything runs on your machine.">
 <meta name="theme-color" content="#0b0d12">
 <meta property="og:title" content="GearMod — Shift gears. Build faster.">
-<meta property="og:description" content="A desktop workspace where coding agents work on cards in parallel, each in its own Git worktree. Free, local, Windows and Linux.">
+<meta property="og:description" content="A desktop workspace where coding agents work on cards in parallel, each in its own Git worktree. Free, local, for Windows, Linux and macOS.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://gearmod.dev/assets/board.png">
 <meta property="og:url" content="https://gearmod.dev/">
@@ -42,7 +42,7 @@
       <span><span lang="en">Available for</span><span lang="pt">Disponível para</span></span>
       <span class="plat"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm8.6-1.2L21 3v8.5h-9.4V4.3ZM3 12.5h7.5v7.1L3 18.5v-6Zm8.6 0H21V21l-9.4-1.3v-7.2Z"/></svg>Windows 10/11</span>
       <span class="plat"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M12 2c-2.8 0-4.5 2.3-4.5 5.2 0 1.3.3 2.3-.6 3.6C5.4 12.9 4 15 4 17.2c0 1 .3 1.8.9 2.4-.6.5-.9 1-.9 1.6 0 .5.5.8 1.3.8h3.4c.9 0 1.6-.4 2-1h2.6c.4.6 1.1 1 2 1h3.4c.8 0 1.3-.3 1.3-.8 0-.6-.3-1.1-.9-1.6.6-.6.9-1.4.9-2.4 0-2.2-1.4-4.3-2.9-6.4-.9-1.3-.6-2.3-.6-3.6C16.5 4.3 14.8 2 12 2Zm0 9.5c-1.9 0-3.3 2-3.3 4.6S10.1 20 12 20s3.3-1.3 3.3-3.9-1.4-4.6-3.3-4.6ZM10.4 6.2a.8 1 0 1 0 0 2 .8 1 0 0 0 0-2Zm3.2 0a.8 1 0 1 0 0 2 .8 1 0 0 0 0-2Z"/></svg>Linux x64</span>
-      <span class="plat js-mac" hidden>macOS</span>
+      <span class="plat js-mac" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></svg>macOS <small><span lang="en">(preview)</span><span lang="pt">(prévia)</span></small></span>
     </div>
     <div class="actions">
       <a class="btn primary js-dl" id="hero-dl" href="https://github.com/flucassena/gearmod/releases/latest">
@@ -56,8 +56,8 @@
     <div class="signnote">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z"/><path d="M12 8.5v4.2M12 16v.1"/></svg>
       <p>
-        <span lang="en"><b>Not code-signed yet.</b> On Windows, SmartScreen may warn you on first run. The code is open: <a href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener">read it on GitHub</a> and check the download's SHA-256. <a href="download.html">How to install</a></span>
-        <span lang="pt"><b>Ainda sem assinatura de código.</b> No Windows, o SmartScreen pode avisar na primeira execução. O código é aberto: <a href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener">leia no GitHub</a> e confira o SHA-256 do download. <a href="download.html">Como instalar</a></span>
+        <span lang="en"><b>Not code-signed yet.</b> On Windows, SmartScreen may warn you on first run; on macOS, one Terminal command opens it the first time. The code is open: <a href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener">read it on GitHub</a> and check the download's SHA-256. <a href="download.html">How to install</a></span>
+        <span lang="pt"><b>Ainda sem assinatura de código.</b> No Windows, o SmartScreen pode avisar na primeira execução; no macOS, um comando no Terminal libera a primeira abertura. O código é aberto: <a href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener">leia no GitHub</a> e confira o SHA-256 do download. <a href="download.html">Como instalar</a></span>
       </p>
     </div>
     <div class="carousel" id="carousel" aria-roledescription="carousel" aria-label="GearMod screenshots">
@@ -291,8 +291,8 @@
         <p lang="en">GearMod is free to use. The agents use your own Claude or OpenAI plan.</p>
         <p lang="pt">O GearMod é gratuito. Os agentes usam o seu próprio plano da Claude ou da OpenAI.</p></details>
       <details><summary><span lang="en">Does it work on macOS or Linux?</span><span lang="pt">Funciona em macOS ou Linux?</span></summary>
-        <p lang="en">Linux, yes: there is an AppImage and a .deb for 64-bit (x64) systems. macOS is not supported yet.</p>
-        <p lang="pt">Linux, sim: há um AppImage e um .deb para sistemas de 64 bits (x64). O macOS ainda não é suportado.</p></details>
+        <p lang="en">Linux, yes: there is an AppImage and a .deb for 64-bit (x64) systems. macOS is in preview: there are disk images for Apple Silicon and Intel (macOS 12 or later), not notarized by Apple yet, so the first launch needs one Terminal command (see the download page).</p>
+        <p lang="pt">Linux, sim: há um AppImage e um .deb para sistemas de 64 bits (x64). O macOS está em prévia: há imagens de disco para Apple Silicon e Intel (macOS 12 ou mais novo), ainda sem notarização da Apple, então a primeira abertura pede um comando no Terminal (veja a página de download).</p></details>
       <details><summary><span lang="en">Which agents are supported?</span><span lang="pt">Quais agentes são suportados?</span></summary>
         <p lang="en">Claude Code and Codex. Gemini CLI support exists but is disabled for now.</p>
         <p lang="pt">Claude Code e Codex. O suporte ao Gemini CLI existe, mas está desativado por enquanto.</p></details>

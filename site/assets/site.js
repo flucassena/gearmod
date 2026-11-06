@@ -25,10 +25,8 @@
   function mb(n) { return (n / 1048576).toFixed(0) + ' MB'; }
   function date(s) { return new Date(s).toLocaleDateString(lang() === 'pt' ? 'pt-BR' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' }); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  /* macOS: the download box, tab and list entries are ready but stay hidden until the release publishes the .dmg and this is true.
-     When turning it on, also update the FAQ answer and the "Windows 10/11 · Linux" line under the hero. */
-  var MAC_ENABLED = false;
-  if (MAC_ENABLED) document.querySelectorAll('.js-mac').forEach(function (el) { el.hidden = false; });
+  /* macOS (preview). The tab, the hero chip and the list entries show up only once a release has the .dmg files; false hides the Mac everywhere. */
+  var MAC_ENABLED = true;
   var KINDS = { windows: /\.exe$/i, appimage: /\.AppImage$/i, deb: /\.deb$/i, mac: /-arm64\.dmg$/i, macintel: /-x64\.dmg$/i };
   /* Main file of each platform (the hero button and the version line use it). */
   var MAIN = { windows: 'windows', linux: 'appimage', mac: 'mac' };
@@ -94,6 +92,8 @@
     rowsSeen = rows;
     var available = Object.keys(MAIN).filter(function (os) { return latestFor(rows, os); });
     document.querySelectorAll('[data-os-tab]').forEach(function (b) { b.hidden = available.indexOf(b.dataset.osTab) < 0; });
+    // The macOS chip under the hero appears with the first release that has the Mac disk images.
+    document.querySelectorAll('.js-mac').forEach(function (el) { el.hidden = available.indexOf('mac') < 0; });
     var os = available.indexOf(wanted) >= 0 ? wanted : 'windows';
     root.dataset.os = os;
     document.querySelectorAll('.js-os').forEach(function (el) { el.textContent = NAMES[os]; });
