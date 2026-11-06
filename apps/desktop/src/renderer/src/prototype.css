@@ -2956,3 +2956,13 @@ body:has(.overlay) .viewdock.floating{display:none}
 .agent-login-box.expanded .agent-login-term{height:min(460px,55vh)}
 .agent-login-wait{display:grid;gap:7px}.agent-login-wait .hint{margin:0}
 .provcards.two{grid-template-columns:repeat(2,1fr)}.provcards.two button{padding:16px 14px}
+
+.modal h2 .titlein.invalid{border-color:var(--cl-d8665d);box-shadow:0 0 0 1px color-mix(in srgb,#d8665d 38%,transparent)}.modal h2 .titlein-err{display:block;margin:4px 0 0;font-size:12px;font-weight:400;color:var(--cl-d8665d)}
+
+.aename{display:flex;align-items:center;gap:10px}.aename .av{flex:none;width:38px;height:38px;border-radius:9px}.aename .av svg{width:22px;height:22px}.aename .in{flex:1;min-width:0}
+.sw.custom{position:relative;display:block;overflow:hidden;cursor:pointer;background:conic-gradient(red,yellow,lime,aqua,blue,magenta,red)}.sw.custom.sel{background:var(--c)}.sw.custom input{position:absolute;inset:-6px;width:calc(100% + 12px);height:calc(100% + 12px);opacity:0;cursor:pointer;padding:0;border:0}
+
+.cefoot button:disabled{opacity:.4;cursor:not-allowed}.savetip{display:inline-flex}
+
+.modal h2:has(.titlein-err){position:relative}.modal h2 .titlein-err{position:absolute;left:0;top:100%;margin:3px 0 0;white-space:nowrap;line-height:1.2}
+.modal h2 .titlein-err{z-index:30;margin-top:6px;padding:4px 9px;border-radius:7px;background:var(--surface-2,#1b2321);border:1px solid var(--cl-d8665d);box-shadow:0 6px 18px rgba(0,0,0,.4);pointer-events:none}

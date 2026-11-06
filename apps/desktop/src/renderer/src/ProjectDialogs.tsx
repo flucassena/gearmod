@@ -53,6 +53,7 @@ export function ProjectDialog({ close, created }: { close(): void; created(proje
           : <small className="hint">{tp.noGit}</small>}
       </div>)}
       {!sources.length && <button className="sourcePick" type="button" disabled={choosing} style={dragging ? { borderColor: 'var(--accent)' } : undefined} onClick={() => void choose()} onDragEnter={(e) => { e.preventDefault(); setDragging(true) }} onDragOver={(e) => e.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(e) => void drop(e)}>📁 {choosing ? tp.openingFolders : tp.pickFolder}<small>{tp.pickFolderHint}</small></button>}
+      {sources.length > 0 && <button type="button" className="secondary withicon" disabled={choosing} style={dragging ? { borderColor: 'var(--accent)' } : undefined} onClick={() => void choose()} onDragEnter={(e) => { e.preventDefault(); setDragging(true) }} onDragOver={(e) => e.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(e) => void drop(e)}><FolderGlyph />{choosing ? tp.openingFolders : tp.addAnotherFolder}</button>}
     </div>
     {error && <p className="error" style={{ marginTop: 10 }}>{error}</p>}
     <div className="actions"><button className="secondary" onClick={close}>{t.common.cancel}</button><button disabled={!sources.length} onClick={() => void submit()}>{tp.create}</button></div>
