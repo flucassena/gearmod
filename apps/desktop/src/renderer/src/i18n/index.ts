@@ -7,7 +7,8 @@ import { en } from './en'
 export type Messages = typeof ptBR
 
 const dictionaries: Record<AppLanguage, Messages> = { 'pt-BR': ptBR, en }
-let locale: AppLanguage = 'pt-BR'
+// Antes das configurações carregarem, usa o idioma do sistema (evita piscar em português para quem usa inglês).
+let locale: AppLanguage = typeof navigator !== 'undefined' && !navigator.language.toLowerCase().startsWith('pt') ? 'en' : 'pt-BR'
 const listeners = new Set<() => void>()
 const subscribe = (listener: () => void): (() => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
 
