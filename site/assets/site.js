@@ -18,8 +18,8 @@
   /* ---- releases: read live from the GitHub API, so a new tag shows up with no redeploy ---- */
   var releases = null;
   var T = {
-    en: { latest: 'Latest', pre: 'Pre-release', dl: 'Download', notes: 'Notes', sums: 'SHA-256', none: 'No release published yet. Check back soon, or build from source (see the README).', fail: 'Could not load the version list. Open the releases page on GitHub.', all: 'See on GitHub', count: function (n) { return n + (n === 1 ? ' version' : ' versions'); }, kinds: { windows: 'Windows', appimage: 'AppImage', deb: '.deb', mac: 'macOS' } },
-    pt: { latest: 'Mais recente', pre: 'Pré-release', dl: 'Baixar', notes: 'Notas', sums: 'SHA-256', none: 'Nenhuma release publicada ainda. Volte em breve, ou compile do código-fonte (veja o README).', fail: 'Não deu para carregar a lista de versões. Abra a página de releases no GitHub.', all: 'Ver no GitHub', count: function (n) { return n + (n === 1 ? ' versão' : ' versões'); }, kinds: { windows: 'Windows', appimage: 'AppImage', deb: '.deb', mac: 'macOS' } }
+    en: { latest: 'Latest', pre: 'Pre-release', dl: 'Download', notes: 'Notes', sums: 'SHA-256', none: 'No release published yet. Check back soon, or build from source (see the README).', fail: 'Could not load the version list. Open the releases page on GitHub.', all: 'See on GitHub', count: function (n) { return n + (n === 1 ? ' version' : ' versions'); }, kinds: { windows: 'Windows', appimage: 'AppImage', deb: '.deb', mac: 'macOS (Apple Silicon)', macintel: 'macOS (Intel)' } },
+    pt: { latest: 'Mais recente', pre: 'Pré-release', dl: 'Baixar', notes: 'Notas', sums: 'SHA-256', none: 'Nenhuma release publicada ainda. Volte em breve, ou compile do código-fonte (veja o README).', fail: 'Não deu para carregar a lista de versões. Abra a página de releases no GitHub.', all: 'Ver no GitHub', count: function (n) { return n + (n === 1 ? ' versão' : ' versões'); }, kinds: { windows: 'Windows', appimage: 'AppImage', deb: '.deb', mac: 'macOS (Apple Silicon)', macintel: 'macOS (Intel)' } }
   };
   function lang() { return root.dataset.lang === 'pt' ? 'pt' : 'en'; }
   function mb(n) { return (n / 1048576).toFixed(0) + ' MB'; }
@@ -29,10 +29,10 @@
      When turning it on, also update the FAQ answer and the "Windows 10/11 · Linux" line under the hero. */
   var MAC_ENABLED = false;
   if (MAC_ENABLED) document.querySelectorAll('.js-mac').forEach(function (el) { el.hidden = false; });
-  var KINDS = { windows: /\.exe$/i, appimage: /\.AppImage$/i, deb: /\.deb$/i, mac: /\.dmg$/i };
+  var KINDS = { windows: /\.exe$/i, appimage: /\.AppImage$/i, deb: /\.deb$/i, mac: /-arm64\.dmg$/i, macintel: /-x64\.dmg$/i };
   /* Main file of each platform (the hero button and the version line use it). */
   var MAIN = { windows: 'windows', linux: 'appimage', mac: 'mac' };
-  function enabled(kind) { return kind !== 'mac' || MAC_ENABLED; }
+  function enabled(kind) { return !/^mac/.test(kind) || MAC_ENABLED; }
   function assetOf(r, kind) { return enabled(kind) ? (r.assets || []).filter(function (a) { return KINDS[kind].test(a.name); })[0] : undefined; }
   function sumsOf(r) { return (r.assets || []).filter(function (a) { return /SHA256SUMS/i.test(a.name); })[0]; }
   function hasAny(r) { return Object.keys(KINDS).some(function (kind) { return assetOf(r, kind); }); }
@@ -56,13 +56,13 @@
     paintVersion();
   }
   document.querySelectorAll('[data-os-tab]').forEach(function (b) { b.addEventListener('click', function () { selectTab(b.dataset.osTab); }); });
-  /* Linux install command: copy button (falls back to selecting the text when the clipboard is not available). */
-  if ($('copy-cmd')) $('copy-cmd').addEventListener('click', function () {
-    var code = $('install-cmd'), button = this, label = button.innerHTML;
+  /* Copy buttons of the command boxes (Linux install, Mac first launch); fall back to selecting the text when the clipboard is not available. */
+  document.querySelectorAll('[data-copy]').forEach(function (b) { b.addEventListener('click', function () {
+    var code = $(b.dataset.copy), button = this, label = button.innerHTML;
     var done = function () { button.textContent = lang() === 'pt' ? 'Copiado' : 'Copied'; setTimeout(function () { button.innerHTML = label; }, 1500); };
     var select = function () { var range = document.createRange(); range.selectNodeContents(code); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(range); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code.textContent).then(done, select); else select();
-  });
+  }); });
 
   function renderReleases() {
     var t = T[lang()], list = $('rel-list');
@@ -113,7 +113,7 @@
     var main = assetOf(r, MAIN[os]);
     $('dl-ver').textContent = r.tag_name + ' · ' + date(r.published_at || r.created_at) + ' · ' + mb(main.size);
     $('dl-notes').href = r.html_url;
-    var links = { 'dl-btn': assetOf(r, 'windows'), 'dl-appimage': assetOf(r, 'appimage'), 'dl-deb': assetOf(r, 'deb'), 'dl-dmg': assetOf(r, 'mac') };
+    var links = { 'dl-btn': assetOf(r, 'windows'), 'dl-appimage': assetOf(r, 'appimage'), 'dl-deb': assetOf(r, 'deb'), 'dl-dmg': assetOf(r, 'mac'), 'dl-dmg-intel': assetOf(r, 'macintel') };
     Object.keys(links).forEach(function (id) { if (links[id]) $(id).href = links[id].browser_download_url; });
   }
 
