@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download GearMod — Windows and Linux</title>
+<meta name="description" content="Download GearMod for Windows or Linux (AppImage, .deb or a one-command install). Every published version, with SHA-256 checksums.">
+<meta name="theme-color" content="#0b0d12">
+<meta property="og:title" content="Download GearMod">
+<meta property="og:description" content="GearMod for Windows and Linux: installer, AppImage, .deb and a one-command install. Free and local.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://gearmod.dev/assets/board.png">
+<meta property="og:url" content="https://gearmod.dev/download">
+<link rel="canonical" href="https://gearmod.dev/download">
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="./"><img src="assets/logo.png" alt="">GearMod</a>
+    <div class="links">
+      <a href="./#features"><span lang="en">Features</span><span lang="pt">Recursos</span></a>
+      <a href="./#flow"><span lang="en">How it works</span><span lang="pt">Como funciona</span></a>
+      <a href="./#git">Git</a>
+      <a href="./#faq">FAQ</a>
+      <a href="./#contact"><span lang="en">Contact</span><span lang="pt">Contato</span></a>
+      <a class="gh" href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener" aria-label="GitHub"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span>GitHub</span></a>
+      <a class="cta" href="#download">Download</a>
+    </div>
+    <div class="lang" role="group" aria-label="Language"><button data-set="en">EN</button><button data-set="pt">PT</button></div>
+  </div>
+</nav>
+
+<main id="download" class="dl-page">
+  <div class="wrap">
+    <span class="eyebrow">Download</span>
+    <h1><span lang="en">Get GearMod</span><span lang="pt">Baixe o GearMod</span></h1>
+    <p class="lead"><span lang="en">Every version published on GitHub appears here automatically.</span><span lang="pt">Toda versão publicada no GitHub aparece aqui automaticamente.</span></p>
+
+    <!-- Each tab shows up only when the latest releases have its files. macOS also waits for MAC_ENABLED in the script. -->
+    <div class="os-tabs" role="tablist" aria-label="Platform">
+      <button type="button" role="tab" data-os-tab="windows" aria-selected="true">Windows</button>
+      <button type="button" role="tab" data-os-tab="linux" aria-selected="false" hidden>Linux</button>
+      <button type="button" role="tab" data-os-tab="mac" aria-selected="false" hidden>macOS</button>
+    </div>
+
+    <div class="dl-main">
+      <div class="dl-box" id="dl-latest">
+        <div class="ver" id="dl-ver"><span class="skeleton" style="display:inline-block;width:120px"></span></div>
+        <h3 class="for-windows">GearMod for Windows</h3>
+        <h3 class="for-linux">GearMod for Linux</h3>
+        <h3 class="for-mac">GearMod for macOS</h3>
+        <div class="sub for-windows"><span lang="en">Windows 10 or 11, 64-bit · per-user install, no admin rights</span><span lang="pt">Windows 10 ou 11, 64 bits · instalação por usuário, sem admin</span></div>
+        <div class="sub for-linux"><span lang="en">Linux, 64-bit (x64) · AppImage for any distribution, .deb for Debian and Ubuntu</span><span lang="pt">Linux, 64 bits (x64) · AppImage para qualquer distribuição, .deb para Debian e Ubuntu</span></div>
+        <div class="sub for-mac"><span lang="en">macOS 12 or later · Apple Silicon (M1 and later)</span><span lang="pt">macOS 12 ou mais novo · Apple Silicon (M1 em diante)</span></div>
+        <div class="cmd for-linux">
+          <div class="cmd-label"><span lang="en">Install or update with one command (checks the SHA-256 before installing):</span><span lang="pt">Instale ou atualize com um comando (confere o SHA-256 antes de instalar):</span></div>
+          <div class="cmd-line"><code id="install-cmd">curl -fsSL https://gearmod.dev/install.sh | sh</code><button type="button" class="btn small" id="copy-cmd"><span lang="en">Copy</span><span lang="pt">Copiar</span></button></div>
+          <div class="cmd-label"><span lang="en">Uses the .deb on Debian/Ubuntu and the AppImage elsewhere. <a href="install.sh" target="_blank" rel="noopener">Read the script</a> before running it.</span><span lang="pt">Usa o .deb no Debian/Ubuntu e o AppImage nas outras distros. <a href="install.sh" target="_blank" rel="noopener">Leia o script</a> antes de rodar.</span></div>
+        </div>
+        <div class="btns">
+          <a class="btn primary for-windows" id="dl-btn" href="https://github.com/flucassena/gearmod/releases/latest"><span lang="en">Download installer</span><span lang="pt">Baixar instalador</span></a>
+          <a class="btn primary for-linux" id="dl-appimage" href="https://github.com/flucassena/gearmod/releases/latest"><span lang="en">Download AppImage</span><span lang="pt">Baixar AppImage</span></a>
+          <a class="btn for-linux" id="dl-deb" href="https://github.com/flucassena/gearmod/releases/latest"><span lang="en">Download .deb</span><span lang="pt">Baixar .deb</span></a>
+          <a class="btn primary for-mac" id="dl-dmg" href="https://github.com/flucassena/gearmod/releases/latest"><span lang="en">Download for Mac</span><span lang="pt">Baixar para Mac</span></a>
+          <a class="btn" href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span lang="en">View repository</span><span lang="pt">Ver repositório</span></a>
+          <a class="btn" id="dl-notes" href="https://github.com/flucassena/gearmod/releases"><span lang="en">Release notes</span><span lang="pt">Notas da versão</span></a>
+        </div>
+        <div class="note for-windows"><span lang="en"><b>Not code-signed yet.</b> Windows SmartScreen may show “Windows protected your PC”. Click <b>More info</b>, then <b>Run anyway</b>. You can verify the download against <code>SHA256SUMS.txt</code> from the same release.</span><span lang="pt"><b>Ainda sem assinatura de código.</b> O SmartScreen do Windows pode mostrar “O Windows protegeu seu PC”. Clique em <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>. Você pode conferir o download com o <code>SHA256SUMS.txt</code> da mesma release.</span></div>
+        <div class="note for-linux"><span lang="en"><b>AppImage:</b> make it executable and run it: <code>chmod +x GearMod-*.AppImage &amp;&amp; ./GearMod-*.AppImage</code>. If it complains about FUSE, install <code>libfuse2</code> (<code>libfuse2t64</code> on Ubuntu 24.04). <b>.deb:</b> <code>sudo apt install ./GearMod-*.deb</code>, then open GearMod from the applications menu. Verify the download against <code>SHA256SUMS.txt</code> from the same release.</span><span lang="pt"><b>AppImage:</b> dê permissão de execução e rode: <code>chmod +x GearMod-*.AppImage &amp;&amp; ./GearMod-*.AppImage</code>. Se reclamar de FUSE, instale o <code>libfuse2</code> (<code>libfuse2t64</code> no Ubuntu 24.04). <b>.deb:</b> <code>sudo apt install ./GearMod-*.deb</code> e abra o GearMod pelo menu de aplicativos. Confira o download com o <code>SHA256SUMS.txt</code> da mesma release.</span></div>
+        <div class="note for-mac"><span lang="en"><b>Not notarized yet.</b> macOS may say the app “cannot be opened”. Drag GearMod to Applications, try to open it once, then go to <b>System Settings &gt; Privacy &amp; Security</b> and click <b>Open Anyway</b>. Verify the download against <code>SHA256SUMS.txt</code> from the same release.</span><span lang="pt"><b>Ainda sem notarização.</b> O macOS pode dizer que o app “não pode ser aberto”. Arraste o GearMod para Aplicativos, tente abrir uma vez e vá em <b>Ajustes do Sistema &gt; Privacidade e Segurança</b> e clique em <b>Abrir Mesmo Assim</b>. Confira o download com o <code>SHA256SUMS.txt</code> da mesma release.</span></div>
+      </div>
+      <div class="card">
+        <h3><span lang="en">Before you install</span><span lang="pt">Antes de instalar</span></h3>
+        <ul class="req">
+          <li class="for-windows"><span lang="en">Windows 10 or 11, 64-bit.</span><span lang="pt">Windows 10 ou 11, 64 bits.</span></li>
+          <li class="for-linux"><span lang="en">Linux, 64-bit (x64), with a desktop and a terminal emulator.</span><span lang="pt">Linux, 64 bits (x64), com ambiente gráfico e um emulador de terminal.</span></li>
+          <li class="for-mac"><span lang="en">macOS 12 or later on Apple Silicon.</span><span lang="pt">macOS 12 ou mais novo, com Apple Silicon.</span></li>
+          <li><a href="https://git-scm.com/downloads" rel="noopener">Git</a> <span lang="en">installed.</span><span lang="pt">instalado.</span></li>
+          <li lang="en">At least one agent CLI, installed and signed in: <a href="https://docs.claude.com/en/docs/claude-code" rel="noopener">Claude Code</a> or <a href="https://github.com/openai/codex" rel="noopener">Codex</a>.</li>
+          <li lang="pt">Ao menos uma CLI de agente instalada e logada: <a href="https://docs.claude.com/en/docs/claude-code" rel="noopener">Claude Code</a> ou <a href="https://github.com/openai/codex" rel="noopener">Codex</a>.</li>
+          <li class="for-windows"><span lang="en">To update, install the new version over the old one. Your data is kept.</span><span lang="pt">Para atualizar, instale a nova versão por cima. Seus dados são mantidos.</span></li>
+          <li class="for-linux"><span lang="en">To update, replace the AppImage with the new one, or install the new .deb with <code>apt</code>. Your data is kept.</span><span lang="pt">Para atualizar, troque o AppImage pelo novo, ou instale o .deb novo com o <code>apt</code>. Seus dados são mantidos.</span></li>
+          <li class="for-mac"><span lang="en">To update, drag the new version to Applications and replace the old one. Your data is kept.</span><span lang="pt">Para atualizar, arraste a nova versão para Aplicativos e substitua a antiga. Seus dados são mantidos.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="rel" aria-live="polite">
+      <div class="rel-head"><span><span lang="en">All versions</span><span lang="pt">Todas as versões</span></span><small id="rel-count"></small></div>
+      <div id="rel-list"><div class="rel-empty"><span class="skeleton" style="display:block;width:60%"></span></div></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>© <span id="year"></span> Francisco Lucas Sena · GearMod <span lang="en">is source-available under the</span><span lang="pt">é source-available sob a</span> <a href="https://github.com/flucassena/gearmod/blob/main/LICENSE.md">PolyForm Shield 1.0.0</a>.</div>
+    <div><a href="https://github.com/flucassena/gearmod">GitHub</a> · <a href="https://github.com/flucassena/gearmod/blob/main/SECURITY.md">Security</a> · <a href="https://github.com/flucassena/gearmod/blob/main/TRADEMARKS.md">Trademarks</a> · <a href="https://github.com/flucassena/gearmod/blob/main/THIRD-PARTY-NOTICES.md">Third-party notices</a></div>
+    <div style="flex-basis:100%"><span lang="en">Claude Code, Codex and other product names belong to their owners. GearMod is not affiliated with Anthropic or OpenAI.</span><span lang="pt">Claude Code, Codex e outros nomes de produto pertencem aos seus donos. O GearMod não é afiliado à Anthropic nem à OpenAI.</span></div>
+  </div>
+</footer>
+
+<script src="assets/site.js"></script>
+</body>
+</html>

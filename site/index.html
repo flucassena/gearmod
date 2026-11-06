@@ -7,212 +7,13 @@
 <meta name="description" content="GearMod turns your work into kanban cards and hands each one to a coding agent (Claude Code or Codex) in its own Git worktree. Everything runs on your machine.">
 <meta name="theme-color" content="#0b0d12">
 <meta property="og:title" content="GearMod — Shift gears. Build faster.">
-<meta property="og:description" content="A desktop workspace where coding agents work on cards in parallel, each in its own Git worktree. Free, local, Windows.">
+<meta property="og:description" content="A desktop workspace where coding agents work on cards in parallel, each in its own Git worktree. Free, local, Windows and Linux.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://gearmod.dev/assets/board.png">
 <meta property="og:url" content="https://gearmod.dev/">
 <link rel="canonical" href="https://gearmod.dev/">
 <link rel="icon" type="image/png" href="assets/logo.png">
-<style>
-:root{
-  --bg:#0b0d12;--bg2:#10131a;--card:#141823;--line:#222939;--text:#e8ebf2;--muted:#98a2b8;
-  --accent:#3b7bff;--accent2:#7aa7ff;--ok:#43d19e;--warn:#f2b84b;
-  --mono:ui-monospace,SFMono-Regular,Consolas,"Cascadia Mono",monospace;
-  --sans:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-}
-*{box-sizing:border-box}
-html{scroll-behavior:smooth;scroll-padding-top:76px}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
-body::before{content:"";position:fixed;inset:0;z-index:-1;background:
-  radial-gradient(900px 500px at 80% -10%,rgba(59,123,255,.18),transparent 60%),
-  radial-gradient(700px 400px at -10% 20%,rgba(122,167,255,.08),transparent 60%)}
-a{color:var(--accent2);text-decoration:none}a:hover{text-decoration:underline}
-img{max-width:100%;display:block}
-.wrap{width:min(1120px,100% - 40px);margin-inline:auto}
-section{padding:88px 0}
-h1,h2,h3{line-height:1.15;margin:0;letter-spacing:-.02em}
-h2{font-size:clamp(28px,4vw,40px);margin-bottom:14px}
-h3{font-size:19px;margin-bottom:8px}
-p{margin:0 0 14px}
-.lead{color:var(--muted);font-size:18px;max-width:680px}
-.eyebrow{font:600 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent2);margin-bottom:12px;display:block}
-code{font:.9em var(--mono);background:var(--card);border:1px solid var(--line);padding:1px 6px;border-radius:6px}
-
-/* language toggle: both versions are in the markup, CSS shows one */
-html[data-lang="en"] [lang="pt"],html[data-lang="pt"] [lang="en"]{display:none!important}
-
-/* nav */
-nav{position:sticky;top:0;z-index:20;background:rgba(11,13,18,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-nav .wrap{display:flex;align-items:center;gap:24px;height:64px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--text)}
-.brand{font-size:17px;letter-spacing:-.01em}.brand img{width:30px;height:30px}
-.brand:hover{text-decoration:none}
-.links{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:14.5px}
-.links a{display:inline-flex;align-items:center;height:36px;padding:0 12px;border-radius:8px;line-height:1;color:var(--muted)}.links a:hover{color:var(--text);background:rgba(255,255,255,.05);text-decoration:none}
-.lang{display:flex;height:36px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-.lang button{background:none;border:0;color:var(--muted);font:600 12px var(--mono);padding:0 11px;cursor:pointer}
-html[data-lang="en"] .lang [data-set="en"],html[data-lang="pt"] .lang [data-set="pt"]{background:var(--accent);color:#fff}
-@media(max-width:860px){.links a:not(.cta):not(.gh){display:none}.links a.links a.gh{gap:8px;padding:0 12px}
-.links a.gh svg{width:17px;height:17px}
-.final-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-@media(max-width:860px){.links a.gh span{display:none}.links a.gh{display:inline-flex;padding:0 10px}.links a.gh{margin-right:4px}}
-.cta{margin-left:0}}
-
-/* buttons */
-.btn{display:inline-flex;align-items:center;gap:10px;font-weight:600;border-radius:10px;padding:12px 20px;border:1px solid var(--line);color:var(--text);background:var(--card);cursor:pointer;font-size:15px}
-.btn:hover{text-decoration:none;border-color:#33405c}
-.btn.primary{background:linear-gradient(180deg,#4a85ff,#2f6bef);border-color:#4a85ff;color:#fff;box-shadow:0 8px 28px rgba(59,123,255,.35)}
-.btn.primary:hover{filter:brightness(1.08)}
-.btn.small{padding:8px 14px;font-size:13.5px}
-.links a.cta{color:#fff;background:var(--accent);padding:0 16px;margin-left:10px;font-weight:600}
-.links a.cta:hover{filter:brightness(1.1);background:var(--accent)}
-
-/* hero */
-.hero{padding:72px 0 40px;text-align:center}
-.hero .pill{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--line);background:var(--bg2);border-radius:999px;padding:5px 14px;font-size:13px;color:var(--muted);margin-bottom:26px}
-.hero .pill b{color:var(--ok);font-weight:600}
-.hero h1{font-size:clamp(38px,7vw,72px);margin-bottom:20px}
-.hero h1 em{font-style:normal;background:linear-gradient(90deg,var(--accent2),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero .lead{margin:0 auto 30px;text-align:center}
-.hero .actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-.hero .meta{margin-top:16px;color:var(--muted);font-size:13.5px}
-.shot{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--bg2);box-shadow:0 30px 80px rgba(0,0,0,.55)}
-.shot img{width:100%;height:auto}
-.hero .shot{margin-top:54px;position:relative}
-.hero .shot::after{content:"";position:absolute;inset:auto 0 0 0;height:90px;background:linear-gradient(transparent,var(--bg))}
-
-.carousel{position:relative;margin-top:54px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--bg2);box-shadow:0 30px 80px rgba(0,0,0,.55);touch-action:pan-y}
-.slides{position:relative;aspect-ratio:8/5}
-.slide{position:absolute;inset:0;margin:0;opacity:0;transition:opacity .5s;pointer-events:none}
-.slide.on{opacity:1;pointer-events:auto}
-.slide img{width:100%;height:100%;object-fit:cover;object-position:top}
-.slide figcaption{position:absolute;left:14px;bottom:14px;background:rgba(11,13,18,.78);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:999px;padding:5px 14px;font-size:13px;font-weight:600}
-.carousel .nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:rgba(11,13,18,.78);backdrop-filter:blur(8px);color:var(--text);font-size:24px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0 0 3px;opacity:0;transition:opacity .2s}
-.carousel:hover .nav,.carousel:focus-within .nav{opacity:1}
-.carousel .nav:hover{background:var(--accent);border-color:var(--accent)}
-.carousel .prev{left:12px}.carousel .next{right:12px}
-.dots{position:absolute;right:14px;bottom:18px;display:flex;gap:7px}
-.dot{width:9px;height:9px;border-radius:50%;border:0;padding:0;background:rgba(255,255,255,.3);cursor:pointer}
-.dot.on{background:var(--accent2);width:22px;border-radius:5px}
-@media(hover:none){.carousel .nav{opacity:1;width:36px;height:36px}}
-@media(max-width:700px){.slide figcaption{font-size:12px;left:10px;bottom:10px}.dots{right:10px;bottom:14px}.carousel{margin-top:36px}}
-.cap{font-size:13.5px;color:var(--muted);margin-top:10px;text-align:center}
-
-/* trust strip */
-.strip{padding:26px 0;border-block:1px solid var(--line);background:var(--bg2)}
-.strip .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;text-align:center}
-.strip b{display:block;font-size:15px}.strip span{font-size:13px;color:var(--muted)}
-@media(max-width:760px){.strip .wrap{grid-template-columns:1fr 1fr}}
-
-/* feature grid */
-.grid{display:grid;gap:18px;margin-top:40px}
-.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
-@media(max-width:900px){.g3,.g2{grid-template-columns:1fr}}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px}
-.card .ico{width:44px;height:44px;border-radius:12px;background:linear-gradient(180deg,rgba(59,123,255,.22),rgba(59,123,255,.08));border:1px solid rgba(122,167,255,.25);display:grid;place-items:center;margin-bottom:16px}
-.card:has(>.ico){display:grid;grid-template-columns:44px 1fr;column-gap:14px;align-items:center}
-.card:has(>.ico)>.ico{margin-bottom:0}
-.card:has(>.ico)>h3{margin:0}
-.card.pain{align-content:start}
-.card:has(>.ico)>.p{grid-column:1/-1;margin-top:16px}
-.card.pain .fix{grid-column:1/-1;margin-top:18px;padding-top:16px;border-top:1px dashed var(--line);font-size:14.5px;color:var(--text)}
-.card.pain .fix b{display:block;font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ok);margin-bottom:6px}
-.card:has(>.ico)>ul{grid-column:1/-1;margin-top:16px}
-.ico svg{width:22px;height:22px;fill:none;stroke:var(--accent2);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.ico circle{fill:var(--card)}
-.card ul{margin:10px 0 0;padding-left:18px;color:var(--muted);font-size:15px}
-.card li{margin-bottom:6px}
-.card p{color:var(--muted);font-size:15px;margin:0}
-
-/* split rows */
-.row{display:grid;grid-template-columns:1fr 1.25fr;gap:48px;align-items:center;margin-top:72px}
-.row.flip{grid-template-columns:1.25fr 1fr}.row.flip .txt{order:2}
-@media(max-width:900px){.row,.row.flip{grid-template-columns:1fr;gap:24px}.row.flip .txt{order:0}}
-.row .txt h3{font-size:26px}
-.row .txt p{color:var(--muted)}
-.ticks{list-style:none;padding:0;margin:14px 0 0}
-.ticks li{padding-left:26px;position:relative;margin-bottom:9px;color:var(--muted);font-size:15.5px}
-.ticks li::before{content:"✓";position:absolute;left:0;color:var(--ok);font-weight:700}
-.ticks b{color:var(--text)}
-
-/* steps */
-.steps{counter-reset:s;display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:40px}
-@media(max-width:1000px){.steps{grid-template-columns:1fr 1fr}}@media(max-width:600px){.steps{grid-template-columns:1fr}}
-.step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;counter-increment:s}
-.step::before{content:counter(s);display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--accent);font:700 14px var(--mono);margin-bottom:12px}
-.step h3{font-size:16px}.step p{font-size:14px;color:var(--muted);margin:0}
-
-/* score table */
-table{width:100%;border-collapse:collapse;font-size:14.5px}
-th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
-th{color:var(--muted);font:600 12px var(--mono);text-transform:uppercase;letter-spacing:.08em}
-.tag{display:inline-block;font:600 12px var(--mono);padding:2px 9px;border-radius:999px}
-.t-s{background:rgba(67,209,158,.14);color:var(--ok)}.t-m{background:rgba(242,184,75,.14);color:var(--warn)}.t-c{background:rgba(255,107,107,.14);color:#ff8a8a}
-
-/* flow diagram */
-.diagram{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;margin-top:36px;font-weight:600}
-.diagram span.node{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 18px}
-.diagram span.node.hl{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,123,255,.15)}
-.diagram i{color:var(--accent2);font-style:normal}
-
-/* download */
-.dl-main{display:grid;grid-template-columns:1.1fr 1fr;gap:28px;margin-top:36px}
-@media(max-width:900px){.dl-main{grid-template-columns:1fr}}
-.dl-box{background:linear-gradient(180deg,rgba(59,123,255,.12),transparent 70%),var(--card);border:1px solid #2b3956;border-radius:16px;padding:30px}
-.dl-box .ver{font:600 13px var(--mono);color:var(--accent2)}
-.dl-box h3{font-size:26px;margin:6px 0 4px}
-.dl-box .sub{color:var(--muted);font-size:14.5px;margin-bottom:22px}
-.dl-box .btns{display:flex;gap:10px;flex-wrap:wrap}
-.req{padding:0;margin:0;list-style:none;font-size:14.5px;color:var(--muted)}
-.req li{margin-bottom:10px;padding-left:24px;position:relative}
-.req li::before{content:"›";position:absolute;left:6px;color:var(--accent2);font-weight:700}
-.note{border-left:3px solid var(--warn);background:rgba(242,184,75,.07);padding:12px 16px;border-radius:0 10px 10px 0;font-size:14px;color:var(--muted);margin-top:16px}
-.rel{margin-top:34px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card)}
-.rel-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);font-weight:600}
-.rel-head small{color:var(--muted);font-weight:400}
-.rel-item{display:grid;grid-template-columns:1.1fr 1fr 2fr;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);font-size:14.5px}
-.rel-item:last-child{border-bottom:0}
-.rel-item .v{font-weight:700}
-.rel-item .d{color:var(--muted)}
-.rel-item .a{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.badge{font:600 11px var(--mono);padding:2px 8px;border-radius:999px;background:rgba(67,209,158,.14);color:var(--ok);margin-left:8px;vertical-align:middle}
-.badge.pre{background:rgba(242,184,75,.14);color:var(--warn)}
-.rel-empty{padding:22px 18px;color:var(--muted);font-size:14.5px}
-@media(max-width:700px){.rel-item{grid-template-columns:1fr}.rel-item .a{justify-content:flex-start}}
-.skeleton{height:14px;border-radius:6px;background:linear-gradient(90deg,var(--line),#2c3447,var(--line));background-size:200% 100%;animation:sk 1.2s infinite}
-@keyframes sk{to{background-position:-200% 0}}
-
-/* faq */
-details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin-bottom:10px}
-summary{cursor:pointer;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:12px}
-summary::after{content:"+";color:var(--accent2);font-size:20px;line-height:1}
-details[open] summary::after{content:"–"}
-details p{margin:12px 0 0;color:var(--muted);font-size:15px}
-
-/* contact + footer */
-.contact{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
-.contact .btn svg{width:18px;height:18px;fill:currentColor}
-footer{border-top:1px solid var(--line);padding:34px 0;color:var(--muted);font-size:13.5px}
-footer .wrap{display:flex;gap:18px 30px;flex-wrap:wrap;justify-content:space-between}
-footer a{color:var(--muted)}footer a:hover{color:var(--text)}
-.alt{background:var(--bg2);border-block:1px solid var(--line)}
-
-.textlink{align-self:center;color:var(--muted);font-size:15px;padding:12px 6px}
-.signnote{display:flex;gap:12px;align-items:flex-start;text-align:left;max-width:640px;margin:22px auto 0;padding:12px 16px;border:1px solid rgba(242,184,75,.28);background:rgba(242,184,75,.07);border-radius:12px;font-size:14px;color:var(--muted)}
-.signnote svg{flex:none;width:20px;height:20px;margin-top:2px;fill:none;stroke:var(--warn);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.signnote p{margin:0}.signnote b{color:var(--text)}
-.stickybar{display:none}
-@media(max-width:700px){
-  .stickybar{display:block;position:fixed;left:0;right:0;bottom:0;z-index:30;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:rgba(11,13,18,.92);backdrop-filter:blur(12px);border-top:1px solid var(--line);transform:translateY(110%);transition:transform .25s}
-  .stickybar.on{transform:none}
-  .stickybar .btn{width:100%;justify-content:center;min-height:48px}
-  .hero .actions .btn{width:100%;justify-content:center;min-height:48px}
-  .btn.small{min-height:44px;align-items:center}
-  footer{padding-bottom:90px}
-  section{padding:64px 0}
-}
-@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.skeleton{animation:none}}
-</style>
+<link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
 
@@ -226,7 +27,7 @@ footer a{color:var(--muted)}footer a:hover{color:var(--text)}
       <a href="#faq">FAQ</a>
       <a href="#contact"><span lang="en">Contact</span><span lang="pt">Contato</span></a>
       <a class="gh" href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener" aria-label="GitHub"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span>GitHub</span></a>
-      <a class="cta" href="#download">Download</a>
+      <a class="cta" href="download.html">Download</a>
     </div>
     <div class="lang" role="group" aria-label="Language"><button data-set="en">EN</button><button data-set="pt">PT</button></div>
   </div>
@@ -237,26 +38,32 @@ footer a{color:var(--muted)}footer a:hover{color:var(--text)}
     <div class="pill"><b>●</b> <span lang="en">Shift gears. Build faster. · Free · 100% local</span><span lang="pt">Shift gears. Build faster. · Grátis · 100% local</span></div>
     <h1><span lang="en">Run many coding agents at once.<br><em>Without the chaos.</em></span><span lang="pt">Rode vários agentes de código ao mesmo tempo.<br><em>Sem bagunça.</em></span></h1>
     <p class="lead"><span lang="en">Turn tasks into kanban cards and hand each one to Claude Code or Codex in its own Git worktree. You plan, review and merge.</span><span lang="pt">Transforme tarefas em cards e entregue cada um ao Claude Code ou Codex, numa worktree Git própria. Você planeja, revisa e mescla.</span></p>
+    <div class="platforms">
+      <span><span lang="en">Available for</span><span lang="pt">Disponível para</span></span>
+      <span class="plat"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm8.6-1.2L21 3v8.5h-9.4V4.3ZM3 12.5h7.5v7.1L3 18.5v-6Zm8.6 0H21V21l-9.4-1.3v-7.2Z"/></svg>Windows 10/11</span>
+      <span class="plat"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M12 2c-2.8 0-4.5 2.3-4.5 5.2 0 1.3.3 2.3-.6 3.6C5.4 12.9 4 15 4 17.2c0 1 .3 1.8.9 2.4-.6.5-.9 1-.9 1.6 0 .5.5.8 1.3.8h3.4c.9 0 1.6-.4 2-1h2.6c.4.6 1.1 1 2 1h3.4c.8 0 1.3-.3 1.3-.8 0-.6-.3-1.1-.9-1.6.6-.6.9-1.4.9-2.4 0-2.2-1.4-4.3-2.9-6.4-.9-1.3-.6-2.3-.6-3.6C16.5 4.3 14.8 2 12 2Zm0 9.5c-1.9 0-3.3 2-3.3 4.6S10.1 20 12 20s3.3-1.3 3.3-3.9-1.4-4.6-3.3-4.6ZM10.4 6.2a.8 1 0 1 0 0 2 .8 1 0 0 0 0-2Zm3.2 0a.8 1 0 1 0 0 2 .8 1 0 0 0 0-2Z"/></svg>Linux x64</span>
+      <span class="plat js-mac" hidden>macOS</span>
+    </div>
     <div class="actions">
       <a class="btn primary js-dl" id="hero-dl" href="https://github.com/flucassena/gearmod/releases/latest">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm8.6-1.2L21 3v8.5h-9.4V4.3ZM3 12.5h7.5v7.1L3 18.5v-6Zm8.6 0H21V21l-9.4-1.3v-7.2Z"/></svg>
-        <span><span lang="en">Download free for Windows</span><span lang="pt">Baixar grátis para Windows</span> <small data-latest-version></small></span>
+        <svg class="os-win" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm8.6-1.2L21 3v8.5h-9.4V4.3ZM3 12.5h7.5v7.1L3 18.5v-6Zm8.6 0H21V21l-9.4-1.3v-7.2Z"/></svg>
+        <span><span lang="en">Download free for <span class="js-os">Windows</span></span><span lang="pt">Baixar grátis para <span class="js-os">Windows</span></span> <small data-latest-version></small></span>
       </a>
       <a class="btn" href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span lang="en">View repository</span><span lang="pt">Ver repositório</span></a>
-      <a class="textlink" href="#flow"><span lang="en">or see a card go from idea to merge ↓</span><span lang="pt">ou veja um card da ideia ao merge ↓</span></a>
+      <a class="btn" href="download.html"><span lang="en">Other platforms and versions</span><span lang="pt">Outras plataformas e versões</span></a>
     </div>
-    <div class="meta"><span lang="en">Windows 10/11 (x64) · source-available · PolyForm Shield 1.0.0</span><span lang="pt">Windows 10/11 (x64) · código disponível · PolyForm Shield 1.0.0</span></div>
+    <div class="meta"><span lang="en">Free · source-available · PolyForm Shield 1.0.0</span><span lang="pt">Grátis · código disponível · PolyForm Shield 1.0.0</span></div>
     <div class="signnote">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z"/><path d="M12 8.5v4.2M12 16v.1"/></svg>
       <p>
-        <span lang="en"><b>Not code-signed yet.</b> Windows SmartScreen may warn you on first run. The code is open: <a href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener">read it on GitHub</a> and check the installer's SHA-256. <a href="#download">How to install</a></span>
-        <span lang="pt"><b>Ainda sem assinatura de código.</b> O SmartScreen do Windows pode avisar na primeira execução. O código é aberto: <a href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener">leia no GitHub</a> e confira o SHA-256 do instalador. <a href="#download">Como instalar</a></span>
+        <span lang="en"><b>Not code-signed yet.</b> On Windows, SmartScreen may warn you on first run. The code is open: <a href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener">read it on GitHub</a> and check the download's SHA-256. <a href="download.html">How to install</a></span>
+        <span lang="pt"><b>Ainda sem assinatura de código.</b> No Windows, o SmartScreen pode avisar na primeira execução. O código é aberto: <a href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener">leia no GitHub</a> e confira o SHA-256 do download. <a href="download.html">Como instalar</a></span>
       </p>
     </div>
     <div class="carousel" id="carousel" aria-roledescription="carousel" aria-label="GearMod screenshots">
       <div class="slides">
-        <figure class="slide on"><img src="assets/board.png" alt="The GearMod board with cards in Backlog, To do, Doing, Test and Done" width="1600" height="1000" fetchpriority="high"><figcaption><span lang="en">Board</span><span lang="pt">Quadro</span></figcaption></figure>
-        <figure class="slide"><img src="assets/card.png" alt="A card with its specification, plan and tasks" width="1600" height="1000" loading="lazy"><figcaption><span lang="en">Spec, plan and tasks</span><span lang="pt">Spec, plano e tarefas</span></figcaption></figure>
+        <figure class="slide on"><img src="assets/board.png" alt="The GearMod board with cards in Backlog, To do, Doing, Test and Done" width="1440" height="860" fetchpriority="high"><figcaption><span lang="en">Board</span><span lang="pt">Quadro</span></figcaption></figure>
+        <figure class="slide"><img src="assets/card.png" alt="A card with its specification, plan and tasks" width="1440" height="860" loading="lazy"><figcaption><span lang="en">Spec, plan and tasks</span><span lang="pt">Spec, plano e tarefas</span></figcaption></figure>
         <figure class="slide"><img src="assets/flow-choice.png" alt="The planning chat recommends a workflow and asks you to choose" width="1600" height="1000" loading="lazy"><figcaption><span lang="en">Planning chat</span><span lang="pt">Chat de planejamento</span></figcaption></figure>
         <figure class="slide"><img src="assets/card-execution.png" alt="The implementation chat with tasks done and the agent asking to commit" width="1600" height="1000" loading="lazy"><figcaption><span lang="en">Implementation</span><span lang="pt">Implementação</span></figcaption></figure>
         <figure class="slide"><img src="assets/git-graph.png" alt="The Git page: commit graph with branches and worktrees per card" width="1600" height="1000" loading="lazy"><figcaption><span lang="en">Git manager</span><span lang="pt">Gerenciador Git</span></figcaption></figure>
@@ -472,45 +279,6 @@ footer a{color:var(--muted)}footer a:hover{color:var(--text)}
   </div>
 </section>
 
-<section id="download" class="alt">
-  <div class="wrap">
-    <span class="eyebrow">Download</span>
-    <h2><span lang="en">Get GearMod for Windows</span><span lang="pt">Baixe o GearMod para Windows</span></h2>
-    <p class="lead"><span lang="en">Every version published on GitHub appears here automatically.</span><span lang="pt">Toda versão publicada no GitHub aparece aqui automaticamente.</span></p>
-
-    <div class="dl-main">
-      <div class="dl-box" id="dl-latest">
-        <div class="ver" id="dl-ver"><span class="skeleton" style="display:inline-block;width:120px"></span></div>
-        <h3>GearMod for Windows</h3>
-        <div class="sub" id="dl-sub"><span lang="en">Windows 10 or 11, 64-bit · per-user install, no admin rights</span><span lang="pt">Windows 10 ou 11, 64 bits · instalação por usuário, sem admin</span></div>
-        <div class="btns">
-          <a class="btn primary" id="dl-btn" href="https://github.com/flucassena/gearmod/releases/latest"><span lang="en">Download installer</span><span lang="pt">Baixar instalador</span></a>
-          <a class="btn" href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span lang="en">View repository</span><span lang="pt">Ver repositório</span></a>
-          <a class="btn" id="dl-notes" href="https://github.com/flucassena/gearmod/releases"><span lang="en">Release notes</span><span lang="pt">Notas da versão</span></a>
-        </div>
-        <div class="note"><span lang="en"><b>Not code-signed yet.</b> Windows SmartScreen may show “Windows protected your PC”. Click <b>More info</b>, then <b>Run anyway</b>. You can verify the download against <code>SHA256SUMS.txt</code> from the same release.</span><span lang="pt"><b>Ainda sem assinatura de código.</b> O SmartScreen do Windows pode mostrar “O Windows protegeu seu PC”. Clique em <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>. Você pode conferir o download com o <code>SHA256SUMS.txt</code> da mesma release.</span></div>
-      </div>
-      <div class="card">
-        <h3><span lang="en">Before you install</span><span lang="pt">Antes de instalar</span></h3>
-        <ul class="req">
-          <li lang="en">Windows 10 or 11, 64-bit. Other platforms are not supported yet.</li>
-          <li lang="pt">Windows 10 ou 11, 64 bits. Outras plataformas ainda não são suportadas.</li>
-          <li><a href="https://git-scm.com/downloads" rel="noopener">Git</a> <span lang="en">installed.</span><span lang="pt">instalado.</span></li>
-          <li lang="en">At least one agent CLI, installed and signed in: <a href="https://docs.claude.com/en/docs/claude-code" rel="noopener">Claude Code</a> or <a href="https://github.com/openai/codex" rel="noopener">Codex</a>.</li>
-          <li lang="pt">Ao menos uma CLI de agente instalada e logada: <a href="https://docs.claude.com/en/docs/claude-code" rel="noopener">Claude Code</a> ou <a href="https://github.com/openai/codex" rel="noopener">Codex</a>.</li>
-          <li lang="en">To update, install the new version over the old one. Your data is kept.</li>
-          <li lang="pt">Para atualizar, instale a nova versão por cima. Seus dados são mantidos.</li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="rel" aria-live="polite">
-      <div class="rel-head"><span><span lang="en">All versions</span><span lang="pt">Todas as versões</span></span><small id="rel-count"></small></div>
-      <div id="rel-list"><div class="rel-empty"><span class="skeleton" style="display:block;width:60%"></span></div></div>
-    </div>
-  </div>
-</section>
-
 <section id="faq">
   <div class="wrap" style="max-width:820px">
     <span class="eyebrow">FAQ</span>
@@ -523,8 +291,8 @@ footer a{color:var(--muted)}footer a:hover{color:var(--text)}
         <p lang="en">GearMod is free to use. The agents use your own Claude or OpenAI plan.</p>
         <p lang="pt">O GearMod é gratuito. Os agentes usam o seu próprio plano da Claude ou da OpenAI.</p></details>
       <details><summary><span lang="en">Does it work on macOS or Linux?</span><span lang="pt">Funciona em macOS ou Linux?</span></summary>
-        <p lang="en">Not yet. Windows is the only supported platform for now.</p>
-        <p lang="pt">Ainda não. Por enquanto, só Windows.</p></details>
+        <p lang="en">Linux, yes: there is an AppImage and a .deb for 64-bit (x64) systems. macOS is not supported yet.</p>
+        <p lang="pt">Linux, sim: há um AppImage e um .deb para sistemas de 64 bits (x64). O macOS ainda não é suportado.</p></details>
       <details><summary><span lang="en">Which agents are supported?</span><span lang="pt">Quais agentes são suportados?</span></summary>
         <p lang="en">Claude Code and Codex. Gemini CLI support exists but is disabled for now.</p>
         <p lang="pt">Claude Code e Codex. O suporte ao Gemini CLI existe, mas está desativado por enquanto.</p></details>
@@ -538,12 +306,13 @@ footer a{color:var(--muted)}footer a:hover{color:var(--text)}
   </div>
 </section>
 
-<section style="text-align:center">
+<section id="get" style="text-align:center">
   <div class="wrap">
     <h2><span lang="en">Ready to shift gears?</span><span lang="pt">Pronto para trocar de marcha?</span></h2>
     <p class="lead" style="margin:0 auto 26px"><span lang="en">Free, installs in a minute, no account. Bring the Claude Code or Codex you already use.</span><span lang="pt">Grátis, instala em um minuto, sem conta. Traga o Claude Code ou o Codex que você já usa.</span></p>
-    <a class="btn primary js-dl" href="https://github.com/flucassena/gearmod/releases/latest"><span lang="en">Download free for Windows</span><span lang="pt">Baixar grátis para Windows</span> <small data-latest-version></small></a>
+    <a class="btn primary js-dl" href="https://github.com/flucassena/gearmod/releases/latest"><span lang="en">Download free for <span class="js-os">Windows</span></span><span lang="pt">Baixar grátis para <span class="js-os">Windows</span></span> <small data-latest-version></small></a>
     <a class="btn" style="margin-left:10px" href="https://github.com/flucassena/gearmod" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg><span lang="en">View repository</span><span lang="pt">Ver repositório</span></a>
+    <a class="btn" style="margin-left:10px" href="download.html"><span lang="en">Other platforms and versions</span><span lang="pt">Outras plataformas e versões</span></a>
   </div>
 </section>
 
@@ -569,77 +338,12 @@ footer a{color:var(--muted)}footer a:hover{color:var(--text)}
   </div>
 </footer>
 
-<div class="stickybar" id="stickybar"><a class="btn primary js-dl" href="https://github.com/flucassena/gearmod/releases/latest"><span lang="en">Download free for Windows</span><span lang="pt">Baixar grátis para Windows</span> <small data-latest-version></small></a></div>
+<div class="stickybar" id="stickybar"><a class="btn primary js-dl" href="https://github.com/flucassena/gearmod/releases/latest"><span lang="en">Download free for <span class="js-os">Windows</span></span><span lang="pt">Baixar grátis para <span class="js-os">Windows</span></span> <small data-latest-version></small></a></div>
 
+<script src="assets/site.js"></script>
 <script>
 (function () {
-  var REPO = 'flucassena/gearmod';
   var $ = function (id) { return document.getElementById(id); };
-  var root = document.documentElement;
-
-  /* ---- language: saved choice, else browser language ---- */
-  function setLang(l) {
-    root.dataset.lang = l; root.lang = l;
-    try { localStorage.setItem('gm-lang', l); } catch (e) {}
-    renderReleases();
-  }
-  var saved = null; try { saved = localStorage.getItem('gm-lang'); } catch (e) {}
-  root.dataset.lang = saved || (/^pt/i.test(navigator.language || '') ? 'pt' : 'en');
-  document.querySelectorAll('.lang button').forEach(function (b) { b.addEventListener('click', function () { setLang(b.dataset.set); }); });
-  $('year').textContent = new Date().getFullYear();
-
-  /* ---- releases: read live from the GitHub API, so a new tag shows up with no redeploy ---- */
-  var releases = null;
-  var T = {
-    en: { latest: 'Latest', pre: 'Pre-release', dl: 'Download', notes: 'Notes', sums: 'SHA-256', none: 'No release published yet. Check back soon, or build from source (see the README).', fail: 'Could not load the version list. Open the releases page on GitHub.', all: 'See on GitHub', count: function (n) { return n + (n === 1 ? ' version' : ' versions'); }, installer: 'Windows 10/11 (x64) · ' },
-    pt: { latest: 'Mais recente', pre: 'Pré-release', dl: 'Baixar', notes: 'Notas', sums: 'SHA-256', none: 'Nenhuma release publicada ainda. Volte em breve, ou compile do código-fonte (veja o README).', fail: 'Não deu para carregar a lista de versões. Abra a página de releases no GitHub.', all: 'Ver no GitHub', count: function (n) { return n + (n === 1 ? ' versão' : ' versões'); }, installer: 'Windows 10/11 (x64) · ' }
-  };
-  function lang() { return root.dataset.lang === 'pt' ? 'pt' : 'en'; }
-  function mb(n) { return (n / 1048576).toFixed(0) + ' MB'; }
-  function date(s) { return new Date(s).toLocaleDateString(lang() === 'pt' ? 'pt-BR' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' }); }
-  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function exeOf(r) { return (r.assets || []).filter(function (a) { return /\.exe$/i.test(a.name); })[0]; }
-  function sumsOf(r) { return (r.assets || []).filter(function (a) { return /SHA256SUMS/i.test(a.name); })[0]; }
-
-  function renderReleases() {
-    var t = T[lang()], list = $('rel-list');
-    if (releases === null) return;
-    if (releases === false) { list.innerHTML = '<div class="rel-empty">' + t.fail + ' <a href="https://github.com/' + REPO + '/releases">' + t.all + '</a></div>'; return; }
-    var rows = releases.filter(function (r) { return !r.draft && exeOf(r); });
-    $('rel-count').textContent = rows.length ? t.count(rows.length) : '';
-    if (!rows.length) { list.innerHTML = '<div class="rel-empty">' + t.none + '</div>'; return; }
-    var firstStable = rows.filter(function (r) { return !r.prerelease; })[0] || rows[0];
-    list.innerHTML = rows.map(function (r) {
-      var exe = exeOf(r), sums = sumsOf(r);
-      var badge = r.id === firstStable.id ? '<span class="badge">' + t.latest + '</span>' : (r.prerelease ? '<span class="badge pre">' + t.pre + '</span>' : '');
-      return '<div class="rel-item"><div class="v">' + esc(r.name || r.tag_name) + badge + '</div>' +
-        '<div class="d">' + date(r.published_at || r.created_at) + ' · ' + mb(exe.size) + '</div>' +
-        '<div class="a"><a class="btn small primary" href="' + esc(exe.browser_download_url) + '">' + t.dl + '</a>' +
-        (sums ? '<a class="btn small" href="' + esc(sums.browser_download_url) + '">' + t.sums + '</a>' : '') +
-        '<a class="btn small" href="' + esc(r.html_url) + '">' + t.notes + '</a></div></div>';
-    }).join('');
-    paintLatest(firstStable);
-  }
-
-  function paintLatest(r) {
-    var exe = exeOf(r); if (!exe) return;
-    $('dl-ver').textContent = r.tag_name + ' · ' + date(r.published_at || r.created_at) + ' · ' + mb(exe.size);
-    $('dl-btn').href = exe.browser_download_url;
-    $('dl-notes').href = r.html_url;
-    document.querySelectorAll('.js-dl').forEach(function (el) { el.href = exe.browser_download_url; });
-    document.querySelectorAll('[data-latest-version]').forEach(function (el) { el.textContent = r.tag_name; });
-  }
-
-  /* cache for 10 min: the unauthenticated API allows 60 requests/hour per IP */
-  function load() {
-    var key = 'gm-releases', now = Date.now();
-    try { var c = JSON.parse(sessionStorage.getItem(key) || 'null'); if (c && now - c.t < 600000) { releases = c.d; return renderReleases(); } } catch (e) {}
-    fetch('https://api.github.com/repos/' + REPO + '/releases?per_page=30', { headers: { Accept: 'application/vnd.github+json' } })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function (d) { releases = d; try { sessionStorage.setItem(key, JSON.stringify({ t: now, d: d })); } catch (e) {} renderReleases(); })
-      .catch(function () { releases = false; $('dl-ver').textContent = ''; renderReleases(); });
-  }
-  load();
 
   /* hero carousel: autoplay, pauses on hover/focus or when off screen, arrows, dots and swipe */
   (function () {
@@ -663,8 +367,8 @@ footer a{color:var(--muted)}footer a:hover{color:var(--text)}
     play();
   })();
 
-  /* mobile: the sticky download bar appears once the hero is out of view and hides at the download section */
-  var bar = $('stickybar'), hero = document.querySelector('.hero'), dl = $('download'), seen = { hero: true, dl: false };
+  /* mobile: the sticky download bar appears once the hero is out of view and hides at the final call to action */
+  var bar = $('stickybar'), hero = document.querySelector('.hero'), dl = $('get'), seen = { hero: true, dl: false };
   function upd() { bar.classList.toggle('on', !seen.hero && !seen.dl); }
   if ('IntersectionObserver' in window) {
     new IntersectionObserver(function (e) { seen.hero = e[0].isIntersecting; upd(); }).observe(hero);
