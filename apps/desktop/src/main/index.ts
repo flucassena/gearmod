@@ -16,6 +16,7 @@ import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { registerIpc } from './ipc'
 import { readAbout, UpdateService } from './updater'
+import { boundsFor, readWindowState, writeWindowState } from './window-state'
 import { release as osRelease, version as osVersion } from 'node:os'
 import { SpecKitRuntime } from './speckit'
 import { McpRegistry } from './mcp-registry'
@@ -257,11 +258,15 @@ let mainWindow: BrowserWindow | undefined
 
 /** Main window or, with `popout`, an extra window with only one part of the app (chat, Git or board) — all state lives in the main process, so both stay up to date. */
 async function createWindow(popout?: { target: PopoutTarget; bounds: Electron.Rectangle }): Promise<BrowserWindow> {
+  // The main window opens as it was left (size, position, maximized); the first time, maximized. Popouts keep the bounds they were given.
+  const stateFile = join(dataDir, 'window-state.json')
+  const saved = popout ? null : readWindowState(stateFile)
   const window = new BrowserWindow({
     width: 1100,
     height: 760,
     minWidth: popout ? 480 : 760,
     minHeight: popout ? 360 : 560,
+    ...(saved ? boundsFor(saved, screen.getAllDisplays().map((display) => display.workArea)) : {}),
     ...(popout?.bounds ?? {}),
     show: false,
     backgroundColor: '#0b0b0b',
@@ -279,7 +284,14 @@ async function createWindow(popout?: { target: PopoutTarget; bounds: Electron.Re
   })
   if (!popout) mainWindow = window
   if (lastTaskbarIcon) window.setAppDetails({ appId: 'dev.gearmod.desktop', appIconPath: lastTaskbarIcon, appIconIndex: 0 })
-  window.once('ready-to-show', () => window.show())
+  window.once('ready-to-show', () => { if (!popout && (saved?.maximized ?? true)) window.maximize(); window.show() })
+  if (!popout) {
+    let timer: NodeJS.Timeout | undefined
+    const remember = (): void => { if (window.isDestroyed() || window.isMinimized() || window.isFullScreen()) return; const { x, y, width, height } = window.getNormalBounds(); writeWindowState(stateFile, { x, y, width, height, maximized: window.isMaximized() }) }
+    const later = (): void => { clearTimeout(timer); timer = setTimeout(remember, 500) }
+    window.on('resize', later); window.on('move', later); window.on('maximize', later); window.on('unmaximize', later)
+    window.on('close', () => { clearTimeout(timer); remember() })  // also when it only hides in the tray
+  }
   // Without the menu (File, Edit…) its shortcuts go away; in development, F12 / Ctrl+Shift+I opens the devtools and Ctrl+R reloads.
   if (!app.isPackaged) window.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return
