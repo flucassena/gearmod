@@ -192,6 +192,7 @@ export const shell: typeof source = {
     newFreeChatTip: 'New free chat in this project',
     addAgent: 'Add agent',
     newFreeChatIn: (name: string) => `New free chat in ${name}`,
+    settingsWithAppUpdate: 'Settings · a new GearMod version is available',
     settingsWithUpdate: 'Settings · an agent update is available',
     settingsLabelWithUpdate: 'Settings, an agent update is available',
     projectActions: (name: string) => `Actions for project ${name}`,

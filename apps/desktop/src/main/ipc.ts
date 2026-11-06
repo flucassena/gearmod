@@ -55,6 +55,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'no
 import { randomUUID } from 'node:crypto'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { tm } from './i18n'
+import type { UpdateService } from './updater'
 
 /** Attachment types the chat may open in the system's app: documents, spreadsheets, text, images. */
 const openableAttachment = /^\.(pdf|docx?|dotx?|xlsx?|xlsm|csv|tsv|pptx?|odt|ods|odp|rtf|txt|md|json|jsonl|log|xml|ya?ml|png|jpe?g|gif|webp|bmp|svg|ico)$/i
@@ -124,6 +125,8 @@ interface Services {
   chooseSkillSource(): Promise<string | null>
   saveTextFile(input: { content: string; defaultName: string }): Promise<{ saved: boolean; path: string | null }>
   appVersion: string
+  updates: UpdateService
+  about(): Promise<import('@gearmod/contracts').AppAbout>
   dataDir: string
   reopen(): Promise<void>
 }
@@ -287,6 +290,10 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'workspace:versions': (input: { projectId: string; cardId: string | null; path: string }) => fileVersions(workspaceRoots(input), input.path, { git: nativeGit, baseFor: (top) => input.cardId ? services.worktrees.baseFor(input.cardId, top) : Promise.resolve(null) }),
     'workspace:write': (input: { projectId: string; cardId: string | null; path: string; content: string; expected: string }) => writeProjectFile(workspaceRoots(input), input.path, input.content, input.expected),
     'windows:return-file': (input: { projectId: string; cardId: string | null; path: string }) => { workspaceRoots(input); services.returnFile?.(input); return {} },
+    'app:about': () => services.about(),
+    'updates:state': () => services.updates.get(),
+    'updates:check': () => services.updates.check(),
+    'updates:install': () => services.updates.install(),
     'app:info': () => ({ appVersion: services.appVersion, schemaVersion: services.database.schemaVersion(), dataDir: services.dataDir }),
     'notes:list': () => services.notes.list(),
     'notes:create': (input: { body: string }) => services.notes.create(input.body),

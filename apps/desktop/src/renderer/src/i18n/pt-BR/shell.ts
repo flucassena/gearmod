@@ -191,6 +191,7 @@ export const shell = {
     newFreeChatTip: 'Novo chat livre neste projeto',
     addAgent: 'Adicionar agente',
     newFreeChatIn: (name: string) => `Novo chat livre em ${name}`,
+    settingsWithAppUpdate: 'Configurações · há uma nova versão do GearMod',
     settingsWithUpdate: 'Configurações · há atualização de agente disponível',
     settingsLabelWithUpdate: 'Configurações, há atualização de agente disponível',
     projectActions: (name: string) => `Ações do projeto ${name}`,

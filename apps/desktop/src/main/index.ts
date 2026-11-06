@@ -1,7 +1,7 @@
 import { pngToIco, tintIcon } from './brandIcon'
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, safeStorage, screen, shell, Tray, utilityProcess, type OpenDialogOptions } from 'electron'
-import { existsSync } from 'node:fs'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { existsSync, statSync } from 'node:fs'
+import { chmod, copyFile, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { pathToFileURL } from 'node:url'
@@ -12,7 +12,11 @@ import { SpecToolsService } from './spec-tools'
 import { ToolUpdateService } from './tool-updates'
 import { BackupService } from './backup'
 import { AppDatabase, SchemaTooNewError } from './database'
+import { execFile, spawn } from 'node:child_process'
+import { promisify } from 'node:util'
 import { registerIpc } from './ipc'
+import { readAbout, UpdateService } from './updater'
+import { release as osRelease, version as osVersion } from 'node:os'
 import { SpecKitRuntime } from './speckit'
 import { McpRegistry } from './mcp-registry'
 import { GeminiCliAdapter } from './gemini-adapter'
@@ -185,6 +189,29 @@ const orchestrator = new AgentOrchestrator(conversations, { codex: new CodexAppS
   void autoResume.onFinished({ ...info, profileId: conversations.context(info.chatId).profile.id }).catch(() => undefined)
 }, usageLedger, profiles, speckit, mcpRegistry)
 const pushEvent = (eventType: string, payload: Record<string, unknown>): void => BrowserWindow.getAllWindows().forEach((window) => window.webContents.send('runs:event-pushed', { runId: '', eventType, payload }))
+/** Build date of the packaged app: when its `app.asar` was written (null in development). */
+function aboutBuildDate(): string | null { try { return app.isPackaged ? statSync(join(process.resourcesPath, 'app.asar')).mtime.toISOString() : null } catch { return null } }
+
+// The installer runs apart from the app, which quits right after it starts (the Windows installer cannot replace files in use).
+const updates = new UpdateService({
+  currentVersion: appVersion, platform: process.platform, repo: 'flucassena/gearmod', downloadDir: join(app.getPath('temp'), 'gearmod-update'),
+  emit: (state) => pushEvent('gearmod/app-update', { ...state }),
+  appImagePath: process.env.APPIMAGE,
+  launch: async (file) => {
+    if (process.platform === 'win32') { spawn(file, [], { detached: true, stdio: 'ignore' }).unref(); return }
+    const appImage = process.env.APPIMAGE
+    if (appImage) {
+      // Replacing the file (rename) is safe while it runs; the next start already uses the new one. `execPath` because the running copy lives in a temporary mount.
+      const next = `${appImage}.new`
+      await copyFile(file, next); await chmod(next, 0o755); await rename(next, appImage)
+      app.relaunch({ execPath: appImage }); return
+    }
+    // Debian package: the system asks for the administrator password (polkit) and apt resolves the dependencies.
+    await promisify(execFile)('pkexec', ['apt-get', 'install', '-y', file])
+    app.relaunch()
+  },
+  quit: () => { quitting = true; app.quit() }
+})
 const terminals = new TerminalService(pushEvent)
 const fileWatch = new FileWatchService(pushEvent)
 const autoResume = new AutoResumeService({
@@ -441,8 +468,9 @@ app.whenReady().then(async () => {
   await openDatabase()
   setMainLocale(settings.get().idioma)  // only after opening the database: before that the settings cannot be read
   await mcpBridge.listen()
-  disposeIpc = registerIpc(ipcMain, { database, speckit, pullRequests, gitAccounts, mcp: mcpRegistry, backups, notes, settings, profiles, projects, board, git, chooseDirectory, chooseFiles, agentProbes, conversations, orchestrator, worktrees, quality, executions, agentConfigs, skills, constitution, checklists, voice, usage, collab, gitManager, history, playwright, specTools, toolUpdates, approvals, sddResolver, sddWriter, dbManager, fileWatch, terminals, returnFile, codeIndex, codeRoots: projectCodeRoots, codeIndexSettings, ...fileActions, openExternal: (url) => shell.openExternal(url), setBrandColor, setTitleBarTheme: (light) => { for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay(process.platform, light, titleBarHeight)) }, openWindow: openPopout, placeWindow: (placement) => { const window = BrowserWindow.getFocusedWindow(); if (window) placeWindow(window, placement) }, openPath: async (path) => { await mkdir(path, { recursive: true }); const error = await shell.openPath(path); if (error) throw new Error(error) }, chooseSkillSource, saveTextFile, appVersion, dataDir, reopen: openDatabase })
+  disposeIpc = registerIpc(ipcMain, { updates, about: () => readAbout(app.getAppPath(), appVersion, { versions: process.versions, system: `${osVersion()} ${osRelease()} (${process.arch})`, buildDate: aboutBuildDate(), dataDir }), database, speckit, pullRequests, gitAccounts, mcp: mcpRegistry, backups, notes, settings, profiles, projects, board, git, chooseDirectory, chooseFiles, agentProbes, conversations, orchestrator, worktrees, quality, executions, agentConfigs, skills, constitution, checklists, voice, usage, collab, gitManager, history, playwright, specTools, toolUpdates, approvals, sddResolver, sddWriter, dbManager, fileWatch, terminals, returnFile, codeIndex, codeRoots: projectCodeRoots, codeIndexSettings, ...fileActions, openExternal: (url) => shell.openExternal(url), setBrandColor, setTitleBarTheme: (light) => { for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay(process.platform, light, titleBarHeight)) }, openWindow: openPopout, placeWindow: (placement) => { const window = BrowserWindow.getFocusedWindow(); if (window) placeWindow(window, placement) }, openPath: async (path) => { await mkdir(path, { recursive: true }); const error = await shell.openPath(path); if (error) throw new Error(error) }, chooseSkillSource, saveTextFile, appVersion, dataDir, reopen: openDatabase })
   Menu.setApplicationMenu(null)  // no File/Edit/View/Window/Help: the top strip belongs to the app
+  if (app.isPackaged) updates.start()  // the development build does not look for releases
   createTray()
   await createWindow()
   autoResume.start()  // checks every 30 s whether it is time to resume something that stopped because of a usage limit
@@ -463,4 +491,4 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 // can still cancel the quit (see `will-prevent-unload`).
 app.on('before-quit', () => { quitting = true })
 // Only after all windows have closed (nobody cancelled) are agents, terminals, tray and database shut down.
-app.on('will-quit', () => { orchestrator.shutdown(); autoResume.stop(); terminals.dispose(); fileWatch.dispose(); codeIndex.dispose(); tray?.destroy(); disposeIpc?.(); void mcpBridge.close(); void dbSessions.closeAll(); database.close() })
+app.on('will-quit', () => { updates.stop(); orchestrator.shutdown(); autoResume.stop(); terminals.dispose(); fileWatch.dispose(); codeIndex.dispose(); tray?.destroy(); disposeIpc?.(); void mcpBridge.close(); void dbSessions.closeAll(); database.close() })

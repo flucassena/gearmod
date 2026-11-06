@@ -20,6 +20,29 @@ export const backupSummarySchema = z.object({
   reason: z.string()
 })
 
+/** Update of the app itself: the latest GitHub Release compared with the running version. */
+export const appUpdateSchema = z.object({
+  current: z.string(),
+  latest: z.string().nullable(),
+  available: z.boolean(),
+  notes: z.string(),
+  publishedAt: z.string().nullable(),
+  url: z.string(),
+  /** True when the installer can be downloaded and run by the app (Windows); elsewhere the release page opens. */
+  canInstall: z.boolean(),
+  /** Terminal command that installs the update by hand (Debian package only); null when there is none. */
+  manualCommand: z.string().nullable(),
+  checkedAt: z.string().nullable(),
+  checking: z.boolean(),
+  /** Download progress (0 to 1) while `installing`. */
+  progress: z.number().min(0).max(1).nullable(),
+  installing: z.boolean(),
+  error: z.string().nullable()
+})
+export type AppUpdate = z.output<typeof appUpdateSchema>
+export const appAboutSchema = z.object({ name: z.string(), version: z.string(), author: z.string(), authorEmail: z.string().nullable(), license: z.string(), homepage: z.string(), buildDate: z.string().nullable(), electron: z.string(), chromium: z.string(), node: z.string(), v8: z.string(), system: z.string(), dataDir: z.string() })
+export type AppAbout = z.output<typeof appAboutSchema>
+
 export const appInfoSchema = z.object({
   appVersion: z.string(),
   schemaVersion: z.number().int().nonnegative(),
@@ -377,6 +400,10 @@ export type CodeIndexStatus = z.output<typeof codeIndexStatusSchema>
 
 export const ipcContracts = {
   'app:info': { input: z.undefined(), output: appInfoSchema },
+  'app:about': { input: z.undefined(), output: appAboutSchema },
+  'updates:state': { input: z.undefined(), output: appUpdateSchema },
+  'updates:check': { input: z.undefined(), output: appUpdateSchema },
+  'updates:install': { input: z.undefined(), output: appUpdateSchema },
   'approvals:list': { input: z.object({ cardId: uuid.optional() }).strict(), output: z.array(approvalSchema) },
   'approvals:decide': { input: z.object({ id: uuid, approve: z.boolean(), note: z.string().max(4000).optional() }).strict(), output: approvalSchema },
   'approvals:apply-constitution': { input: z.object({ id: uuid }).strict(), output: approvalSchema },

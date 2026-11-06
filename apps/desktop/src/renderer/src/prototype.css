@@ -2966,3 +2966,10 @@ body:has(.overlay) .viewdock.floating{display:none}
 
 .modal h2:has(.titlein-err){position:relative}.modal h2 .titlein-err{position:absolute;left:0;top:100%;margin:3px 0 0;white-space:nowrap;line-height:1.2}
 .modal h2 .titlein-err{z-index:30;margin-top:6px;padding:4px 9px;border-radius:7px;background:var(--surface-2,#1b2321);border:1px solid var(--cl-d8665d);box-shadow:0 6px 18px rgba(0,0,0,.4);pointer-events:none}
+
+.about-version{margin:0 0 6px;font-size:13px;color:var(--muted)}.about-status{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}.about-status small{margin:0}
+.about-progress{position:relative;height:22px;border-radius:7px;overflow:hidden;background:var(--surface-2,#1b2321);border:1px solid var(--border);margin-bottom:10px}.about-progress i{position:absolute;inset:0 auto 0 0;background:var(--accent-bg,color-mix(in srgb,var(--accent) 30%,transparent));transition:width .15s}.about-progress span{position:relative;display:block;text-align:center;font-size:11.5px;line-height:20px}
+.about-notes{max-height:260px;overflow:auto;font-size:13px}.about-credits p{margin:0 0 10px}.about-credits p:last-child{margin:0}.about-credits a{color:var(--accent-strong,var(--accent));cursor:pointer}
+.about-command{margin-top:12px}.about-command>div{display:flex;align-items:center;gap:8px;margin-top:4px}.about-command code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;padding:6px 9px;border-radius:7px;background:var(--surface-2,#1b2321);border:1px solid var(--border);font-size:12px}
+.about-head{display:flex;align-items:center;gap:16px;margin-bottom:12px}.about-head h3{margin:0 0 4px;font-size:20px}.about-head p{margin:0 0 2px;font-size:13px;color:var(--muted)}.about-logo{flex:none}
+.about-facts{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0 0 12px;font-size:12.5px}.about-facts dt{color:var(--muted)}.about-facts dd{margin:0;overflow-wrap:anywhere}.about-oss{margin:0 0 12px;font-size:12.5px;color:var(--muted)}.about-oss a{color:var(--accent-strong,var(--accent));cursor:pointer}

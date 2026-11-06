@@ -57,7 +57,7 @@ describe('file-first SDD IPC (G10)', () => {
       gitManager: unavailable, pullRequests: unavailable, gitAccounts: unavailable, history, playwright: unavailable, fileWatch: unavailable, specTools: unavailable, speckit: unavailable, mcp: unavailable, toolUpdates: unavailable,
       approvals: new ApprovalService(database), sddResolver, sddWriter, openPath: async () => undefined, terminals: unavailable,
       openWindow: () => undefined, placeWindow: () => undefined, openExternal: async () => undefined, chooseSkillSource: async () => null,
-      saveTextFile: async () => ({ saved: false, path: null }), appVersion: '0.1.0', dataDir: data, reopen: async () => { await database.open() }
+      saveTextFile: async () => ({ saved: false, path: null }), appVersion: '0.1.0', dataDir: data, updates: {} as never, about: async () => ({}) as never, reopen: async () => { await database.open() }
     })
 
     const config = await ipc.invoke('sdd:config-get', { projectId: project.id })

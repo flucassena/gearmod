@@ -1,4 +1,5 @@
 import { providerLabels } from '@gearmod/contracts'
+import { useAppUpdate } from './appUpdate'
 import { SettingsIcon } from './SettingsIcon'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useAgentUpdatesPending } from './useAgentUpdates'
@@ -155,7 +156,7 @@ export function UsageDialog({ current, close }: { current?: string; close(): voi
 }
 
 export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onNew, onSettings, onAddAgent, onProjectSettings, onNewChat, onToggle, onReorder, onDelete }: { projects: Project[]; profiles: AgentProfile[]; selected?: string; collapsed: boolean; onSelect(id: string): void; onNew(): void; onAddAgent(): void; onSettings(): void; onProjectSettings(projectId: string): void; onNewChat(projectId: string): void; onToggle(): void; onReorder(projectIds: string[]): void; onDelete(project: Project): void }): React.JSX.Element {
-  const t = useT(), agentUpdates = useAgentUpdatesPending(profiles)
+  const t = useT(), agentUpdates = useAgentUpdatesPending(profiles), appUpdate = useAppUpdate()?.available === true
   // Dragging: while dragging, the list shows the project already in the new position; on drop, saves the order.
   const [drag, setDrag] = useState<{ id: string; over: number }>(), [menu, setMenu] = useState<{ project: Project; x: number; y: number }>()
   const projectMenu = useRef<HTMLDivElement>(null)
@@ -199,7 +200,7 @@ export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onN
           <button type="button" className="projnew tip" data-tip={t.shell.sidebar.newFreeChatTip} aria-label={t.shell.sidebar.newFreeChatIn(project.name)} onClick={() => onNewChat(project.id)}><PlusIcon /></button></div>
       })}</nav>
       <VoiceInstallCard />
-      <div className="side-foot"><button className="iconbtn gearwrap" data-tip={agentUpdates ? t.shell.sidebar.settingsWithUpdate : t.common.settings} aria-label={agentUpdates ? t.shell.sidebar.settingsLabelWithUpdate : t.common.settings} onClick={onSettings}>⚙{agentUpdates && <i className="gear-dot" aria-hidden="true" />}</button>{profiles.length ? <UsedAgents profiles={profiles} /> : <button type="button" className="mini secondary withicon side-addagent" onClick={onAddAgent}><PlusIcon />{t.shell.sidebar.addAgent}</button>}</div>
+      <div className="side-foot"><button className="iconbtn gearwrap" data-tip={appUpdate ? t.shell.sidebar.settingsWithAppUpdate : agentUpdates ? t.shell.sidebar.settingsWithUpdate : t.common.settings} aria-label={appUpdate ? t.shell.sidebar.settingsWithAppUpdate : agentUpdates ? t.shell.sidebar.settingsLabelWithUpdate : t.common.settings} onClick={onSettings}>⚙{(agentUpdates || appUpdate) && <i className="gear-dot" aria-hidden="true" />}</button>{profiles.length ? <UsedAgents profiles={profiles} /> : <button type="button" className="mini secondary withicon side-addagent" onClick={onAddAgent}><PlusIcon />{t.shell.sidebar.addAgent}</button>}</div>
     </aside>
     {menu && <div ref={projectMenu} className="projmenu" role="menu" aria-label={t.shell.sidebar.projectActions(menu.project.name)} tabIndex={-1} style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
       <div className="ctxtitle">{menu.project.name}</div>
