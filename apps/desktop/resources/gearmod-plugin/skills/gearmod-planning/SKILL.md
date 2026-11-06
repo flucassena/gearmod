@@ -44,6 +44,7 @@ If the user is in a hurry or does not want discovery, record the decision (`gear
    - every requirement (FR) and every story has at least one task;
    - every task points to a story or is setup/foundation/polish;
    - no task is verification only (running lint/tests, confirming something still works): that goes in the Test plan;
+   - no task or criterion needs something the developer cannot do (manual or on-screen testing, browser/E2E runs, real devices, external services, credentials): that goes in the Test plan, and the task keeps only a criterion met by code or an automated test;
    - every important regression and every expected automated test is in the Test plan;
    - the Plan does not contradict the Specification or the project principles;
    - no clarification marker is left.

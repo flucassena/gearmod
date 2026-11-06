@@ -25,8 +25,8 @@ export function validateTasks(markdown: string): string | null {
 }
 
 const plainText = (text: string): string => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-const checkVerb = /^(rodar|executar|verificar|validar|confirmar|garantir|checar|conferir|testar manualmente|run|execute|verify|validate|confirm|ensure|check)\b/
-const checkTarget = /\b(lint|type-?check|typecheck|tsc|suite|testes|tests?|regress\w*|continua\w* funcionando|still works?|build)\b/
+const checkVerb = /^(rodar|executar|verificar|validar|confirmar|garantir|checar|conferir|testar manualmente|abrir|navegar|run|execute|verify|validate|confirm|ensure|check|open|navigate|manually test)\b/
+const checkTarget = /\b(lint|type-?check|typecheck|tsc|suite|testes|tests?|regress\w*|continua\w* funcionando|still works?|build|manual\w*|e2e|end-to-end|playwright|smoke|na tela|no navegador|o app|a aplicacao|on screen|in the browser|the app)\b/
 
 /**
  * Tasks that are only verification ("run lint, type-check and the suite", "confirm that X still works"): that belongs to the test step

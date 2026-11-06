@@ -40,13 +40,21 @@ A task is development work that the developer does and delivers. **Do not create
 - checking regressions, running the whole suite and validating criteria on screen belong to the **test stage**: write that in the Plan's test plan section, and the tester runs it;
 - running lint, type-check and the tests of the changed area is the **developer's definition of done**; it already applies to every task and does not become an item.
 
+**Also do not create tasks or criteria that the developer cannot do or observe.** The developer works in code and in a terminal; it does not open the app, click through screens, use a browser, a real device or production, nor does it have credentials or access to external services. So never write a task or a criterion that depends on any of these:
+
+- manual testing, "see it on screen", "open the app and check", visual checks;
+- browser or end-to-end (E2E/Playwright) runs, smoke tests of the running app;
+- real external services, real accounts/keys, deployed environments, data the developer does not have.
+
+Cover that behavior in two ways: (1) a criterion the developer can meet in code, such as a unit/component/integration test written in `<path>` and passing (with mocks or fixtures for what is external); (2) the manual, on-screen or E2E check goes to the Plan's **Test plan**, where the tester runs it. Writing an E2E test file is fine when the project has that setup; *running* it against the live app is the tester's job.
+
 GearMod rejects a Tasks document with such a task and returns the error for you to fix. This also applies when the project's method (Spec Kit, OpenSpec or another) has validation tasks in its own template.
 
 ## Rules during planning
 
 - Coverage: every `RF-xxx` and every acceptance scenario of the Specification appears in at least one criterion of some task.
 - Each task fits in one work session, cites the real file path and can be verified on its own. No "improve the code" or "tweak things".
-- Each task has 1 to 3 criteria. A criterion is something you observe or test ("the dialog shows two options", "dialog test written in `<path>` and passing"), never "works well" or "the whole suite passes".
+- Each task has 1 to 3 criteria. A criterion is something the developer can verify in code or with an automated test ("the dialog component renders two options: test written in `<path>` and passing"), never "works well", "the whole suite passes" or something that needs the running app on screen.
 - Avoid two [P] tasks on the same file and dependencies between stories that break their independence.
 
 ## Rules during execution

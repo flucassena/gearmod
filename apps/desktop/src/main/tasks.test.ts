@@ -16,11 +16,14 @@ const tasks = `## Tasks
 - [ ] T006 Rodar lint, type-check e a suíte de testes do front, e confirmar que o botão de primeiro acesso continua funcionando
 - [ ] T007 Validar o e-mail no formulário de cadastro
 - [ ] T008 [P] Verificar permissões e rodar a suíte
-- [ ] T009 Confirmar que o login continua funcionando`
+- [ ] T009 Confirmar que o login continua funcionando
+- [ ] T010 Testar manualmente o fluxo de reset na tela
+- [ ] T011 Executar os testes E2E com Playwright
+- [ ] T012 Escrever o teste E2E do reset em \`reset.e2e.ts\``
 
 describe('verification-only tasks', () => {
   it('flags only the top-level tasks that are verification', () => {
-    expect(verificationOnlyTasks(tasks)).toEqual(['T006', 'T008', 'T009'])
+    expect(verificationOnlyTasks(tasks)).toEqual(['T006', 'T008', 'T009', 'T010', 'T011'])
   })
 
   it('the agent does not save Tasks with them; the user can', async () => {
@@ -30,7 +33,7 @@ describe('verification-only tasks', () => {
     const projects = new ProjectRepository(database, git), board = new BoardRepository(database, projects)
     const project = await projects.create({ name: 'P', localPath: root, baseBranch: 'dev' })
     const card = board.create({ projectId: project.id, columnId: board.get(project.id).columns[0]!.id, title: 'Reset', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
-    expect(() => board.documents.write(card.id, 'tasks', tasks, 'agent')).toThrow(/T006, T008, T009 são só verificação.*Plano de testes/)
+    expect(() => board.documents.write(card.id, 'tasks', tasks, 'agent')).toThrow(/T006, T008, T009, T010, T011 são só verificação.*Plano de testes/)
     expect(board.documents.write(card.id, 'tasks', tasks, 'user').contentMd).toBe(tasks)
     expect(board.documents.write(card.id, 'tasks', '## Tasks\n- [ ] T001 Escrever os testes do reset em `a.test.ts`', 'agent').contentMd).toContain('T001')
     database.close()
