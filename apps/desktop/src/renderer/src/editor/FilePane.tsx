@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { isShortcut } from '../shortcuts'
 import type { Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { findNext, findPrevious, replaceAll, replaceNext } from '@codemirror/search'
@@ -186,9 +187,8 @@ export function FilePane({ doc, mode, context, preferences, changePreferences, c
     try { setCommentError(''); await window.gearmod.invoke('workspace:comment', { ...context, cardId: commentCardId, text }); setLines(null); setComposing(false); setComment(''); afterComment() } catch (reason) { setCommentError(plainError(reason)) }
   }
   const keyDown = (event: React.KeyboardEvent): void => {
-    if (!event.ctrlKey || event.shiftKey) return
-    const key = event.key.toLowerCase(), stop = (): void => { event.preventDefault(); event.stopPropagation() }
-    if (key === 's') { stop(); void save(doc.path) } else if (key === 'f') { stop(); showFind() } else if (key === 'h' && !doc.binary) { stop(); showFind(true) } else if (key === 'g' && !doc.binary) { stop(); showGoto() }
+    const native = event.nativeEvent, stop = (): void => { event.preventDefault(); event.stopPropagation() }
+    if (isShortcut(native, 'save')) { stop(); void save(doc.path) } else if (isShortcut(native, 'find')) { stop(); showFind() } else if (isShortcut(native, 'replace') && !doc.binary) { stop(); showFind(true) } else if (isShortcut(native, 'goToLine') && !doc.binary) { stop(); showGoto() }
   }
   // Esc closes search/go to line and returns focus to the editor (the capture prevents the field's onKeyDown).
   const escape = (event: React.KeyboardEvent): void => { if (event.key === 'Escape' && (find || goto)) { event.preventDefault(); event.stopPropagation(); setFind(false); setGoto(false); liveView()?.focus() } }

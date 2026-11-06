@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { isShortcut } from './shortcuts'
 import type { IpcOutput } from '@gearmod/contracts'
 import { plainError } from './NoticeDialog'
 import { ClauseInput } from './ClauseInput'
@@ -118,8 +119,8 @@ export function DbTableView({ tabId, connectionId, oid, name, allowWrite }: { ta
     } catch (reason) { toast.error(t.database.table.cannotApply, plainError(reason)) } finally { setApplying(false) }
   }
   const keys = (event: React.KeyboardEvent): void => {
-    if (event.ctrlKey && event.key === 'F5') { event.preventDefault(); void loadPage(offset, order) }
-    else if (event.ctrlKey && event.key === 'F2') { event.preventDefault(); req.cancel() }
+    if (isShortcut(event.nativeEvent, 'dbReload')) { event.preventDefault(); void loadPage(offset, order) }
+    else if (isShortcut(event.nativeEvent, 'dbCancel')) { event.preventDefault(); req.cancel() }
     else if (event.altKey && event.key === 'Insert') { event.preventDefault(); addRow() }
   }
   const toolbar = <>

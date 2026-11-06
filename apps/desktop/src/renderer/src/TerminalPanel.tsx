@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { isShortcut } from './shortcuts'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
@@ -53,9 +54,10 @@ function Screen({ tab, visible }: { tab: TerminalTab; visible: boolean }): React
       callback(findFileLinks(text).map((found) => ({ text: found.text, range: { start: { x: found.start + 1, y: line }, end: { x: found.start + found.text.length, y: line } }, activate: (event: MouseEvent) => { if (!(event.ctrlKey || event.metaKey)) return; const value = linkTarget(found), path = absolute(value) ? value : `${tab.cwd.replace(/[\\/]+$/, '')}/${value}`; window.dispatchEvent(new CustomEvent('gearmod:open-file', { detail: { projectId: context.projectId, cardId: context.cardId, path } })) } })))
     } })
     xterm.attachCustomKeyEventHandler((event) => {
-      if (event.ctrlKey && (event.shiftKey && event.code === 'KeyF' || event.code === 'Backquote' || event.key === '^')) return false
+      // The terminal and project search shortcuts go to the app, not to the shell (the others, like Ctrl+B, stay with the shell).
+      if (isShortcut(event, 'toggleTerminal') || isShortcut(event, 'searchInFiles')) return false
       if (event.type !== 'keydown') return true
-      if (event.ctrlKey && !event.shiftKey && !event.altKey && event.code === 'KeyF') { event.preventDefault(); setFinding(true); setFocusTick((value) => value + 1); return false }
+      if (isShortcut(event, 'find')) { event.preventDefault(); setFinding(true); setFocusTick((value) => value + 1); return false }
       // Ctrl+C copies when there is a selection; without a selection it goes through as an interrupt (^C) to the program.
       if (event.ctrlKey && event.code === 'KeyC' && (event.shiftKey || xterm.hasSelection())) { if (xterm.hasSelection()) { void navigator.clipboard.writeText(xterm.getSelection()).catch(() => undefined); xterm.clearSelection() } return false }
       return true

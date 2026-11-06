@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { isShortcut, shortcutLabel } from './shortcuts'
 import type { EditorView } from '@codemirror/view'
 import { ConfirmDialog } from './ConfirmDialog'
 import { plainError } from './NoticeDialog'
@@ -56,7 +57,7 @@ export function ConflictsView({ target, changed, back, setDirty }: { target: Con
   const marked = draft ? hasConflicts(draft.text) : false
   // Ctrl+S with markers: saves the draft, but warns that it cannot yet be marked as resolved.
   const keySave = (): void => { if (!draft) return; if (!marked) { void save(); return } void (draft.text === draft.saved ? Promise.resolve() : save()).then(() => toast.warning(t.markersLeft, t.markersLeftKey)) }
-  return <section className="cflview" style={{ gridColumn: '1 / -1' }} aria-label={t.resolveAria} onKeyDown={(event) => { if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 's') { event.preventDefault(); keySave() } }}>
+  return <section className="cflview" style={{ gridColumn: '1 / -1' }} aria-label={t.resolveAria} onKeyDown={(event) => { if (isShortcut(event.nativeEvent, 'save')) { event.preventDefault(); keySave() } }}>
     <header className="cflview-head"><div><div className="eyebrow">{stash ? t.stashHead : t.inProgress(label)}</div><h2>{target.repo}{target.cardTitle ? <small>{t.worktreeOf(target.cardTitle)}</small> : null}</h2></div><span className="cflview-count">{state.files.length ? t.filesInConflict(state.files.length) : t.allResolved}</span><button type="button" className="mini secondary" onClick={() => guard(path, t.backToGraphTitle, back)}>{t.backToGraph}</button></header>
     <div className="cflview-body">
       <ul className="cfl-files" aria-label={t.filesAria}>{state.files.map((file) => <li key={file}><button type="button" className={file === path ? 'on' : ''} data-tip={file} onClick={() => open(file)}>{file}{dirty(file) && <i className="cflview-dot" data-tip={t.unsavedChanges} />}</button></li>)}{!state.files.length && <li className="cfl-ok">{stash ? t.stashNothingLeft : t.nothingLeft}</li>}</ul>
@@ -67,7 +68,7 @@ export function ConflictsView({ target, changed, back, setDirty }: { target: Con
           <span className="grow1" />
           <button type="button" className="mini" disabled={busy} onClick={() => guard(path, t.useWholeTitle(oursLabel), () => void resolve('ours'))}>{t.useWhole(oursLabel)}</button>
           <button type="button" className="mini" disabled={busy} onClick={() => guard(path, t.useWholeTitle(theirsLabel), () => void resolve('theirs'))}>{t.useWhole(theirsLabel)}</button>
-          <button type="button" className="mini secondary" disabled={busy || !draft || draft.text === draft.saved} data-tip="Ctrl+S" onClick={() => void save()}>{common.save}</button>
+          <button type="button" className="mini secondary" disabled={busy || !draft || draft.text === draft.saved} data-tip={shortcutLabel('save')} onClick={() => void save()}>{common.save}</button>
           <button type="button" className="mini" disabled={busy || !draft || marked} data-tip={marked ? t.markersLeft : undefined} onClick={() => void saveAndMark()}>{t.saveAndMark}</button></div>
         {draft ? (comparing ? <ConflictCompare info={comparing} path={path} options={options} back={() => setComparing(undefined)} /> : <div className="cflview-editor"><CodeEditor key={path} value={draft.text} path={path} options={options} ariaLabel={t.conflictsIn(path)} conflictLabels={{ ours: oursLabel, theirs: theirsLabel }} onCompareConflict={setComparing} onChange={(text) => setDrafts((all) => ({ ...all, [path]: { text, saved: all[path]?.saved ?? '' } }))} onReady={(editor) => { view.current = editor }} /></div>) : <div className="cgnote">{common.loading}</div>}
       </> : <div className="cgnote">{t.noConflictFiles}</div>}</div>

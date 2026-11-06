@@ -5,7 +5,7 @@ import { dropToken, InputMirror, useAtMention } from './AtMention'
 import { defaultPermissionMode, permissionModes, type AgentProfile, type AgentPurpose, type Card, type Chat, type ChatMessage, type Project, type ProjectBoard, type Run, type SkillRef } from '@gearmod/contracts'
 import { AgentIcon } from './AgentIcon'
 import { ConfirmDialog } from './ConfirmDialog'
-import { shortcutEvent } from './shortcuts'
+import { shortcutEvent, shortcutLabel } from './shortcuts'
 import { WindowIcon } from './WindowLayoutMenu'
 import { BranchIcon, CheckIcon, CloseIcon, CollapseIcon, ExpandIcon, MicIcon, SendIcon, StopIcon } from './icons'
 import { ModelMenu, permissionModeText, useAgentConfig } from './ModelMenu'
@@ -101,7 +101,7 @@ export function ChatMoreMenu({ messages, log, projectId, cardId, chatId, purpose
       {page === 'main' && <>
         {openCard && <button type="button" role="menuitem" className="pm-item pm-ico" onClick={() => { dismiss(); openCard() }}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="3.5" width="13" height="13" rx="2.5" /><path d="M7 8h6M7 11.5h4" /></svg>{m.openCard}</button>}
         {view && <button type="button" role="menuitem" className="pm-item pm-ico" onClick={() => { dismiss(); view.set(view.git ? 'chat' : 'git') }}><BranchIcon />{view.git ? m.backToChat : m.viewCardGit}</button>}
-        <button type="button" role="menuitem" className="pm-item pm-ico" onClick={() => setPage('search')}><SearchGlyph />{m.searchInChat} <small>Ctrl+F</small></button>
+        <button type="button" role="menuitem" className="pm-item pm-ico" onClick={() => setPage('search')}><SearchGlyph />{m.searchInChat} <small>{shortcutLabel('find')}</small></button>
         {(cardId || chatId) && <button type="button" role="menuitem" className="pm-item pm-ico" onClick={() => setPage('window')}><WindowIcon />{pop ? m.moveThisWindow : m.openInOtherWindow}</button>}
         <button type="button" role="menuitem" className="pm-item pm-ico" onClick={() => { dismiss(); expand() }}><ExpandIcon />{m.expandFull}</button>
       </>}

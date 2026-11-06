@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { isShortcut } from './shortcuts'
 import { createPortal } from 'react-dom'
 import { useEscape } from './useEscape'
 import { useT } from './i18n'
@@ -16,7 +17,7 @@ export function FileContextMenu({ x, y, items, close, find, label }: { x: number
   useEffect(() => {
     const away = (event: PointerEvent): void => { if (!root.current?.contains(event.target as Node) && !sub.current?.contains(event.target as Node)) close() }
     const key = (event: KeyboardEvent): void => {
-      if (event.ctrlKey && event.key.toLowerCase() === 'f' && find) { event.preventDefault(); event.stopPropagation(); close(); find(); return }
+      if (isShortcut(event, 'find') && find) { event.preventDefault(); event.stopPropagation(); close(); find(); return }
       if (!['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'Enter', ' '].includes(event.key)) return
       event.preventDefault(); event.stopPropagation()
       const list = inSub && opened !== null ? items[opened]!.children ?? [] : items

@@ -1,5 +1,5 @@
 import React, { startTransition, useEffect, useMemo, useRef, useState } from 'react'
-import { filesQuickEvent, shortcutFor } from './shortcuts'
+import { filesQuickEvent, isShortcut, shortcutFor } from './shortcuts'
 import type { IpcOutput } from '@gearmod/contracts'
 import { Checkbox } from './Checkbox'
 import { Select } from './Select'
@@ -319,9 +319,10 @@ export function WorkspaceFiles({ projectId, cardId, initialPath, initialReveal, 
     window.addEventListener(filesQuickEvent, handle); return () => window.removeEventListener(filesQuickEvent, handle)
   }, [])
   const keyDown = (event: React.KeyboardEvent): void => {
-    if (event.ctrlKey && event.key.toLowerCase() === 's') { event.preventDefault(); if (current) void save(current.path) }
-    if (event.ctrlKey && !event.shiftKey && current && !current.binary) {
-      const key = event.key.toLowerCase(), type = key === 'f' ? 'find' : key === 'h' ? 'replace' : key === 'g' ? 'goto' : null
+    const native = event.nativeEvent
+    if (isShortcut(native, 'save')) { event.preventDefault(); if (current) void save(current.path) }
+    if (current && !current.binary) {
+      const type = isShortcut(native, 'find') ? 'find' : isShortcut(native, 'replace') ? 'replace' : isShortcut(native, 'goToLine') ? 'goto' : null
       if (type) { event.preventDefault(); event.stopPropagation(); ask(type) }
     }
     const quickFor = { quickOpenFile: 'files', searchInFiles: 'content', searchSymbols: 'symbols' } as const, id = shortcutFor(event.nativeEvent)

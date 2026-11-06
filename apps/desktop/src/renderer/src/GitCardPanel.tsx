@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { codeMirrorKey, loadShortcuts } from './shortcuts'
 import type { AgentProfile, GitCard, GitCardRepo, GitCommitFile, GitRequest } from '@gearmod/contracts'
 import { AgentIcon } from './AgentIcon'
 import { gitIcons, GitCheck, FileRow } from './GitPage'
@@ -85,7 +86,7 @@ export function DiffPane({ cardId, target, close, ask, style }: { cardId: string
   }
   const editing = draft !== undefined, dirty = editing && draft !== original
   const saveRef = useRef(save); saveRef.current = () => { if (dirty) save() }
-  const saveKeys = useMemo<Extension[]>(() => [Prec.highest(keymap.of([{ key: 'Mod-s', preventDefault: true, run: () => { saveRef.current(); return true } }]))], [])
+  const saveKeys = useMemo<Extension[]>(() => [Prec.highest(keymap.of([{ key: codeMirrorKey(loadShortcuts().save), preventDefault: true, run: () => { saveRef.current(); return true } }]))], [])
   const { ask: confirmAsk, dialog: askDialog } = useAsk()
   const leave = async (): Promise<void> => { if (dirty && !(await confirmAsk({ eyebrow: t.editFileEyebrow, title: t.discardEditsTitle, text: t.discardEditsText(path), ok: tp.discard, danger: true }))) return; setDraft(undefined) }
   return <aside className="fview gdiffpane" style={style} aria-label={tp.changesOf(path)}>{askDialog}

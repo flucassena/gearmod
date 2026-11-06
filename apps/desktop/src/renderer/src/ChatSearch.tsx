@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { isShortcut } from './shortcuts'
 import type { ChatMessage } from '@gearmod/contracts'
 import { useFitInView } from './useFitInView'
 import { useT } from './i18n'
@@ -32,7 +33,7 @@ export function useChatSearchShortcut(expanded: boolean): { ref: React.RefObject
   const ref = useRef<HTMLElement>(null), [request, setRequest] = useState(0)
   useEffect(() => {
     const key = (event: KeyboardEvent): void => {
-      if (event.defaultPrevented || !event.ctrlKey || event.shiftKey || event.altKey || event.metaKey || event.key.toLowerCase() !== 'f' || document.querySelector('.overlay')) return
+      if (event.defaultPrevented || !isShortcut(event, 'find') || document.querySelector('.overlay')) return
       const active = document.activeElement
       if (!ref.current || !(active && ref.current.contains(active)) && !(expanded && (active === document.body || active === document.documentElement))) return
       if (active instanceof HTMLElement && active.closest('.wf-document, .term-screen')) return
