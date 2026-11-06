@@ -20,8 +20,8 @@ export function ChatContextMenu({ x, y, chat, cardTitle, openCard, remove, close
       else if (!chat.cardId && (event.key === 'Enter' || event.key.toLowerCase() === 'a')) { event.preventDefault(); remove() }
     }
     const away = (event: MouseEvent): void => { if (!root.current?.contains(event.target as Node)) close() }
-    document.addEventListener('keydown', key, true); document.addEventListener('mousedown', away); window.addEventListener('blur', close); window.addEventListener('resize', close)
-    return () => { document.removeEventListener('keydown', key, true); document.removeEventListener('mousedown', away); window.removeEventListener('blur', close); window.removeEventListener('resize', close) }
+    document.addEventListener('keydown', key, true); document.addEventListener('mousedown', away); window.addEventListener('resize', close)
+    return () => { document.removeEventListener('keydown', key, true); document.removeEventListener('mousedown', away); window.removeEventListener('resize', close) }
   }, [close, remove, openCard, chat.cardId])
   return <div className="ctxmenu" ref={root} role="menu" tabIndex={-1} aria-label={m.actionsFor(cardTitle || chat.title || m.freeConversation)} style={pos} onContextMenu={(event) => event.preventDefault()}>
     <div className="ctxtitle">{cardTitle || chat.title || (chat.purpose === 'constitution' ? m.projectConstitution : m.freeConversation)}</div>

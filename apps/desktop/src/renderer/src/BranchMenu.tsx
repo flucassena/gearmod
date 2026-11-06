@@ -24,8 +24,8 @@ export function GitMenu<K extends string>({ x, y, title, label, items, run, clos
       if (event.key === 'Enter') { event.preventDefault(); if (list[active]) go(list[active]!) }
     }
     const away = (event: MouseEvent): void => { if (!root.current?.contains(event.target as Node)) close() }
-    document.addEventListener('keydown', key, true); document.addEventListener('mousedown', away); window.addEventListener('blur', close); window.addEventListener('resize', close)
-    return () => { document.removeEventListener('keydown', key, true); document.removeEventListener('mousedown', away); window.removeEventListener('blur', close); window.removeEventListener('resize', close) }
+    document.addEventListener('keydown', key, true); document.addEventListener('mousedown', away); window.addEventListener('resize', close)
+    return () => { document.removeEventListener('keydown', key, true); document.removeEventListener('mousedown', away); window.removeEventListener('resize', close) }
   })
   return <div className="ctxmenu" ref={root} role="menu" aria-label={label} style={pos} onContextMenu={(event) => event.preventDefault()}>
     <div className="ctxtitle" data-tip={title}>{title}</div>

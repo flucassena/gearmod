@@ -171,8 +171,8 @@ export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onN
       event.preventDefault(); event.stopPropagation(); close()
       if (pressed === 'n') onNewChat(menu.project.id); else if (pressed === 'c') onProjectSettings(menu.project.id); else onDelete(menu.project)
     }
-    window.addEventListener('click', close); window.addEventListener('blur', close); document.addEventListener('keydown', key)
-    return () => { window.removeEventListener('click', close); window.removeEventListener('blur', close); document.removeEventListener('keydown', key) }
+    window.addEventListener('click', close); document.addEventListener('keydown', key)
+    return () => { window.removeEventListener('click', close); document.removeEventListener('keydown', key) }
   }, [menu, onNewChat, onProjectSettings, onDelete])
   useEscape(() => setMenu(undefined), Boolean(menu))
   return <>

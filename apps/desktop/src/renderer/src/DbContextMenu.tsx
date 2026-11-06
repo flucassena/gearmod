@@ -21,8 +21,8 @@ export function DbContextMenu({ x, y, title, items, close }: { x: number; y: num
       else if (event.key === 'Enter') { event.preventDefault(); items[index]?.run() }
     }
     const away = (event: MouseEvent): void => { if (!root.current?.contains(event.target as Node)) close() }
-    document.addEventListener('keydown', key, true); document.addEventListener('mousedown', away); window.addEventListener('blur', close); window.addEventListener('resize', close)
-    return () => { document.removeEventListener('keydown', key, true); document.removeEventListener('mousedown', away); window.removeEventListener('blur', close); window.removeEventListener('resize', close) }
+    document.addEventListener('keydown', key, true); document.addEventListener('mousedown', away); window.addEventListener('resize', close)
+    return () => { document.removeEventListener('keydown', key, true); document.removeEventListener('mousedown', away); window.removeEventListener('resize', close) }
   }, [close, items, index])
   return <div className="ctxmenu" ref={root} role="menu" tabIndex={-1} aria-label={t.database.actionsOf(title)} style={pos} onContextMenu={(event) => event.preventDefault()}>
     <div className="ctxtitle">{title}</div>

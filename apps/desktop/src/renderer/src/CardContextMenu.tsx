@@ -29,8 +29,8 @@ export function CardContextMenu({ x, y, card, open, chat, git, remove, close }: 
       const hit = items.find((item) => item.key === event.key.toLowerCase()); if (hit && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); hit.run() }
     }
     const away = (event: MouseEvent): void => { if (!root.current?.contains(event.target as Node)) close() }
-    document.addEventListener('keydown', key, true); document.addEventListener('mousedown', away); window.addEventListener('blur', close); window.addEventListener('resize', close)
-    return () => { document.removeEventListener('keydown', key, true); document.removeEventListener('mousedown', away); window.removeEventListener('blur', close); window.removeEventListener('resize', close) }
+    document.addEventListener('keydown', key, true); document.addEventListener('mousedown', away); window.addEventListener('resize', close)
+    return () => { document.removeEventListener('keydown', key, true); document.removeEventListener('mousedown', away); window.removeEventListener('resize', close) }
   })
   return <div className="ctxmenu" ref={root} role="menu" aria-label={t.contextMenu.cardActions(card.title || t.newCard)} style={pos} onContextMenu={(event) => event.preventDefault()}>
     <div className="ctxtitle">{card.title || t.newCard}</div>
