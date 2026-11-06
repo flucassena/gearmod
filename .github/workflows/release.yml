@@ -92,6 +92,9 @@ jobs:
       - run: pnpm test
 
       - run: pnpm dist:linux
+      - name: The in-app terminal (node-pty) is in the Linux package
+        # There is no prebuilt node-pty for Linux: without its pty.node the agent login and the terminals fail to start.
+        run: test -f apps/desktop/dist/linux-unpacked/resources/app.asar.unpacked/node_modules/node-pty/build/Release/pty.node
 
       - name: Packages exist
         run: |

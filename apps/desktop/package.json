@@ -23,7 +23,7 @@
     "prebuild": "pnpm run rebuild:native",
     "build": "electron-vite build",
     "dist": "pnpm run build && electron-builder --win nsis",
-    "dist:linux": "pnpm run build && electron-builder --linux AppImage deb"
+    "dist:linux": "pnpm run build && electron-rebuild -f -o node-pty && electron-builder --linux AppImage deb"
   },
   "dependencies": {
     "@gearmod/contracts": "workspace:*",

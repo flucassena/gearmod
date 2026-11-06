@@ -63,6 +63,7 @@ import { onMainLocaleChange, setMainLocale, tm } from './i18n'
 import { CodeIndexService, type HostProcess } from './code-index/service'
 import { CodeIndexSettings } from './code-index/project-setting'
 import { loadShellPath } from './shell-path'
+import { titleBarOverlay } from './title-bar'
 
 // Linux: the PATH of the user's shell (nvm, ~/.npm-global/bin...), so the agent CLIs are found when the app is opened from the menu.
 loadShellPath()
@@ -240,7 +241,7 @@ async function createWindow(popout?: { target: PopoutTarget; bounds: Electron.Re
     // Custom title bar: the app draws the top strip (and it can be dragged); the minimize, maximize and
     // close buttons remain Windows', on top, with a transparent background to follow the theme.
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#00000000', symbolColor: '#d4d9d5', height: titleBarHeight },
+    titleBarOverlay: titleBarOverlay(process.platform, false, titleBarHeight),
     icon: brandIcons?.app ?? appIcon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
@@ -440,7 +441,7 @@ app.whenReady().then(async () => {
   await openDatabase()
   setMainLocale(settings.get().idioma)  // only after opening the database: before that the settings cannot be read
   await mcpBridge.listen()
-  disposeIpc = registerIpc(ipcMain, { database, speckit, pullRequests, gitAccounts, mcp: mcpRegistry, backups, notes, settings, profiles, projects, board, git, chooseDirectory, chooseFiles, agentProbes, conversations, orchestrator, worktrees, quality, executions, agentConfigs, skills, constitution, checklists, voice, usage, collab, gitManager, history, playwright, specTools, toolUpdates, approvals, sddResolver, sddWriter, dbManager, fileWatch, terminals, returnFile, codeIndex, codeRoots: projectCodeRoots, codeIndexSettings, ...fileActions, openExternal: (url) => shell.openExternal(url), setBrandColor, setTitleBarTheme: (light) => { for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setTitleBarOverlay({ color: '#00000000', symbolColor: light ? '#26303a' : '#d4d9d5', height: titleBarHeight }) }, openWindow: openPopout, placeWindow: (placement) => { const window = BrowserWindow.getFocusedWindow(); if (window) placeWindow(window, placement) }, openPath: async (path) => { await mkdir(path, { recursive: true }); const error = await shell.openPath(path); if (error) throw new Error(error) }, chooseSkillSource, saveTextFile, appVersion, dataDir, reopen: openDatabase })
+  disposeIpc = registerIpc(ipcMain, { database, speckit, pullRequests, gitAccounts, mcp: mcpRegistry, backups, notes, settings, profiles, projects, board, git, chooseDirectory, chooseFiles, agentProbes, conversations, orchestrator, worktrees, quality, executions, agentConfigs, skills, constitution, checklists, voice, usage, collab, gitManager, history, playwright, specTools, toolUpdates, approvals, sddResolver, sddWriter, dbManager, fileWatch, terminals, returnFile, codeIndex, codeRoots: projectCodeRoots, codeIndexSettings, ...fileActions, openExternal: (url) => shell.openExternal(url), setBrandColor, setTitleBarTheme: (light) => { for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay(process.platform, light, titleBarHeight)) }, openWindow: openPopout, placeWindow: (placement) => { const window = BrowserWindow.getFocusedWindow(); if (window) placeWindow(window, placement) }, openPath: async (path) => { await mkdir(path, { recursive: true }); const error = await shell.openPath(path); if (error) throw new Error(error) }, chooseSkillSource, saveTextFile, appVersion, dataDir, reopen: openDatabase })
   Menu.setApplicationMenu(null)  // no File/Edit/View/Window/Help: the top strip belongs to the app
   createTray()
   await createWindow()
