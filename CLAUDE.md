@@ -13,7 +13,7 @@ powershell -ExecutionPolicy Bypass -File .\installer.ps1
 ```
 
 - `build.ps1` installs dependencies, builds `apps/desktop/dist/win-unpacked/GearMod.exe` and prints its path and time.
-- `installer.ps1` installs dependencies, runs `pnpm dist` and prints the path and time of the installer it built (`apps/desktop/dist/GearMod-Setup-0.1.0-x64.exe`).
+- `installer.ps1` installs dependencies, runs `pnpm dist` and prints the path and time of the installer it built (`apps/desktop/dist/GearMod-Setup-0.2.0-x64.exe`).
 - Both close any running `GearMod.exe` from `apps/desktop/dist/win-unpacked`, because that process locks the folder and the build fails.
 - If the build fails, say so in the final summary, with the error. Don't say the build was produced without checking the `.exe` time.
 

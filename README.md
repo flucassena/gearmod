@@ -10,7 +10,7 @@
 
 [![CI](https://github.com/flucassena/gearmod/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/flucassena/gearmod/actions/workflows/ci.yml)
 [![License: PolyForm Shield 1.0.0](https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-555)](LICENSE.md)
-![Platform: Windows 10/11 and Linux x64](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Linux%20x64-555)
+![Platform: Windows 10/11, Linux x64 and macOS (preview)](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20Linux%20x64%20%7C%20macOS%20(preview)-555)
 
 **English** · [Português](README.pt-BR.md)
 
@@ -290,7 +290,7 @@ powershell -ExecutionPolicy Bypass -File .\installer.ps1   # apps/desktop/dist/G
 
 Both scripts close a running `GearMod.exe` from `win-unpacked`, because it locks the folder. The tests swap the native `better-sqlite3` binary between Node and Electron, so don't run them while the app is open from the same folder. Set `GEARMOD_DATA_DIR` to run against a throwaway data folder.
 
-Releases are built by GitHub Actions: pushing a tag such as `v0.1.0` (matching the version in `apps/desktop/package.json`) builds the installer and publishes it with its checksum.
+Releases are built by GitHub Actions: pushing a tag such as `v0.2.0` (matching the version in `apps/desktop/package.json`) builds the Windows installer, the Linux packages and the Mac disk images and publishes them with their checksums. What a version brings goes in `release-notes/<version>.md`, which opens the Release notes.
 
 ```
 apps/desktop        Electron app (main process, preload, React renderer)

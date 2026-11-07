@@ -10,7 +10,7 @@
 
 [![CI](https://github.com/flucassena/gearmod/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/flucassena/gearmod/actions/workflows/ci.yml)
 [![Licença: PolyForm Shield 1.0.0](https://img.shields.io/badge/licen%C3%A7a-PolyForm%20Shield%201.0.0-555)](LICENSE.md)
-![Plataforma: Windows 10/11 e Linux x64](https://img.shields.io/badge/plataforma-Windows%2010%20%7C%2011%20%7C%20Linux%20x64-555)
+![Plataforma: Windows 10/11, Linux x64 e macOS (prévia)](https://img.shields.io/badge/plataforma-Windows%2010%20%7C%2011%20%7C%20Linux%20x64%20%7C%20macOS%20(pr%C3%A9via)-555)
 
 [English](README.md) · **Português**
 
@@ -52,7 +52,7 @@ Tudo roda na sua máquina. O GearMod usa as CLIs de agente que você já tem e n
 ## Instalação
 
 **Requisitos**
-- Windows 10 ou 11, 64 bits, ou Linux x64 com ambiente gráfico (testado no Ubuntu 22.04 ou mais novo). O macOS ainda não é suportado.
+- Windows 10 ou 11, 64 bits, ou Linux x64 com ambiente gráfico (testado no Ubuntu 22.04 ou mais novo). O macOS 12 ou mais novo está em prévia: os pacotes são gerados, mas ainda não foram testados por usuários.
 - [Git](https://git-scm.com/downloads).
 - Pelo menos uma CLI de agente instalada e logada: [Claude Code](https://docs.claude.com/en/docs/claude-code) ou [Codex](https://github.com/openai/codex).
 
@@ -97,6 +97,18 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 ```
 
 O GearMod guarda segredos (chaves de API, tokens) no cofre do sistema, então o Linux precisa do **gnome-keyring** ou do **KWallet** rodando. Sem um deles, o GearMod abre, mas recusa salvar segredos e explica o motivo. Entrar, instalar ou atualizar uma CLI de agente abre uma janela de terminal (o seu `$TERMINAL`, ou o primeiro encontrado entre `x-terminal-emulator`, GNOME Terminal, Konsole, Xfce Terminal, kitty, Alacritty e xterm).
+
+**Passos no macOS (prévia)**
+
+1. Abra a [última versão](https://github.com/flucassena/gearmod/releases/latest) e baixe `GearMod-<versão>-arm64.dmg` (Apple Silicon: M1 ou mais novo) ou `GearMod-<versão>-x64.dmg` (Intel).
+2. Abra o `.dmg` e arraste o GearMod para **Aplicativos**.
+3. O app ainda não é notarizado pela Apple, então o macOS bloqueia a primeira abertura (diz que o GearMod "está danificado" ou "não pode ser aberto"). Rode isto uma vez no Terminal e depois abra o GearMod normalmente:
+
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/GearMod.app
+   ```
+
+Para conferir o download, rode `shasum -a 256 -c SHA256SUMS.txt --ignore-missing` na pasta com o `.dmg` e o `SHA256SUMS.txt`. Para atualizar, baixe o `.dmg` novo e substitua o app em Aplicativos; seus dados são mantidos. Entrar, instalar ou atualizar uma CLI de agente abre uma janela do Terminal. O GearMod lê o PATH do seu shell (zsh por padrão), então as CLIs instaladas com Homebrew, npm ou nvm são encontradas.
 
 ## Primeiros passos
 
@@ -237,7 +249,7 @@ Card ──► Worktree Git + branch ──► CLI do agente (Claude Code / Code
 
 ## Seus dados
 
-Tudo fica na sua máquina, em `%APPDATA%\GearMod` no Windows ou `~/.config/GearMod` no Linux: o banco SQLite, os anexos, os backups e as worktrees dos cards. O GearMod não envia nada para lugar nenhum. Recursos opcionais só usam a rede quando você os liga; o [SECURITY.md](SECURITY.md) lista quais são.
+Tudo fica na sua máquina, em `%APPDATA%\GearMod` no Windows, `~/.config/GearMod` no Linux ou `~/Library/Application Support/GearMod` no macOS: o banco SQLite, os anexos, os backups e as worktrees dos cards. O GearMod não envia nada para lugar nenhum. Recursos opcionais só usam a rede quando você os liga; o [SECURITY.md](SECURITY.md) lista quais são.
 
 O GearMod **não é uma sandbox**: os agentes rodam com as permissões do seu usuário, dentro do modo de permissão escolhido. Leia o [SECURITY.md](SECURITY.md) para ver o que é e o que não é garantido.
 
@@ -250,7 +262,7 @@ O GearMod é **source-available** (código disponível), sob a [PolyForm Shield 
 O GearMod é gratuito. Os agentes usam o seu próprio plano do Claude ou da OpenAI.
 
 **Funciona no macOS ou no Linux?**
-Ainda não. Por enquanto, só no Windows.
+O Linux x64 é suportado (veja os passos de instalação acima). Os pacotes do macOS estão em prévia: são gerados em toda versão, mas ainda não foram testados por usuários.
 
 **Quais agentes são suportados?**
 Claude Code e Codex. O suporte ao Gemini CLI existe, mas está desativado por enquanto.
@@ -279,7 +291,7 @@ powershell -ExecutionPolicy Bypass -File .\installer.ps1   # apps/desktop/dist/G
 
 Os dois scripts fecham o `GearMod.exe` aberto da pasta `win-unpacked`, porque ele trava a pasta. Os testes trocam o binário nativo do `better-sqlite3` entre Node e Electron, então não rode os testes com o app aberto da mesma pasta. Use `GEARMOD_DATA_DIR` para rodar com uma pasta de dados descartável.
 
-As versões são geradas pelo GitHub Actions: enviar uma tag como `v0.1.0` (igual à versão de `apps/desktop/package.json`) gera o instalador e o publica com o checksum.
+As versões são geradas pelo GitHub Actions: enviar uma tag como `v0.2.0` (igual à versão de `apps/desktop/package.json`) gera o instalador do Windows, os pacotes do Linux e as imagens de disco do Mac e os publica com os checksums. O que uma versão traz vai em `release-notes/<versão>.md`, que abre as notas da Release.
 
 ```
 apps/desktop        App Electron (processo principal, preload, interface React)
