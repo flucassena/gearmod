@@ -20,6 +20,7 @@
     "build": "pnpm -r build",
     "dist": "pnpm --filter @gearmod/desktop dist",
     "dist:linux": "pnpm --filter @gearmod/desktop dist:linux",
+    "dist:mac": "pnpm --filter @gearmod/desktop dist:mac",
     "notices": "node scripts/third-party-notices.mjs",
     "codex:types": "node scripts/generate-codex-types.mjs"
   }
