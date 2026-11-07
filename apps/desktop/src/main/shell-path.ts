@@ -24,11 +24,14 @@ export function mergePath(shellPath: string | null, current: string | undefined,
   return [...new Set(folders)].join(':')
 }
 
-/** Usual user install folders, added only when they exist (covers a shell that failed or has no PATH setup). On the Mac also Homebrew's. */
+/**
+ * Usual user install folders, added only when they exist (covers a shell that failed or has no PATH setup). On the Mac also Homebrew's.
+ * `~/.local/bin` is always there: the uv installer and `uv tool install` (Spec Kit's `specify`) put programs in it, often creating it, while the app is open.
+ */
 export function userBinFolders(home: string, exists: (path: string) => boolean = existsSync, platform: NodeJS.Platform = 'linux'): string[] {
-  const user = ['.local/bin', '.npm-global/bin', '.bun/bin', '.volta/bin'].map((folder) => join(home, folder))
+  const user = ['.npm-global/bin', '.bun/bin', '.volta/bin'].map((folder) => join(home, folder))
   const system = platform === 'darwin' ? ['/opt/homebrew/bin', '/usr/local/bin'] : []
-  return [...user, ...system].filter(exists)
+  return [join(home, '.local', 'bin'), ...[...user, ...system].filter(exists)]
 }
 
 /** Shell used to read the PATH: the user's, or the system default (zsh on the Mac since Catalina). */

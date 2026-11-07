@@ -14,8 +14,9 @@ describe('shell PATH on Linux and macOS', () => {
     expect(mergePath(null, '/usr/bin')).toBe('/usr/bin')
   })
 
-  it('adds only the user folders that exist', () => {
-    expect(userBinFolders('/home/ana', (path) => path.endsWith(join('.local', 'bin')))).toEqual([join('/home/ana', '.local', 'bin')])
+  it('always adds ~/.local/bin (uv and specify are installed there while the app runs) and the other user folders only when they exist', () => {
+    expect(userBinFolders('/home/ana', () => false)).toEqual([join('/home/ana', '.local', 'bin')])
+    expect(userBinFolders('/home/ana', (path) => path.endsWith(join('.bun', 'bin')))).toEqual([join('/home/ana', '.local', 'bin'), join('/home/ana', '.bun', 'bin')])
   })
 
   it('loads the login shell PATH on Linux and does nothing on Windows', () => {
@@ -23,7 +24,7 @@ describe('shell PATH on Linux and macOS', () => {
     const deps = { run: (shell: string, args: string[]) => { calls.push({ shell, args }); return '__GEARMOD_PATH__\nPATH=/nvm/bin\n__GEARMOD_PATH__\n' } }
     const env: NodeJS.ProcessEnv = { PATH: '/usr/bin', SHELL: '/bin/zsh' }
     loadShellPath(env, 'linux', deps, '/nowhere')
-    expect(env.PATH).toBe('/nvm/bin:/usr/bin')
+    expect(env.PATH).toBe(`/nvm/bin:/usr/bin:${join('/nowhere', '.local', 'bin')}`)
     expect(calls[0]!.shell).toBe('/bin/zsh'); expect(calls[0]!.args[0]).toBe('-ilc')
     const windows: NodeJS.ProcessEnv = { PATH: 'C:\\Windows' }
     loadShellPath(windows, 'win32', deps, '/nowhere')
@@ -33,7 +34,7 @@ describe('shell PATH on Linux and macOS', () => {
   it('keeps the current PATH when the shell fails', () => {
     const env: NodeJS.ProcessEnv = { PATH: '/usr/bin' }
     loadShellPath(env, 'linux', { run: () => { throw new Error('timeout') } }, '/nowhere')
-    expect(env.PATH).toBe('/usr/bin')
+    expect(env.PATH).toBe(`/usr/bin:${join('/nowhere', '.local', 'bin')}`)
   })
 
   it('also reads the shell on the Mac, with zsh by default, and adds Homebrew when it exists', () => {
@@ -42,8 +43,8 @@ describe('shell PATH on Linux and macOS', () => {
     loadShellPath(env, 'darwin', { run: (shell) => { calls.push(shell); return '__GEARMOD_PATH__\nPATH=/Users/ana/.nvm/bin:/usr/bin\n__GEARMOD_PATH__\n' } }, '/nowhere')
     expect(calls).toEqual(['/bin/zsh'])
     expect(env.PATH!.startsWith('/Users/ana/.nvm/bin:/usr/bin:/bin')).toBe(true)
-    expect(userBinFolders('/Users/ana', (path) => path === '/opt/homebrew/bin', 'darwin')).toEqual(['/opt/homebrew/bin'])
-    expect(userBinFolders('/home/ana', (path) => path === '/opt/homebrew/bin', 'linux')).toEqual([])
+    expect(userBinFolders('/Users/ana', (path) => path === '/opt/homebrew/bin', 'darwin')).toEqual([join('/Users/ana', '.local', 'bin'), '/opt/homebrew/bin'])
+    expect(userBinFolders('/home/ana', (path) => path === '/opt/homebrew/bin', 'linux')).toEqual([join('/home/ana', '.local', 'bin')])
     expect(loginShell({}, 'linux')).toBe('/bin/sh')
     expect(loginShell({ SHELL: '/opt/homebrew/bin/fish' }, 'darwin')).toBe('/opt/homebrew/bin/fish')
   })
