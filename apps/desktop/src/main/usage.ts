@@ -88,7 +88,7 @@ export class UsageService {
       if (this.writeLegacySnapshots) upsert.run(profileId, id, window.utilization, resetsAt, now)
       // Keep the legacy current-state table for one rollout cycle, while the new table is append-only and sampled.
       const previous = this.database.db.prepare(`SELECT used_percent AS usedPercent, resets_at AS resetsAt, captured_at AS capturedAt FROM quota_snapshots
-        WHERE provider = ? AND bucket = ? AND ${accountKey ? 'account_key = ?' : 'profile_id = ?'} ORDER BY captured_at DESC LIMIT 1`).get(profile.provider, id, accountKey ?? profileId) as { usedPercent: number; resetsAt: string | null; capturedAt: string } | undefined
+        WHERE provider = ? AND bucket = ? AND ${accountKey ? 'account_key = ?' : 'profile_id = ?'} ORDER BY captured_at DESC, rowid DESC LIMIT 1`).get(profile.provider, id, accountKey ?? profileId) as { usedPercent: number; resetsAt: string | null; capturedAt: string } | undefined
       const changed = !previous || previous.usedPercent !== Math.round(window.utilization * 100) || previous.resetsAt !== resetsAt || Date.parse(now) - Date.parse(previous.capturedAt) >= 15 * 60_000
       if (changed) this.database.db.prepare(`INSERT INTO quota_snapshots(id,captured_at,provider,profile_id,account_key,bucket,window_id,used_percent,resets_at,window_duration_mins,reliability,source)
         VALUES (?,?,?,?,?,?,?,?,?,?, 'reported','provider-event')`).run(randomUUID(), now, profile.provider, profileId, accountKey, id, id, Math.round(window.utilization * 100), resetsAt, null)
@@ -99,7 +99,7 @@ export class UsageService {
     // v32 is the durable source. The legacy table remains as a rollout fallback for databases predating the first snapshot.
     const accountKey = this.profiles.accountKey(profile.id)
     let rows = this.database.db.prepare(`SELECT q.bucket AS id, q.used_percent / 100.0 AS utilization, q.resets_at AS resetsAt, q.captured_at AS capturedAt FROM quota_snapshots q
-      WHERE ${accountKey ? 'q.account_key = ?' : 'q.profile_id = ?'} AND q.captured_at = (SELECT MAX(q2.captured_at) FROM quota_snapshots q2 WHERE ${accountKey ? 'q2.account_key=q.account_key' : 'q2.profile_id=q.profile_id'} AND q2.bucket=q.bucket) ORDER BY q.bucket`).all(accountKey ?? profile.id) as Array<{ id: string; utilization: number; resetsAt: string | null; capturedAt: string }>
+      WHERE ${accountKey ? 'q.account_key = ?' : 'q.profile_id = ?'} AND q.rowid = (SELECT q2.rowid FROM quota_snapshots q2 WHERE ${accountKey ? 'q2.account_key=q.account_key' : 'q2.profile_id=q.profile_id'} AND q2.bucket=q.bucket ORDER BY q2.captured_at DESC, q2.rowid DESC LIMIT 1) ORDER BY q.bucket`).all(accountKey ?? profile.id) as Array<{ id: string; utilization: number; resetsAt: string | null; capturedAt: string }>
     if (!rows.length) rows = this.database.db.prepare('SELECT window AS id, utilization, resets_at AS resetsAt, captured_at AS capturedAt FROM agent_usage_snapshots WHERE profile_id = ? ORDER BY window').all(profile.id) as typeof rows
     const windows = rows.map((row) => rollWindow({ id: row.id, label: labelFor(row.id), usedPercent: Math.round(row.utilization * 100), resetsAt: row.resetsAt }))
     return { windows, capturedAt: rows.map((row) => row.capturedAt).sort().at(-1) ?? null }

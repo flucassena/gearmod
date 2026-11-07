@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppDatabase } from './database'
 import { ProfileRepository } from './projects'
 import { parseCodexRateLimits, rollWindow, UsageService } from './usage'
@@ -76,6 +76,17 @@ describe('UsageService', () => {
     const { database, codex, service } = await setup()
     expect((await service.list()).find((item) => item.profileId === codex.id)).toMatchObject({ windows: [], capturedAt: null })
     database.close()
+  })
+
+  it('shows the newest Claude event when two arrive in the same millisecond', async () => {
+    const { database, claude, service } = await setup()
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-11-06T12:00:00.000Z'))
+    try {
+      const future = Math.floor(Date.now() / 1000) + 3600
+      service.recordClaude(claude.id, { rate_limit_info: { unifiedWindows: { five_hour: { utilization: 0.73, resetsAt: future } } } })
+      service.recordClaude(claude.id, { rate_limit_info: { unifiedWindows: { five_hour: { utilization: 0.8, resetsAt: future } } } })
+      expect((await service.list()).find((item) => item.profileId === claude.id)!.windows.map((window) => window.usedPercent)).toEqual([80])
+    } finally { vi.useRealTimers(); database.close() }
   })
 
   it('stores the Claude rate_limit_event of each run and zeroes windows that already reset', async () => {

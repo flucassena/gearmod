@@ -8,6 +8,29 @@ export interface GrepMatch { path: string; root: string; line: number; column: n
 const maxMatches = 2000, maxFiles = 300, maxMillis = 10_000, maxFileBytes = 1_000_000, previewWidth = 200
 const ignored = new Set(['node_modules', '.git', 'dist', 'out', 'build', '.next', 'coverage'])
 
+/**
+ * `git grep -E` uses the system's POSIX regex: the macOS one does not know `\w`, `\d` and `\s` (glibc and Git for Windows do), so a search for
+ * `const \w+` found nothing on the Mac. They become POSIX classes, which every system knows. The JS expression still checks each line.
+ */
+export function posixRegex(source: string): string {
+  const outside: Record<string, string> = { w: '[[:alnum:]_]', W: '[^[:alnum:]_]', d: '[0-9]', D: '[^0-9]', s: '[[:space:]]', S: '[^[:space:]]' }
+  const inside: Record<string, string> = { w: '[:alnum:]_', d: '0-9', s: '[:space:]' }
+  let out = '', inClass = false
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i]!
+    if (char === '\\' && i + 1 < source.length) {
+      const next = source[++i]!, swap = inClass ? inside[next] : outside[next]
+      out += swap ?? `\\${next}`
+      continue
+    }
+    if (!inClass && char === '[') { inClass = true; out += char; if (source[i + 1] === '^') out += source[++i]; if (source[i + 1] === ']') out += source[++i]; continue }
+    if (inClass && char === '[' && source[i + 1] === ':') { const end = source.indexOf(':]', i + 2); if (end > 0) { out += source.slice(i, end + 2); i = end + 1; continue } }
+    if (inClass && char === ']') inClass = false
+    out += char
+  }
+  return out
+}
+
 /** JS expression equivalent to the search, used to find the exact snippet in the line and in the non-Git search. */
 function matcher(options: GrepOptions): RegExp {
   const source = options.regex ? options.query : options.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -27,7 +50,7 @@ const globToRegExp = (glob: string): RegExp => new RegExp(`(^|/)${glob.replace(/
 /** `git grep` (respects .gitignore and is fast). Stops on reaching the limits or the time; `null` if the folder is not a repository. */
 function gitGrep(root: string, options: GrepOptions, regex: RegExp, take: (match: GrepMatch) => boolean): Promise<'done' | 'limited' | 'none'> {
   return new Promise((resolveRun, reject) => {
-    const args = ['-C', root, 'grep', '-n', '--column', '-I', '--untracked', '-z', ...(options.caseSensitive ? [] : ['-i']), ...(options.wholeWord ? ['-w'] : []), options.regex ? '-E' : '-F', '-e', options.query]
+    const args = ['-C', root, 'grep', '-n', '--column', '-I', '--untracked', '-z', ...(options.caseSensitive ? [] : ['-i']), ...(options.wholeWord ? ['-w'] : []), options.regex ? '-E' : '-F', '-e', options.regex ? posixRegex(options.query) : options.query]
     const include = (options.include ?? '').split(/[\s,]+/).filter(Boolean)
     if (include.length) args.push('--', ...include)
     const child = spawn('git', args, { windowsHide: true, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } })

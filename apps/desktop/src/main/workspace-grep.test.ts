@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
-import { grepProject } from './workspace-grep'
+import { grepProject, posixRegex } from './workspace-grep'
 
 const exec = promisify(execFile), dirs: string[] = []
 afterEach(async () => { await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))) })
@@ -18,6 +18,16 @@ async function repository(): Promise<string> {
   await writeFile(join(root, 'ignorado.txt'), 'total escondido\n'); await writeFile(join(root, 'novo.ts'), 'total novo\n')
   return root
 }
+
+describe('posixRegex', () => {
+  it('turns \\w, \\d and \\s into POSIX classes, also inside brackets, and keeps the other escapes', () => {
+    expect(posixRegex(String.raw`const \w+ = \d`)).toBe('const [[:alnum:]_]+ = [0-9]')
+    expect(posixRegex(String.raw`\W\D\S`)).toBe('[^[:alnum:]_][^0-9][^[:space:]]')
+    expect(posixRegex(String.raw`[\w.-]+@\s`)).toBe('[[:alnum:]_.-]+@[[:space:]]')
+    expect(posixRegex(String.raw`a\.b\(c\)`)).toBe(String.raw`a\.b\(c\)`)
+    expect(posixRegex(String.raw`[^\d] [[:upper:]\s] []x]`)).toBe('[^0-9] [[:upper:][:space:]] []x]')
+  })
+})
 
 describe('grepProject', () => {
   it('finds plain text, ignores what .gitignore hides and includes new files', async () => {
