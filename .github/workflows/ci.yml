@@ -48,11 +48,11 @@ jobs:
           exit "$bad"
 
   check:
-    # The app ships for Windows (NSIS) and Linux (AppImage, deb): the Git/shell tests run on both, like the product.
+    # The app ships for Windows (NSIS), Linux (AppImage, deb) and macOS (dmg): the Git/shell tests run on all three, like the product.
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-24.04]
+        os: [windows-latest, ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -130,7 +130,12 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm dist:mac
+      - name: Build the Mac disk images
+        # The end of the output also goes to an annotation, so the reason for a failure can be read without opening the log.
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm dist:mac 2>&1 | tee dist-mac.log || { echo "::error title=pnpm dist:mac failed::$(tail -n 40 dist-mac.log | tr -d '\r' | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; exit 1; }
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
       - name: The native modules are in both Mac packages, built for the right processor

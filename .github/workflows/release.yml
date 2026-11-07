@@ -129,7 +129,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
 
-      - run: pnpm dist:mac
+      - name: Build the Mac disk images
+        # The end of the output also goes to an annotation, so the reason for a failure can be read without opening the log.
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm dist:mac 2>&1 | tee dist-mac.log || { echo "::error title=pnpm dist:mac failed::$(tail -n 40 dist-mac.log | tr -d '\r' | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; exit 1; }
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
       - name: Disk images exist
