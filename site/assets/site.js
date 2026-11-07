@@ -117,13 +117,21 @@
     Object.keys(links).forEach(function (id) { if (links[id]) $(id).href = links[id].browser_download_url; });
   }
 
-  /* cache for 10 min: the unauthenticated API allows 60 requests/hour per IP */
-  function load() {
+  /* The version list comes with the site (releases.json, written by the Pages deploy after each Release), so visitors do not
+     depend on the GitHub API, which allows 60 requests/hour per IP without a login. The API is only the fallback (local preview,
+     or a deploy that has no list yet), cached for 10 min. */
+  function json(url, options) { return fetch(url, options).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
+  function fromApi() {
     var key = 'gm-releases', now = Date.now();
-    try { var c = JSON.parse(sessionStorage.getItem(key) || 'null'); if (c && now - c.t < 600000) { releases = c.d; return renderReleases(); } } catch (e) {}
-    fetch('https://api.github.com/repos/' + REPO + '/releases?per_page=30', { headers: { Accept: 'application/vnd.github+json' } })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function (d) { releases = d; try { sessionStorage.setItem(key, JSON.stringify({ t: now, d: d })); } catch (e) {} renderReleases(); })
+    try { var c = JSON.parse(sessionStorage.getItem(key) || 'null'); if (c && now - c.t < 600000) return Promise.resolve(c.d); } catch (e) {}
+    return json('https://api.github.com/repos/' + REPO + '/releases?per_page=30', { headers: { Accept: 'application/vnd.github+json' } })
+      .then(function (d) { try { sessionStorage.setItem(key, JSON.stringify({ t: now, d: d })); } catch (e) {} return d; });
+  }
+  function load() {
+    json('releases.json', { cache: 'no-cache' })
+      .then(function (d) { if (!Array.isArray(d) || !d.length) throw new Error('empty'); return d; })
+      .catch(fromApi)
+      .then(function (d) { releases = d; renderReleases(); })
       .catch(function () { releases = false; if ($('dl-ver')) $('dl-ver').textContent = ''; renderReleases(); });
   }
   load();

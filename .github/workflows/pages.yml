@@ -1,9 +1,11 @@
 name: Pages
 
-# Publishes the landing page (site/) to GitHub Pages.
-# The download list is read from the GitHub Releases API by the page itself, so a new version tag
-# (which makes release.yml publish a Release) shows up on the page without redeploying it.
-# This workflow only runs when the page changes. Enable it once in Settings > Pages > Source: GitHub Actions.
+# Publishes the landing page (site/) to GitHub Pages, with the version list in site/releases.json.
+# The page reads that file, so visitors do not depend on the GitHub API (60 requests per hour per IP without a login,
+# which a shared network runs out of). The API is only a fallback when the file is missing.
+# Runs when the page changes on main and, through release.yml, after each Release is published (a Release made with
+# GITHUB_TOKEN does not trigger other workflows, so release.yml starts this one by hand).
+# Enable it once in Settings > Pages > Source: GitHub Actions.
 # The custom domain (gearmod.dev) comes from site/CNAME; the DNS records are set at the domain registrar.
 on:
   push:
@@ -29,6 +31,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
+      - name: Version list (only the fields the page uses)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=30" \
+            --jq '[.[] | {id, name, tag_name, draft, prerelease, published_at, created_at, html_url, assets: [.assets[] | {name, size, browser_download_url}]}]' > site/releases.json
+          jq -r '.[] | .tag_name + " (" + (.assets | length | tostring) + " files)"' site/releases.json
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

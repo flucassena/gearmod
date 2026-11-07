@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  actions: write  # starts pages.yml after publishing, so the site lists the new version
 
 concurrency:
   group: release-${{ github.ref }}
@@ -240,3 +241,9 @@ jobs:
             SHA256SUMS.txt \
             --repo "$GITHUB_REPOSITORY" \
             --title "GearMod $VERSION" --notes-file notes.md --generate-notes "${extra[@]}"
+
+      - name: Update the site's version list
+        # A Release made with GITHUB_TOKEN does not trigger other workflows; a workflow_dispatch does.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
