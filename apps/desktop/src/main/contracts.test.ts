@@ -10,6 +10,18 @@ describe('IPC contracts', () => {
     expect(ipcContracts['cards:update'].input.safeParse({ cardId: ids.cardId, title: '', ...base }).success).toBe(false)
   })
 
+  it('accepts a base branch and a worktree choice on create (never on update)', () => {
+    const base = { projectId: ids.projectId, columnId: ids.columnId, title: '', type: 'task', priority: 'medium', description: '', acceptanceCriteria: [] }
+    const create = ipcContracts['cards:create'].input
+    expect(create.safeParse({ ...base, baseBranch: 'develop' }).success).toBe(true)
+    expect(create.safeParse({ ...base, worktree: { kind: 'card', cardId: ids.cardId } }).success).toBe(true)
+    expect(create.safeParse({ ...base, worktree: { kind: 'external', path: 'C:/work/by-hand' } }).success).toBe(true)
+    expect(create.safeParse({ ...base, worktree: { kind: 'external' } }).success).toBe(false)
+    expect(create.safeParse({ ...base, worktree: { kind: 'other', path: 'x' } }).success).toBe(false)
+    expect(ipcContracts['cards:update'].input.safeParse({ cardId: ids.cardId, ...base, projectId: undefined, columnId: undefined, title: 'A', baseBranch: 'develop' }).success).toBe(false)
+    expect(ipcContracts['worktrees:adopt'].input.safeParse({ cardId: ids.cardId, path: '' }).success).toBe(false)
+  })
+
   it('validates document kinds, hex agent colors and app settings', () => {
     expect(ipcContracts['cards:write-document'].input.safeParse({ cardId: ids.cardId, kind: 'criterios', contentMd: '' }).success).toBe(false)
     expect(ipcContracts['profiles:create'].input.safeParse({ provider: 'codex', label: 'A', scope: 'x', color: 'vermelho' }).success).toBe(false)

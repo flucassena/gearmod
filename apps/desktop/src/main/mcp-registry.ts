@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { McpPreset, McpServer, McpServerInput } from '@gearmod/contracts'
 import type { AppDatabase } from './database'
@@ -7,7 +8,7 @@ import { tm } from './i18n'
 
 export type McpProvider = 'claude' | 'codex' | 'gemini'
 /** What the adapter receives to inject into the run; contains secrets, never goes to the renderer. */
-export type McpRunServer = { name: string } & ({ transport: 'stdio'; command: string; args: string[]; env: Record<string, string> } | { transport: 'http'; url: string; headers: Record<string, string> })
+export type McpRunServer = { name: string } & ({ transport: 'stdio'; command: string; args: string[]; env: Record<string, string> } | { transport: 'http'; url: string; headers: Record<string, string>; sse?: boolean })
 
 /** Most-used servers to get started. They only fill in the form: nothing is installed or run when one is chosen. */
 export const mcpPresets: McpPreset[] = [
@@ -22,10 +23,37 @@ export const mcpPresets: McpPreset[] = [
   { id: 'remote', get label() { return tm().mcpPresets.remoteLabel }, get description() { return tm().mcpPresets.remoteDescription }, transport: 'http', command: '', args: [], env: [], headers: ['Authorization'], get note() { return tm().mcpPresets.remoteNote } }
 ]
 
+export type ImportedServer = { name: string; transport: 'stdio' | 'http'; sse: boolean; command: string; args: string[]; url: string; env: Array<{ key: string; value: string }>; headers: Array<{ key: string; value: string }> }
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const pairsOf = (value: unknown): Array<{ key: string; value: string }> => (isRecord(value) ? Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string').map(([key, text]) => ({ key, value: text })) : [])
+/** A name the registry accepts (letters, numbers, "-" and "_", up to 40): other characters become "-". */
+export const mcpNameFrom = (raw: string): string => raw.trim().replace(/[^a-z0-9_-]+/gi, '-').replace(/^[-_]+|[-_]+$/g, '').slice(0, 40)
+
+/**
+ * Reads the usual `{ "mcpServers": { "<name>": { type, url, headers } | { command, args, env } } }` (also `servers`). A server with `command` is local; with `url`
+ * it is remote, SSE when `type` says so or the address ends in `/sse`. Entries that are neither are ignored.
+ */
+export function parseMcpJson(text: string): ImportedServer[] {
+  let data: unknown
+  try { data = JSON.parse(text) } catch { throw new Error(tm().mcpRegistry.invalidJson) }
+  const table = isRecord(data) ? (isRecord(data.mcpServers) ? data.mcpServers : isRecord(data.servers) ? data.servers : null) : null
+  if (!table) throw new Error(tm().mcpRegistry.noServersInJson)
+  const found: ImportedServer[] = []
+  for (const [rawName, entry] of Object.entries(table)) {
+    const name = mcpNameFrom(rawName)
+    if (!name || !isRecord(entry)) continue
+    const type = typeof entry.type === 'string' ? entry.type.toLowerCase() : '', command = typeof entry.command === 'string' ? entry.command.trim() : '', url = typeof entry.url === 'string' ? entry.url.trim() : ''
+    if (command) found.push({ name, transport: 'stdio', sse: false, command, args: Array.isArray(entry.args) ? entry.args.filter((item): item is string => typeof item === 'string') : [], url: '', env: pairsOf(entry.env), headers: [] })
+    else if (url) found.push({ name, transport: 'http', sse: type === 'sse' || (type !== 'http' && type !== 'streamable-http' && /\/sse\/?$/i.test(url)), command: '', args: [], url, env: [], headers: pairsOf(entry.headers) })
+  }
+  if (!found.length) throw new Error(tm().mcpRegistry.noServersInJson)
+  return found
+}
+
 const nameRule = /^[a-z0-9][a-z0-9_-]{0,39}$/i
 const reserved = new Set(['gearmod'])
 type Secrets = { env: Record<string, string>; headers: Record<string, string> }
-type Row = { id: string; scope: 'global' | 'project'; projectId: string | null; name: string; presetId: string | null; transport: 'stdio' | 'http'; command: string | null; argsJson: string; url: string | null; envKeysJson: string; headerKeysJson: string; providersJson: string; enabled: number }
+type Row = { id: string; scope: 'global' | 'project'; projectId: string | null; name: string; presetId: string | null; transport: 'stdio' | 'http'; sse: number; command: string | null; argsJson: string; url: string | null; envKeysJson: string; headerKeysJson: string; providersJson: string; enabled: number }
 
 /**
  * GearMod MCP server registry: a global list and one per project, with an on/off switch per agent.
@@ -39,13 +67,13 @@ export class McpRegistry {
     try { const raw = await this.store(id).read(); const parsed = raw ? JSON.parse(raw) as Partial<Secrets> : {}; return { env: parsed.env ?? {}, headers: parsed.headers ?? {} } } catch { return { env: {}, headers: {} } }
   }
   private rows(projectId?: string): Row[] {
-    return this.database.db.prepare(`SELECT id, scope, project_id AS projectId, name, preset_id AS presetId, transport, command, args_json AS argsJson, url, env_keys_json AS envKeysJson, header_keys_json AS headerKeysJson, providers_json AS providersJson, enabled FROM mcp_servers
+    return this.database.db.prepare(`SELECT id, scope, project_id AS projectId, name, preset_id AS presetId, transport, sse, command, args_json AS argsJson, url, env_keys_json AS envKeysJson, header_keys_json AS headerKeysJson, providers_json AS providersJson, enabled FROM mcp_servers
       WHERE scope = 'global' ${projectId ? "OR (scope = 'project' AND project_id = @projectId)" : ''} ORDER BY scope, name`).all(projectId ? { projectId } : {}) as Row[]
   }
   private disabledHere(projectId: string): Set<string> { return new Set(this.database.db.prepare('SELECT server_id FROM mcp_project_disabled WHERE project_id = ?').pluck().all(projectId) as string[]) }
   private async view(row: Row, disabled: Set<string>): Promise<McpServer> {
     const secrets = await this.secrets(row.id), keys = (json: string): string[] => JSON.parse(json) as string[]
-    return { id: row.id, scope: row.scope, projectId: row.projectId, name: row.name, presetId: row.presetId, transport: row.transport, command: row.command ?? '', args: JSON.parse(row.argsJson) as string[], url: row.url ?? '', env: keys(row.envKeysJson).map((key) => ({ key, set: Boolean(secrets.env[key]) })), headers: keys(row.headerKeysJson).map((key) => ({ key, set: Boolean(secrets.headers[key]) })), providers: JSON.parse(row.providersJson) as McpProvider[], enabled: Boolean(row.enabled), disabledHere: disabled.has(row.id) }
+    return { id: row.id, scope: row.scope, projectId: row.projectId, name: row.name, presetId: row.presetId, transport: row.transport, sse: row.sse === 1, command: row.command ?? '', args: JSON.parse(row.argsJson) as string[], url: row.url ?? '', env: keys(row.envKeysJson).map((key) => ({ key, set: Boolean(secrets.env[key]) })), headers: keys(row.headerKeysJson).map((key) => ({ key, set: Boolean(secrets.headers[key]) })), providers: JSON.parse(row.providersJson) as McpProvider[], enabled: Boolean(row.enabled), disabledHere: disabled.has(row.id) }
   }
 
   /** Global ones and, with `projectId`, the project's too. Secret values appear only as "set or not". */
@@ -70,12 +98,52 @@ export class McpRegistry {
     // An empty value keeps the secret already stored; a removed key disappears. Only what was typed replaces.
     const merge = (keys: Array<{ key: string; value?: string }>, old: Record<string, string>): Record<string, string> => Object.fromEntries(keys.filter((item) => item.key.trim()).map((item) => [item.key.trim(), item.value ? item.value : old[item.key.trim()] ?? '']))
     const env = merge(input.env, previous.env), headers = merge(input.headers, previous.headers)
-    const row = { id, scope: input.scope, projectId: input.scope === 'project' ? input.projectId : null, name, presetId: input.presetId ?? null, transport: input.transport, command: input.transport === 'stdio' ? input.command.trim() : null, argsJson: JSON.stringify(input.transport === 'stdio' ? input.args.filter((arg) => arg !== '') : []), url: input.transport === 'http' ? input.url.trim() : null, envKeys: JSON.stringify(input.transport === 'stdio' ? Object.keys(env) : []), headerKeys: JSON.stringify(input.transport === 'http' ? Object.keys(headers) : []), providers: JSON.stringify([...new Set(input.providers)]), enabled: input.enabled ? 1 : 0, now }
-    this.database.db.prepare(`INSERT INTO mcp_servers(id, scope, project_id, name, preset_id, transport, command, args_json, url, env_keys_json, header_keys_json, providers_json, enabled, created_at, updated_at)
-      VALUES (@id, @scope, @projectId, @name, @presetId, @transport, @command, @argsJson, @url, @envKeys, @headerKeys, @providers, @enabled, @now, @now)
-      ON CONFLICT(id) DO UPDATE SET name = excluded.name, preset_id = excluded.preset_id, transport = excluded.transport, command = excluded.command, args_json = excluded.args_json, url = excluded.url, env_keys_json = excluded.env_keys_json, header_keys_json = excluded.header_keys_json, providers_json = excluded.providers_json, enabled = excluded.enabled, updated_at = excluded.updated_at`).run(row)
+    const row = { id, scope: input.scope, projectId: input.scope === 'project' ? input.projectId : null, name, presetId: input.presetId ?? null, transport: input.transport, sse: input.transport === 'http' && input.sse ? 1 : 0, command: input.transport === 'stdio' ? input.command.trim() : null, argsJson: JSON.stringify(input.transport === 'stdio' ? input.args.filter((arg) => arg !== '') : []), url: input.transport === 'http' ? input.url.trim() : null, envKeys: JSON.stringify(input.transport === 'stdio' ? Object.keys(env) : []), headerKeys: JSON.stringify(input.transport === 'http' ? Object.keys(headers) : []), providers: JSON.stringify([...new Set(input.providers)]), enabled: input.enabled ? 1 : 0, now }
+    this.database.db.prepare(`INSERT INTO mcp_servers(id, scope, project_id, name, preset_id, transport, sse, command, args_json, url, env_keys_json, header_keys_json, providers_json, enabled, created_at, updated_at)
+      VALUES (@id, @scope, @projectId, @name, @presetId, @transport, @sse, @command, @argsJson, @url, @envKeys, @headerKeys, @providers, @enabled, @now, @now)
+      ON CONFLICT(id) DO UPDATE SET name = excluded.name, preset_id = excluded.preset_id, transport = excluded.transport, sse = excluded.sse, command = excluded.command, args_json = excluded.args_json, url = excluded.url, env_keys_json = excluded.env_keys_json, header_keys_json = excluded.header_keys_json, providers_json = excluded.providers_json, enabled = excluded.enabled, updated_at = excluded.updated_at`).run(row)
     await this.store(id).write(Object.keys(env).length || Object.keys(headers).length ? JSON.stringify({ env: input.transport === 'stdio' ? env : {}, headers: input.transport === 'http' ? headers : {} }) : null)
     return (await this.list(input.scope === 'project' ? input.projectId : undefined)).find((item) => item.id === id)!
+  }
+
+  /** `.mcp.json` files that may belong to the project: the one in the project folder and the ones in each repository. */
+  private projectFiles(projectId: string): string[] {
+    const folders = [
+      ...(this.database.db.prepare('SELECT local_path FROM projects WHERE id = ?').pluck().all(projectId) as string[]),
+      ...(this.database.db.prepare('SELECT local_path FROM project_sources WHERE project_id = ? ORDER BY sort_order').pluck().all(projectId) as string[])
+    ]
+    return [...new Set(folders.map((folder) => join(folder, '.mcp.json')))].filter((file) => existsSync(file))
+  }
+
+  /** What the project's own `.mcp.json` declares. Nothing is loaded from it: the user chooses to import (the file can start local programs). */
+  async detect(projectId: string): Promise<{ path: string | null; servers: Array<{ name: string; kind: 'stdio' | 'http' | 'sse'; exists: boolean }> }> {
+    const path = this.projectFiles(projectId)[0]
+    if (!path) return { path: null, servers: [] }
+    let found: ImportedServer[]
+    try { found = parseMcpJson(readFileSync(path, 'utf8')) } catch { return { path, servers: [] } }
+    const have = new Set((await this.list(projectId)).filter((item) => item.scope === 'project' || item.scope === 'global').map((item) => item.name.toLowerCase()))
+    return { path, servers: found.map((item) => ({ name: item.name, kind: item.transport === 'stdio' ? 'stdio' as const : item.sse ? 'sse' as const : 'http' as const, exists: have.has(item.name.toLowerCase()) })) }
+  }
+
+  /** Adds the servers of an `mcpServers` JSON (what Claude Code, Cursor and others use), from pasted text or from the project's `.mcp.json`. Names already registered are left alone. */
+  async importJson(input: { scope: 'global' | 'project'; projectId?: string; text?: string; fromProjectFile?: boolean }): Promise<{ added: string[]; skipped: string[] }> {
+    let text = input.text ?? ''
+    if (input.fromProjectFile) {
+      const path = input.projectId ? this.projectFiles(input.projectId)[0] : undefined
+      if (!path) throw new Error(tm().mcpRegistry.noProjectMcpFile)
+      text = readFileSync(path, 'utf8')
+    }
+    const servers = parseMcpJson(text)
+    const added: string[] = [], skipped: string[] = []
+    const have = new Set((await this.list(input.projectId)).filter((item) => item.scope === input.scope).map((item) => item.name.toLowerCase()))
+    for (const server of servers) {
+      if (have.has(server.name.toLowerCase()) || reserved.has(server.name.toLowerCase())) { skipped.push(server.name); continue }
+      try {
+        await this.save({ scope: input.scope, ...(input.scope === 'project' ? { projectId: input.projectId } : {}), name: server.name, presetId: null, transport: server.transport, sse: server.sse, command: server.command, args: server.args, url: server.url, env: server.env, headers: server.headers, providers: server.sse ? ['claude'] : ['claude', 'codex'], enabled: true })
+        added.push(server.name)
+      } catch { skipped.push(server.name) }
+    }
+    return { added, skipped }
   }
 
   async remove(id: string): Promise<void> {
@@ -95,10 +163,12 @@ export class McpRegistry {
     const disabled = this.disabledHere(projectId), result: McpRunServer[] = []
     for (const row of this.rows(projectId)) {
       if (!row.enabled || disabled.has(row.id) || !(JSON.parse(row.providersJson) as string[]).includes(provider)) continue
+      // Codex only speaks streamable HTTP: an SSE server is never handed to it.
+      if (provider === 'codex' && row.sse === 1) continue
       const secrets = await this.secrets(row.id)
       result.push(row.transport === 'stdio'
         ? { name: row.name, transport: 'stdio', command: row.command ?? '', args: JSON.parse(row.argsJson) as string[], env: secrets.env }
-        : { name: row.name, transport: 'http', url: row.url ?? '', headers: secrets.headers })
+        : { name: row.name, transport: 'http', url: row.url ?? '', headers: secrets.headers, ...(row.sse === 1 ? { sse: true } : {}) })
     }
     // Project wins over global when they have the same name.
     const byName = new Map<string, McpRunServer>(); for (const server of result) byName.set(server.name.toLowerCase(), server)
@@ -117,12 +187,12 @@ export function codexMcpServers(servers: McpRunServer[]): Record<string, Record<
 export function claudeMcpServers(servers: McpRunServer[]): Record<string, Record<string, unknown>> {
   return Object.fromEntries(servers.map((server) => [server.name, server.transport === 'stdio'
     ? { command: server.command, args: server.args, env: server.env }
-    : { type: 'http', url: server.url, ...(Object.keys(server.headers).length ? { headers: server.headers } : {}) }]))
+    : { type: server.sse ? 'sse' : 'http', url: server.url, ...(Object.keys(server.headers).length ? { headers: server.headers } : {}) }]))
 }
 
 /** Extra servers in the `mcpServers` format of the Gemini CLI's settings.json. */
 export function geminiMcpServers(servers: McpRunServer[]): Record<string, Record<string, unknown>> {
   return Object.fromEntries(servers.map((server) => [server.name, server.transport === 'stdio'
     ? { command: server.command, args: server.args, env: server.env }
-    : { httpUrl: server.url, ...(Object.keys(server.headers).length ? { headers: server.headers } : {}) }]))
+    : { [server.sse ? 'url' : 'httpUrl']: server.url, ...(Object.keys(server.headers).length ? { headers: server.headers } : {}) }]))
 }

@@ -21,7 +21,7 @@ export function acpMcpServers(servers: McpRunServer[], gearmod?: { command: stri
   const pairs = (record: Record<string, string>): Array<{ name: string; value: string }> => Object.entries(record).map(([name, value]) => ({ name, value }))
   const all: Json[] = servers.map((server) => server.transport === 'stdio'
     ? { name: server.name, command: server.command, args: server.args, env: pairs(server.env) }
-    : { type: 'http', name: server.name, url: server.url, headers: pairs(server.headers) })
+    : { type: server.sse ? 'sse' : 'http', name: server.name, url: server.url, headers: pairs(server.headers) })
   if (gearmod) all.unshift({ name: 'gearmod', command: gearmod.command, args: gearmod.args, env: pairs(gearmod.env) })
   return all
 }

@@ -32,7 +32,7 @@ async function setup() {
   const projects = new ProjectRepository(database, git), board = new BoardRepository(database, projects)
   const project = await projects.create({ name: 'P', localPath: root, baseBranch: 'dev' })
   const columns = board.get(project.id).columns
-  const card = board.create({ projectId: project.id, columnId: columns[1]!.id, title: 'MCP', description: 'Resumo', type: 'task', priority: 'medium', acceptanceCriteria: [] })
+  const card = board.create({ projectId: project.id, columnId: columns[0]!.id, title: 'MCP', description: 'Resumo', type: 'task', priority: 'medium', acceptanceCriteria: [] })
   const context = new AgentContextService(board, new SettingsRepository(database), null)
   const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath }); await bridge.listen()
   closers.push(async () => { await bridge.close(); database.close() })
@@ -107,12 +107,12 @@ describe('GearMod MCP server', () => {
     expect(board.card(card.id).type).toBe('improvement')
     board.update({ cardId: card.id, type: 'task', title: 'Novo título', description: 'Resumo', priority: 'urgent', acceptanceCriteria: [] })
     const moved = await client.call('gearmod_move_card', { coluna: 'Doing', quando: 'agora' })
-    expect(moved.content[0]!.text).toContain('Doing'); expect(board.card(card.id).columnId).toBe(columns[2]!.id)
+    expect(moved.content[0]!.text).toContain('Doing'); expect(board.card(card.id).columnId).toBe(columns[1]!.id)
     const refused = await client.call('gearmod_move_card', { coluna: 'Done', quando: 'agora' })
     expect(refused.isError).toBe(true); expect(refused.content[0]!.text).toContain('Testes automatizados')
     expect(changes.map((change) => change.type)).toEqual(['document', 'task', 'card', 'card', 'moved'])
     await client.call('gearmod_move_card', { coluna: 'test', quando: 'ao_terminar' })
-    expect(bridge.finish('run-1')).toEqual({ written: ['tasks'], pendingMove: columns[3]!.id })
+    expect(bridge.finish('run-1')).toEqual({ written: ['tasks'], pendingMove: columns[2]!.id })
   })
 
   it('B2: the Constitution chat lists gearmod_create_card, which the skill tells it to call', async () => {
@@ -142,7 +142,7 @@ describe('GearMod MCP server', () => {
     const projects = new ProjectRepository(database, git), board = new BoardRepository(database, projects)
     const project = await projects.create({ name: 'P', localPath: root, baseBranch: 'dev' })
     const columns = board.get(project.id).columns
-    const card = board.create({ projectId: project.id, columnId: columns[1]!.id, title: 'MCP', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
+    const card = board.create({ projectId: project.id, columnId: columns[0]!.id, title: 'MCP', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
     const context = new AgentContextService(board, new SettingsRepository(database), null)
     const history = new CardHistoryService(database, root)
     history.setConfig(project.id, { ...defaultWorkflowConfig, policy: { rules: [{ action: 'move', decision: 'deny' }, { action: 'choose-workflow', decision: 'deny' }] } })
@@ -156,7 +156,7 @@ describe('GearMod MCP server', () => {
     // B9: "when finishing" also respects the policy
     const later = await client.call('gearmod_move_card', { coluna: 'Doing', quando: 'ao_terminar' })
     expect(later.isError).toBe(true); expect(later.content[0]!.text).toContain('policy')
-    expect(board.card(card.id).columnId).toBe(columns[1]!.id)
+    expect(board.card(card.id).columnId).toBe(columns[0]!.id)
     expect(approvals.list(card.id)).toHaveLength(0)
     const events = database.db.prepare("SELECT json FROM card_events WHERE card_id = ? AND type = 'policy.decided'").all(card.id) as Array<{ json: string }>
     expect(events.map((event) => JSON.parse(event.json))).toContainEqual({ action: 'move', decision: 'deny' })
@@ -168,7 +168,7 @@ describe('GearMod MCP server', () => {
     const projects = new ProjectRepository(database, git), board = new BoardRepository(database, projects)
     const project = await projects.create({ name: 'P', localPath: root, baseBranch: 'dev' })
     const columns = board.get(project.id).columns
-    const card = board.create({ projectId: project.id, columnId: columns[1]!.id, title: 'MCP', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
+    const card = board.create({ projectId: project.id, columnId: columns[0]!.id, title: 'MCP', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
     const context = new AgentContextService(board, new SettingsRepository(database), null)
     const history = new CardHistoryService(database, root)
     history.setConfig(project.id, { ...defaultWorkflowConfig, policy: { rules: [{ action: 'move', decision: 'ask' }] } })
@@ -179,7 +179,7 @@ describe('GearMod MCP server', () => {
     await client.request('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'test', version: '1' } })
     const moved = await client.call('gearmod_move_card', { coluna: 'Doing', quando: 'agora' })
     expect(moved.isError).toBeFalsy(); expect(moved.content[0]!.text).toContain('awaiting')
-    expect(board.card(card.id).columnId).toBe(columns[1]!.id)
+    expect(board.card(card.id).columnId).toBe(columns[0]!.id)
     expect(approvals.list(card.id)).toHaveLength(1)
     const events = database.db.prepare("SELECT json FROM card_events WHERE card_id = ? AND type = 'policy.decided'").all(card.id) as Array<{ json: string }>
     expect(events.map((event) => JSON.parse(event.json))).toContainEqual({ action: 'move', decision: 'ask' })
@@ -191,7 +191,7 @@ describe('GearMod MCP server', () => {
     const projects = new ProjectRepository(database, git), board = new BoardRepository(database, projects)
     const project = await projects.create({ name: 'P', localPath: root, baseBranch: 'dev' })
     const columns = board.get(project.id).columns
-    const card = board.create({ projectId: project.id, columnId: columns[1]!.id, title: 'MCP', description: 'Resumo', type: 'task', priority: 'medium', acceptanceCriteria: [] })
+    const card = board.create({ projectId: project.id, columnId: columns[0]!.id, title: 'MCP', description: 'Resumo', type: 'task', priority: 'medium', acceptanceCriteria: [] })
     const context = new AgentContextService(board, new SettingsRepository(database), null)
     const approvals = new ApprovalService(database)
     const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, approvals, agentMoveApproval: true }); await bridge.listen()
@@ -200,11 +200,11 @@ describe('GearMod MCP server', () => {
     await client.request('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'test', version: '1' } })
     const reply = await client.call('gearmod_move_card', { coluna: 'Doing', quando: 'agora' })
     expect(reply.isError).toBe(false); expect(reply.content[0]!.text).toContain("awaiting the user's approval")
-    expect(board.card(card.id).columnId).toBe(columns[1]!.id)
+    expect(board.card(card.id).columnId).toBe(columns[0]!.id)
     const pending = approvals.list(card.id).find((item) => item.kind === 'agent-move' && item.status === 'requested')!
     approvals.decide(pending.id, true)
     board.move(card.id, pending.payload.columnId as string, null, 'agent')
-    expect(board.card(card.id).columnId).toBe(columns[2]!.id)
+    expect(board.card(card.id).columnId).toBe(columns[1]!.id)
   })
 
   it('rejects calls with an unknown token or after the run finished', async () => {
@@ -228,7 +228,7 @@ describe('card title', () => {
   it('names an untitled card after the first planning turn when the agent did not, and leaves named cards alone', async () => {
     const { board, bridge, card, project, columns } = await setup()
     const writeback = new AgentWriteback(board, bridge)
-    const blank = board.create({ projectId: project.id, columnId: columns[1]!.id, title: '', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
+    const blank = board.create({ projectId: project.id, columnId: columns[0]!.id, title: '', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
     writeback.begin('run-t', blank.id, () => undefined)
     const events: string[] = []
     writeback.finish({ runId: 'run-t', cardId: blank.id, planning: true, completed: true, text: 'ok', prompt: 'Quero planejar o painel de uso. Com Codex e Claude', publish: (type) => events.push(type) })
@@ -254,7 +254,7 @@ describe('Plano B and writeback', () => {
     const outcome = writeback.finish({ runId: 'run-3', cardId: card.id, planning: true, completed: true, publish: (type) => events.push(type), text: '<!-- gearmod:documento tipo=plano -->\n## Plano\nFazer\n<!-- /gearmod:documento -->\n<!-- gearmod:documento tipo=tasks -->\nsem itens\n<!-- /gearmod:documento -->' })
     expect(board.documents.read(card.id, 'plano')).toBe('## Plano\nFazer')
     expect(outcome.wroteDocuments).toBe(true); expect(outcome.notices[0]).toContain('tasks não foi gravado')
-    expect(board.card(card.id).columnId).toBe(columns[1]!.id)
+    expect(board.card(card.id).columnId).toBe(columns[0]!.id)
     expect(events).toContain('gearmod/card-updated')
     const another = writeback.begin('run-4', card.id, () => undefined)
     expect(another.env.GEARMOD_TOKEN).not.toBe(endpoint.env.GEARMOD_TOKEN)
@@ -271,7 +271,7 @@ describe('collaboration tools', () => {
     const projects = new ProjectRepository(database, git), board = new BoardRepository(database, projects), conversations = new ConversationRepository(database)
     const profile = profiles.list()[0]!
     const project = await projects.create({ name: 'P', localPath: root, baseBranch: 'dev', profileIds: [profile.id] })
-    const card = board.create({ projectId: project.id, columnId: board.get(project.id).columns[2]!.id, title: 'C', description: '', type: 'task', priority: 'low', acceptanceCriteria: [] })
+    const card = board.create({ projectId: project.id, columnId: board.get(project.id).columns[1]!.id, title: 'C', description: '', type: 'task', priority: 'low', acceptanceCriteria: [] })
     const dev = conversations.createChat({ projectId: project.id, cardId: card.id, purpose: 'execution', profileId: profile.id })
     const planning = conversations.createChat({ projectId: project.id, cardId: card.id, purpose: 'planning', profileId: profile.id })
     const started: FollowUp[] = []

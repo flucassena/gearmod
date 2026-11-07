@@ -20,7 +20,7 @@ async function setup() {
   const profile = profiles.list()[0]!
   const project = await projects.create({ name: 'P', localPath: root, baseBranch: 'dev', profileIds: [profile.id] })
   const columns = board.get(project.id).columns
-  const card = board.create({ projectId: project.id, columnId: columns[1]!.id, title: 'Executar', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
+  const card = board.create({ projectId: project.id, columnId: columns[0]!.id, title: 'Executar', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
   const started: Array<{ chatId: string; prompt: string; planning: boolean; notice?: string }> = []
   const orchestrator = { start(input: { chatId: string; prompt: string; planning: boolean; notice?: string }) { started.push(input); const run = conversations.createRun({ cardId: card.id, chatId: input.chatId, profileId: profile.id }); conversations.updateRun(run.id, 'running', null); return { ...run, status: 'running' as const } } }
   return { database, board, conversations, projects, profile, profiles: profiles.list(), project, columns, card, started, service: new ExecutionService(board, conversations, orchestrator) }
@@ -32,7 +32,7 @@ describe('ExecutionService', () => {
     board.documents.write(card.id, 'plano', '## Plano\nFazer')
     const run = service.start(card.id, { profileId: profile.id, model: null, effort: null, mode: 'auto' })
     expect(run.status).toBe('running')
-    expect(board.card(card.id).columnId).toBe(columns[2]!.id)
+    expect(board.card(card.id).columnId).toBe(columns[1]!.id)
     expect(conversations.listPlans(card.id)[0]).toMatchObject({ status: 'approved', contentMd: '## Plano\nFazer' })
     expect(started[0]).toMatchObject({ planning: false }); expect(started[0]!.prompt).toBe('Use the gearmod-implement skill to implement this card.'); expect(started[0]!.notice).toBe('▶ Usando a skill gearmod-implement')
     expect(board.card(card.id).run).toMatchObject({ state: 'running', runId: run.id })

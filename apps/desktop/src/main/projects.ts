@@ -1,6 +1,7 @@
 import { complexitySummary } from './history'
 import { randomUUID } from 'node:crypto'
 import { execFile } from 'node:child_process'
+import { realpathSync } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
@@ -22,8 +23,12 @@ function parseEnvPassthrough(row: Record<string, unknown>): Record<string, unkno
   return { ...rest, envPassthrough }
 }
 const defaultColumns = [
-  ['Backlog', 'backlog'], ['To do', 'todo'], ['Doing', 'doing'], ['Test', 'test'], ['Done', 'done']
+  ['To do', 'todo'], ['Doing', 'doing'], ['Test', 'test'], ['Done', 'done']
 ] as const
+
+/** Real path (Git hands over the long name, Windows may have stored the short one), lowercase on Windows. */
+const pathKey = (path: string): string => { let value = resolve(path); try { value = realpathSync.native(value) } catch { /* the folder may be gone */ } return process.platform === 'win32' ? value.toLowerCase() : value }
+const samePath = (a: string, b: string): boolean => pathKey(a) === pathKey(b)
 
 export class GitService {
   /** Branch currently open exactly in this folder; does not confuse a container folder with child repositories. */
@@ -222,14 +227,17 @@ export class ProjectRepository {
     return project
   }
 
-  async create(input: { name?: string; sourcePaths?: string[]; profileIds?: string[]; localPath?: string; baseBranch?: string; icon?: string | null }): Promise<Project> {
+  async create(input: { name?: string; sourcePaths?: string[]; excludePaths?: string[]; profileIds?: string[]; localPath?: string; baseBranch?: string; icon?: string | null }): Promise<Project> {
     const paths = input.sourcePaths ?? (input.localPath ? [input.localPath] : [])
     if (!paths.length) throw new Error(tm().projects.addAtLeastOneFolder)
     const inspections = await Promise.all(paths.map((path) => this.git.inspect(path)))
     const first = inspections[0]!
     type DiscoveredSource = { localPath: string; name: string; currentBranch: string | null; branches: string[]; isGitRepository: boolean }
     const discovered: DiscoveredSource[] = inspections.flatMap<DiscoveredSource>((inspection) => inspection.repositories.length ? inspection.repositories.map((repository) => ({ ...repository, isGitRepository: true })) : [{ localPath: inspection.localPath, name: inspection.name, currentBranch: null, branches: [], isGitRepository: false }])
-    const unique = [...new Map(discovered.map((source) => [source.localPath.toLocaleLowerCase(), source])).values()]
+    // Repositories the user took out in the dialog: they are not registered and, being remembered, the project folder scan does not bring them back.
+    const excludePaths = input.excludePaths ?? []
+    const unique = [...new Map(discovered.map((source) => [source.localPath.toLocaleLowerCase(), source])).values()].filter((source) => !excludePaths.some((path) => samePath(path, source.localPath)))
+    if (!unique.length) throw new Error(tm().projects.addAtLeastOneFolder)
     const name = input.name?.trim() || first.name
     const baseBranch = input.baseBranch || unique.find((source) => source.isGitRepository)?.currentBranch || ''
     const selectedProfiles = input.profileIds ?? []
@@ -243,6 +251,7 @@ export class ProjectRepository {
       const insertSource = this.database.db.prepare(`INSERT INTO project_sources(id, project_id, name, local_path, is_git_repository, current_branch, sort_order)
         VALUES (?, ?, ?, ?, ?, ?, ?)`)
       unique.forEach((source, index) => insertSource.run(randomUUID(), id, source.name, source.localPath, source.isGitRepository ? 1 : 0, source.currentBranch, index))
+      for (const path of excludePaths) if (discovered.some((source) => samePath(source.localPath, path))) this.database.db.prepare('INSERT OR IGNORE INTO project_excluded_repos(project_id, local_path) VALUES (?, ?)').run(id, path)
       const insertColumn = this.database.db.prepare(`INSERT INTO board_columns(id, project_id, label, sort_order, semantic_state, is_default)
         VALUES (?, ?, ?, ?, ?, 1)`)
       defaultColumns.forEach(([label, state], index) => insertColumn.run(randomUUID(), id, label, index, state))
@@ -251,6 +260,59 @@ export class ProjectRepository {
     })
     create()
     return this.get(id)
+  }
+
+  /**
+   * Adds the repositories found in a folder (the folder itself or its direct children) to an existing project. Repositories the project already has are
+   * skipped; one the user had taken out comes back (the exclusion is lifted).
+   */
+  async addRepositories(projectId: string, localPath: string): Promise<Project> {
+    const project = this.get(projectId)
+    const inspection = await this.git.inspect(localPath)
+    if (!inspection.repositories.length) throw new Error(tm().projects.noRepositoriesInFolder)
+    const fresh = inspection.repositories.filter((repository) => !project.sources.some((source) => samePath(source.localPath, repository.localPath)))
+    if (!fresh.length) throw new Error(tm().projects.repositoriesAlreadyInProject)
+    this.database.db.transaction(() => {
+      let order = (this.database.db.prepare('SELECT COALESCE(MAX(sort_order), -1) FROM project_sources WHERE project_id = ?').pluck().get(projectId) as number) + 1
+      const insert = this.database.db.prepare(`INSERT INTO project_sources(id, project_id, name, local_path, is_git_repository, current_branch, sort_order) VALUES (?, ?, ?, ?, 1, ?, ?)`)
+      const lift = this.database.db.prepare('DELETE FROM project_excluded_repos WHERE project_id = ? AND local_path = ?')
+      const excluded = this.database.db.prepare('SELECT local_path FROM project_excluded_repos WHERE project_id = ?').pluck().all(projectId) as string[]
+      for (const repository of fresh) {
+        insert.run(randomUUID(), projectId, repository.name, repository.localPath, repository.currentBranch, order++)
+        for (const path of excluded) if (samePath(path, repository.localPath)) lift.run(projectId, path)
+      }
+      this.database.db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), projectId)
+    })()
+    return this.get(projectId)
+  }
+
+  /**
+   * Takes a repository out of the project. The folder on disk is never touched. It is remembered as excluded, because the Git tab looks for repositories
+   * inside the project folder and would otherwise bring it back. Refused for the last repository and while a card still has a worktree in it.
+   */
+  removeRepository(projectId: string, sourceId: string): Project {
+    const project = this.get(projectId)
+    const source = project.sources.find((item) => item.id === sourceId)
+    if (!source) throw new Error(tm().projects.sourceNotInProject)
+    if (project.sources.length <= 1) throw new Error(tm().projects.cannotRemoveLastRepository)
+    const using = (this.database.db.prepare(`SELECT c.title AS title, m.repo_path AS repoPath FROM worktree_members m JOIN worktrees w ON w.id = m.worktree_id JOIN cards c ON c.id = w.card_id
+      WHERE c.project_id = ? AND w.cleanup_state != 'removed'`).all(projectId) as Array<{ title: string; repoPath: string }>).find((row) => samePath(row.repoPath, source.localPath))
+    if (using) throw new Error(tm().projects.repositoryInUse(source.name, using.title || tm().common.untitled))
+    this.database.db.transaction(() => {
+      this.database.db.prepare('INSERT OR IGNORE INTO project_excluded_repos(project_id, local_path) VALUES (?, ?)').run(projectId, source.localPath)
+      // Cards that pointed at it go back to the project's default repository (null), and it leaves the repositories chosen on a card.
+      this.database.db.prepare('UPDATE cards SET source_id = NULL WHERE project_id = ? AND source_id = ?').run(projectId, sourceId)
+      const withRepos = this.database.db.prepare('SELECT id, repo_ids AS repoIds FROM cards WHERE project_id = ? AND repo_ids IS NOT NULL').all(projectId) as Array<{ id: string; repoIds: string }>
+      const save = this.database.db.prepare('UPDATE cards SET repo_ids = ? WHERE id = ?')
+      for (const card of withRepos) {
+        let ids: unknown
+        try { ids = JSON.parse(card.repoIds) } catch { continue }
+        if (Array.isArray(ids) && ids.includes(sourceId)) save.run(JSON.stringify(ids.filter((item) => item !== sourceId)), card.id)
+      }
+      this.database.db.prepare('DELETE FROM project_sources WHERE id = ?').run(sourceId)
+      this.database.db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), projectId)
+    })()
+    return this.get(projectId)
   }
 
   /** `icon`: `undefined` keeps the current one; `null` removes it. */

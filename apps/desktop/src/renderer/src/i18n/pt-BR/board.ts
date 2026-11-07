@@ -122,7 +122,12 @@ export const board = {
     planWithAgent: 'Planejar com agente',
     planWithAgentHint: 'Converse com o agente sobre o contexto do projeto. Ele faz as perguntas e monta o card.',
     createManually: 'Criar na mão',
-    createManuallyHint: 'Descreva tudo no próprio card, sem precisar de um agente.'
+    createManuallyHint: 'Descreva tudo no próprio card, sem precisar de um agente.',
+    whereTitle: 'Onde o trabalho roda',
+    useExisting: (branch: string) => `Usar uma existente: ${branch}`,
+    hintNew: 'O GearMod cria uma worktree isolada para o card, a partir da branch base.',
+    hintCard: 'O card trabalha na worktree de outro card; a limpeza e o merge continuam com o dono.',
+    hintExternal: 'O GearMod usa essa pasta como ela está. Ao remover a worktree do card, a pasta e a branch ficam.'
   },
   contextMenu: {
     openCard: 'Abrir card',

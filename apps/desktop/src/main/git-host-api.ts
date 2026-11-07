@@ -1,4 +1,5 @@
 import type { PullRequestDetail, PullRequestSummary } from '@gearmod/contracts'
+import { tm } from './i18n'
 
 export type HostProvider = 'github' | 'gitlab'
 export interface HostAccess { provider: HostProvider; host: string; token: string }
@@ -9,6 +10,30 @@ export type Fetch = (url: string, init?: { method?: string; headers?: Record<str
 
 export class HostAuthError extends Error { constructor(readonly status: number) { super(`HTTP ${status}`) } }
 export class HostApiError extends Error { constructor(readonly status: number, message: string) { super(message) } }
+
+/** A short sentence for an HTTP error answer: proxies and firewalls reply with web pages, so the body is never shown as it came. */
+function friendlyStatus(host: string, status: number, detail: string, html: boolean): string {
+  const p = tm().pullRequests
+  if (status === 407) return p.hostProxyAuth(host)
+  if (status === 429) return p.hostRateLimit(host)
+  if (status === 404) return html ? p.hostNotApi(host, status) : p.hostNotFound(host)
+  if (status >= 500) return p.hostDown(host, status)
+  if (html) return status === 403 ? p.hostBlocked(host) : p.hostNotApi(host, status)
+  if (status === 403) return p.hostForbidden(host, detail)
+  return `${status}${detail ? ` · ${detail}` : ''}`
+}
+
+/** The reason a request never got an answer (timeout, DNS, refused, certificate…), in words. */
+function friendlyNetwork(host: string, error: unknown): string {
+  const p = tm().pullRequests, e = error as { name?: string; code?: string; cause?: { code?: string } }
+  const code = e.code ?? e.cause?.code ?? ''
+  if (e.name === 'AbortError') return p.hostTimeout(host)
+  if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') return p.hostDns(host)
+  if (code === 'ECONNREFUSED') return p.hostRefused(host)
+  if (code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT') return p.hostTimeout(host)
+  if (/CERT|SELF_SIGNED|UNABLE_TO_VERIFY|ERR_TLS/i.test(code)) return p.hostCertificate(host)
+  return p.hostNetwork(host)
+}
 
 const MAX_DIFF = 300_000
 const cutDiff = (diff: string): string => diff.length > MAX_DIFF ? `${diff.slice(0, MAX_DIFF)}\n… diff cortado (muito grande); abra o PR no navegador para ver tudo.` : diff
@@ -49,7 +74,7 @@ export class HostApi {
     if (init.body !== undefined) headers['Content-Type'] = 'application/json'
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 30_000)
     try {
-      const response = await this.fetcher(`${this.base}${path}`, { method: init.method ?? 'GET', headers, body: init.body === undefined ? undefined : JSON.stringify(init.body), signal: controller.signal })
+      const response = await this.fetcher(`${this.base}${path}`, { method: init.method ?? 'GET', headers, body: init.body === undefined ? undefined : JSON.stringify(init.body), signal: controller.signal }).catch((error: unknown) => { throw new HostApiError(0, friendlyNetwork(this.access.host, error)) })
       if (response.status === 401) throw new HostAuthError(401)
       if (!response.ok) {
         const raw = await response.text().catch(() => '')
@@ -57,7 +82,8 @@ export class HostApi {
         try { const parsed = JSON.parse(raw) as { message?: unknown; error?: unknown }; detail = String(typeof parsed.message === 'string' ? parsed.message : parsed.error ?? detail).slice(0, 300) } catch { /* plain text */ }
         // 403 for a missing scope also needs a new token; 403 for a rate limit does not.
         if (response.status === 403 && /bad credentials|insufficient|token/i.test(detail)) throw new HostAuthError(403)
-        throw new HostApiError(response.status, `${response.status}${detail ? ` · ${detail}` : ''}`)
+        const html = /^\s*<(?:!doctype|html|head|body)/i.test(raw)
+        throw new HostApiError(response.status, friendlyStatus(this.access.host, response.status, detail, html))
       }
       return (init.text ? await response.text() : await response.json()) as T
     } finally { clearTimeout(timer) }

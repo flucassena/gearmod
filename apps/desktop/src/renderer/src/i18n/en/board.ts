@@ -122,7 +122,12 @@ export const board: typeof source = {
     planWithAgent: 'Plan with agent',
     planWithAgentHint: 'Talk to the agent about the project context. It asks the questions and builds the card.',
     createManually: 'Create manually',
-    createManuallyHint: 'Describe everything in the card itself, without needing an agent.'
+    createManuallyHint: 'Describe everything in the card itself, without needing an agent.',
+    whereTitle: 'Where the work runs',
+    useExisting: (branch) => `Use an existing one: ${branch}`,
+    hintNew: 'GearMod creates an isolated worktree for the card, from the base branch.',
+    hintCard: 'The card works in another card\'s worktree; cleanup and merge stay with its owner.',
+    hintExternal: 'GearMod uses that folder as it is. When the card\'s worktree is removed, the folder and the branch stay.'
   },
   contextMenu: {
     openCard: 'Open card',

@@ -708,6 +708,56 @@ export const migrations: readonly Migration[] = [
       UPDATE cards SET workflow = 'light' WHERE type = 'minor' AND workflow IS NULL;
       UPDATE cards SET type = 'improvement' WHERE type IN ('minor', 'task');`)
     }
+  },
+  {
+    version: 43,
+    checksum: 'sha256:gearmod-external-worktree-v43-2026-11-06',
+    up(db) {
+      // A worktree the user made by hand and the card adopted: GearMod never deletes its folder or its branch.
+      db.exec('ALTER TABLE worktrees ADD COLUMN external INTEGER NOT NULL DEFAULT 0;')
+    }
+  },
+  {
+    version: 44,
+    checksum: 'sha256:gearmod-excluded-repos-v44-2026-11-06',
+    up(db) {
+      // Repositories the user took out of a project: the project folder is rescanned and would otherwise bring them back.
+      db.exec(`CREATE TABLE project_excluded_repos (
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        local_path TEXT NOT NULL,
+        PRIMARY KEY (project_id, local_path)
+      );`)
+    }
+  },
+  {
+    version: 45,
+    checksum: 'sha256:gearmod-backlog-into-todo-v45-2026-11-06',
+    up(db) {
+      // Backlog and To do become a single "To do" column. Its cards go to the end of To do, the history of moves follows them, and the column goes away.
+      const projects = db.prepare('SELECT id FROM projects').all() as { id: string }[]
+      const find = (projectId: string, state: string): { id: string; sortOrder: number; isDefault: number } | undefined =>
+        db.prepare('SELECT id, sort_order AS sortOrder, is_default AS isDefault FROM board_columns WHERE project_id = ? AND semantic_state = ?').get(projectId, state) as { id: string; sortOrder: number; isDefault: number } | undefined
+      for (const { id: projectId } of projects) {
+        const backlog = find(projectId, 'backlog'), todo = find(projectId, 'todo')
+        if (!backlog) continue
+        if (!todo) { db.prepare(`UPDATE board_columns SET semantic_state = 'todo', label = 'To do' WHERE id = ?`).run(backlog.id); continue }
+        const offset = (db.prepare('SELECT COALESCE(MAX(order_key), 0) + 1024 FROM cards WHERE column_id = ?').pluck().get(todo.id) as number)
+        db.prepare('UPDATE cards SET column_id = ?, order_key = order_key + ? WHERE column_id = ?').run(todo.id, offset, backlog.id)
+        db.prepare('UPDATE column_history SET from_column_id = ? WHERE from_column_id = ?').run(todo.id, backlog.id)
+        db.prepare('UPDATE column_history SET to_column_id = ? WHERE to_column_id = ?').run(todo.id, backlog.id)
+        if (backlog.isDefault) db.prepare('UPDATE board_columns SET is_default = 1 WHERE id = ?').run(todo.id)
+        db.prepare('DELETE FROM board_columns WHERE id = ?').run(backlog.id)
+        db.prepare('UPDATE board_columns SET sort_order = sort_order - 1 WHERE project_id = ? AND sort_order > ?').run(projectId, backlog.sortOrder)
+      }
+    }
+  },
+  {
+    version: 46,
+    checksum: 'sha256:gearmod-mcp-sse-v46-2026-11-06',
+    up(db) {
+      // A remote MCP server can speak SSE (the older remote transport) instead of streamable HTTP.
+      db.exec('ALTER TABLE mcp_servers ADD COLUMN sse INTEGER NOT NULL DEFAULT 0;')
+    }
   }
 ]
 

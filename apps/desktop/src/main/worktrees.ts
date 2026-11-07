@@ -36,6 +36,78 @@ export class WorktreeService {
         AND w.id = (SELECT id FROM worktrees x WHERE x.card_id = c.id ORDER BY x.created_at DESC LIMIT 1) ORDER BY c.updated_at DESC`).all(cardId, cardId) as Array<{ cardId: string; title: string; branch: string; path: string }>
   }
 
+  /**
+   * What a new card can start from, before the card exists: the worktrees of other cards that it could use and the ones made by hand
+   * (Git lists them in the project's repositories and GearMod did not create them) that it could adopt.
+   */
+  async startOptions(projectId: string): Promise<{ cards: Array<{ cardId: string; title: string; branch: string; path: string }>; external: Array<{ path: string; repoPath: string; repoName: string; branch: string | null }> }> {
+    const cards = this.database.db.prepare(`SELECT c.id AS cardId, c.title, w.branch, w.path FROM cards c JOIN worktrees w ON w.card_id = c.id
+      WHERE c.project_id = ? AND c.worktree_card_id IS NULL AND w.cleanup_state = 'active'
+        AND w.id = (SELECT id FROM worktrees x WHERE x.card_id = c.id ORDER BY x.created_at DESC LIMIT 1) ORDER BY c.updated_at DESC`).all(projectId) as Array<{ cardId: string; title: string; branch: string; path: string }>
+    return { cards, external: await this.externalOptions(projectId) }
+  }
+
+  /** Worktrees that Git lists in the project's repositories and that are neither the main folder nor already a card's. Folders that are gone are left out. */
+  async externalOptions(projectId: string): Promise<Array<{ path: string; repoPath: string; repoName: string; branch: string | null }>> {
+    const project = this.database.db.prepare('SELECT local_path AS projectPath FROM projects WHERE id = ?').get(projectId) as { projectPath: string } | undefined
+    if (!project) return []
+    const taken = this.database.db.prepare(`SELECT w.path FROM worktrees w WHERE w.cleanup_state != 'removed'
+      UNION SELECT m.path FROM worktree_members m JOIN worktrees w ON w.id = m.worktree_id WHERE w.cleanup_state != 'removed'`).pluck().all() as string[]
+    const found: Array<{ path: string; repoPath: string; repoName: string; branch: string | null }> = []
+    const realTaken = new Set(await Promise.all(taken.map(realKey))), seen = new Set<string>()
+    const skip = async (path: string, repoPath: string): Promise<boolean> => { const key = await realKey(path); return key === await realKey(repoPath) || realTaken.has(key) || seen.has(key) }
+    for (const source of await this.gitSources(projectId, project.projectPath)) {
+      const listing = (await this.git.run(['-C', source.repoPath, 'worktree', 'list', '--porcelain']).catch(() => ({ stdout: '' }))).stdout
+      for (const block of listing.split(/\r?\n\r?\n/)) {
+        const path = /^worktree (.+)$/m.exec(block)?.[1]?.trim()
+        if (!path || /^(bare|prunable)\b/m.test(block) || await skip(path, source.repoPath) || !await exists(path)) continue
+        seen.add(await realKey(path))
+        found.push({ path, repoPath: source.repoPath, repoName: source.name, branch: /^branch refs\/heads\/(.+)$/m.exec(block)?.[1]?.trim() ?? null })
+      }
+    }
+    return found
+  }
+
+  /** The worktree made by hand that Git lists in the project's repositories at that path (compared by real path), if there is one. */
+  async findExternal(projectId: string, path: string): Promise<{ path: string; repoPath: string; repoName: string; branch: string | null } | undefined> {
+    const wanted = await realKey(path)
+    for (const item of await this.externalOptions(projectId)) if (await realKey(item.path) === wanted) return item
+    return undefined
+  }
+
+  /**
+   * Makes the card work in a worktree that the user made by hand. GearMod only registers it: the folder and the branch stay the user's, so
+   * removing the card's worktree later just lets it go (see `GitManager.deleteWorktree`). One repository only: nothing is created inside that folder.
+   */
+  async adopt(cardId: string, path: string): Promise<Worktree> {
+    if (this.ownerOf(cardId) !== cardId) throw new Error(tm().worktrees.cardUsesAnotherWorktree)
+    if (this.database.db.prepare(`SELECT 1 FROM worktrees WHERE card_id = ? AND cleanup_state = 'active' LIMIT 1`).get(cardId)) throw new Error(tm().worktrees.cardHasOwnWorktree)
+    const card = this.database.db.prepare('SELECT project_id AS projectId, base_branch AS baseBranch FROM cards WHERE id = ?').get(cardId) as { projectId: string; baseBranch: string | null } | undefined
+    if (!card) throw new Error(tm().common.cardNotFound)
+    const chosen = await this.findExternal(card.projectId, path)
+    if (!chosen) throw new Error(tm().worktrees.externalGone)
+    if (!chosen.branch) throw new Error(tm().worktrees.externalDetached)
+    const source = (await this.gitSources(card.projectId, chosen.repoPath)).find((item) => same(item.repoPath, chosen.repoPath))
+    // The card's base (when one was chosen and exists in this repository) is where the branch's own work is counted from; otherwise the repository's current branch.
+    let baseRef = source?.baseRef ?? 'HEAD'
+    if (card.baseBranch) for (const candidate of [card.baseBranch, `origin/${card.baseBranch}`]) { if (await this.git.run(['-C', chosen.repoPath, 'rev-parse', '--verify', candidate]).then(() => true, () => false)) { baseRef = candidate; break } }
+    const worktree: Worktree = { id: randomUUID(), cardId, repoPath: chosen.repoPath, path: chosen.path, branch: chosen.branch, baseRef, createdAt: new Date().toISOString(), cleanupState: 'active' }
+    this.database.db.transaction(() => {
+      this.database.db.prepare(`INSERT INTO worktrees(id, card_id, repo_path, path, branch, base_ref, created_at, cleanup_state, external) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`)
+        .run(worktree.id, cardId, worktree.repoPath, worktree.path, worktree.branch, worktree.baseRef, worktree.createdAt, worktree.cleanupState)
+      this.database.db.prepare(`INSERT INTO worktree_members(id, worktree_id, repo_path, path, base_ref, status, error) VALUES (?, ?, ?, ?, ?, 'active', NULL)`)
+        .run(randomUUID(), worktree.id, worktree.repoPath, worktree.path, baseRef)
+      // The card's repository is the one the worktree belongs to.
+      this.database.db.prepare('UPDATE cards SET source_id = COALESCE((SELECT id FROM project_sources WHERE project_id = ? AND local_path = ?), source_id) WHERE id = ?').run(card.projectId, worktree.repoPath, cardId)
+    })()
+    return worktree
+  }
+
+  /** True when the card's worktree is one the user made (adopted): GearMod must never delete its folder or branch. */
+  isExternal(cardId: string): boolean {
+    return Boolean(this.database.db.prepare(`SELECT 1 FROM worktrees WHERE card_id = ? AND external = 1 AND cleanup_state = 'active' LIMIT 1`).get(this.ownerOf(cardId)))
+  }
+
   /** Makes the card use another's worktree (or goes back to having its own with `null`). It only sees and works there: cleanup and merge remain the owner's. */
   link(cardId: string, fromCardId: string | null): void {
     if (fromCardId === null) { this.database.db.prepare('UPDATE cards SET worktree_card_id = NULL WHERE id = ?').run(cardId); return }
@@ -76,6 +148,8 @@ export class WorktreeService {
     const existing = this.get(cardId)
     const alive = existing && await exists(existing.path) ? existing : null
     if (existing && !alive) this.database.db.prepare(`UPDATE worktrees SET cleanup_state = 'missing' WHERE id = ?`).run(existing.id)
+    // A worktree the user made and the card adopted is used as it is: nothing is created, renamed or added inside it.
+    if (alive && this.database.db.prepare('SELECT external FROM worktrees WHERE id = ?').pluck().get(alive.id) === 1) return alive
     const card = this.database.db.prepare(`SELECT c.title, c.type AS type, c.project_id AS projectId, c.base_branch AS baseBranch, c.repo_ids AS repoIds, p.local_path AS projectPath
       FROM cards c JOIN projects p ON p.id = c.project_id WHERE c.id = ?`).get(cardId) as { title: string; type: string; projectId: string; baseBranch: string | null; repoIds: string | null; projectPath: string } | undefined
     if (!card) throw new Error(tm().common.cardNotFound)
@@ -200,6 +274,7 @@ export class WorktreeService {
     const current = this.members(worktree.id)
     const existing = current.find((member) => same(member.repoPath, source.repoPath))
     if (existing && existing.status === 'active' && existsSync(existing.path)) return existing
+    if (this.isExternal(owner)) return { repoPath: source.repoPath, path: worktree.path, baseRef: worktree.baseRef, status: 'failed', error: tm().worktrees.externalOneRepo }
     const card = this.database.db.prepare('SELECT base_branch AS baseBranch FROM cards WHERE id = ?').get(owner) as { baseBranch: string | null }
     const memberPath = existing?.path ?? join(worktree.path, `${current.length + 1}-${memberName(source.name, current.length)}`)
     const result = await this.addMember(source, card.baseBranch, worktree.branch, memberPath)
@@ -330,6 +405,8 @@ export class WorktreeService {
 
 /** Same path, case-insensitive (Windows). */
 const same = (a: string, b: string): boolean => resolve(a).toLowerCase() === resolve(b).toLowerCase()
+/** Real path in lowercase: Git hands over the long name and Windows may have stored the short one (FRANCI~1). */
+const realKey = async (path: string): Promise<string> => (await realpath(path).catch(() => resolve(path))).toLowerCase()
 
 /** Strips accents ("Botão" → "Botao") before it becomes a branch or folder name. */
 const plain = (text: string): string => text.normalize('NFKD').replace(/[̀-ͯ]/g, '')

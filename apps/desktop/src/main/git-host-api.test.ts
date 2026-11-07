@@ -41,4 +41,12 @@ describe('HostApi', () => {
     expect(await api.create({ host: 'github.com', path: 'o/r' }, { head: 'f', base: 'main', title: 'T', body: 'B', draft: true })).toEqual({ url: 'https://github.com/o/r/pull/3' })
     expect(body).toMatchObject({ head: 'f', base: 'main', draft: true })
   })
+  it('turns proxy pages and network failures into plain sentences', async () => {
+    const page = (status: number) => (() => Promise.resolve({ ok: false, status, text: () => Promise.resolve('<html><body><h1>403 Forbidden</h1></body></html>'), json: () => Promise.reject(new Error('x')) }))
+    const user = (fetcher: unknown) => new HostApi({ provider: 'gitlab', host: 'git.empresa.com', token: 't' }, fetcher as never).user()
+    await expect(user(page(403))).rejects.toThrow(/bloqueou|blocked/)
+    await expect(user(page(502))).rejects.toThrow(/indispon|unavailable/)
+    await expect(user(() => Promise.reject(Object.assign(new Error('fetch failed'), { cause: { code: 'ENOTFOUND' } })))).rejects.toThrow(/git.empresa.com/)
+    await expect(user(() => Promise.reject(Object.assign(new Error('x'), { name: 'AbortError' })))).rejects.toThrow(/demorou|too long/)
+  })
 })

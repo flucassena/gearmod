@@ -17,7 +17,7 @@ export function PlaywrightSection({ projectId, enabled, toggle, latest }: { proj
   const [status, setStatus] = useState<PlaywrightStatus>(), [sources, setSources] = useState<Array<{ id: string; name: string; node: boolean }>>([]), [sourceId, setSourceId] = useState('')
   const [checkingLatest, setCheckingLatest] = useState(false), [version, setVersion] = useState(''), [browser, setBrowser] = useState(true), [skills, setSkills] = useState<Array<'claude' | 'agents'>>([])
   const [confirming, setConfirming] = useState(false), [removing, setRemoving] = useState<string>(), [downloading, setDownloading] = useState(false), [error, setError] = useState('')
-  const [picking, setPicking] = useState(false), [available, setAvailable] = useState<string[]>(), [pickError, setPickError] = useState(''), [processId, setProcessId] = useState<string>(), [processOpen, setProcessOpen] = useState(false)
+  const [available, setAvailable] = useState<string[]>(), [pickError, setPickError] = useState(''), [processId, setProcessId] = useState<string>(), [processOpen, setProcessOpen] = useState(false)
   useEffect(() => {
     void window.gearmod.invoke('playwright:status', { projectId }).then(setStatus).catch((reason) => setError(plainError(reason)))
     void window.gearmod.invoke('playwright:sources', { projectId }).then((found) => { setSources(found); setSourceId((current) => current || found[0]?.id || '') }).catch(() => undefined)
@@ -34,9 +34,11 @@ export function PlaywrightSection({ projectId, enabled, toggle, latest }: { proj
   }, [busy, projectId])
   const act = async (call: () => Promise<PlaywrightStatus>): Promise<void> => { setError(''); try { setStatus(await call()) } catch (reason) { setError(plainError(reason)) } }
   const downloadBrowser = async (): Promise<void> => { setDownloading(true); await act(() => window.gearmod.invoke('playwright:install-browser', { projectId })); setDownloading(false) }
-  const openPicker = async (): Promise<void> => {
-    setPicking(true); setAvailable(undefined); setPickError('')
-    try { const list = await window.gearmod.invoke('playwright:versions', undefined); setAvailable(list); setVersion((current) => list.includes(current) ? current : list[0] ?? '') } catch (reason) { setPickError(plainError(reason)) }
+  /** The versions published on npm, newest first (also feeds the version menu). Loaded once per open; offline, the installed ones still show. */
+  const loadVersions = async (): Promise<void> => {
+    if (available && !pickError) return
+    setPickError('')
+    try { setAvailable(await window.gearmod.invoke('playwright:versions', undefined)) } catch (reason) { setPickError(plainError(reason)) }
   }
   const runInstall = (): void => {
     setConfirming(false); setError('')
@@ -66,34 +68,54 @@ export function PlaywrightSection({ projectId, enabled, toggle, latest }: { proj
       </div>
       {status.versions.length > 0 && !status.browserReady && <div className="cx-note warn cx-browserrow"><span>{tw.browserMissing}</span><button type="button" className="mini" disabled={downloading || busy} onClick={() => void downloadBrowser()}>{downloading ? tw.downloading : tw.downloadBrowser}</button></div>}
       <h5 className="pw-subtitle pw-subtitle-row"><span>{tw.versionsTitle}</span>{!latest && <button type="button" className="linklike" disabled={checkingLatest} onClick={() => { setCheckingLatest(true); void loadLatest(true).catch(() => undefined).finally(() => setCheckingLatest(false)) }}>{checkingLatest ? tw.checkingVersion : tw.checkNewVersion}</button>}</h5>
-      {status.versions.length ? <ul className="pw-versions">{status.versions.map((item) => <li key={item.version} className={item.version === status.selected ? 'on' : ''}>
-        <code data-tip={item.path}>v{item.version}</code>
-        {item.version === status.selected ? <span className="pw-chip ok"><i aria-hidden="true" />{tw.inUse}</span> : <button type="button" className="mini secondary" disabled={busy} onClick={() => void act(() => window.gearmod.invoke('playwright:select', { projectId, version: item.version }))}>{tw.use}</button>}
+      {status.versions.length ? (() => { const item = status.versions.find((entry) => entry.version === status.selected) ?? status.versions[0]!; return <ul className="pw-versions"><li key={item.version} className="on">
+        {/* Only the version in use is shown; the installed ones are in the list that opens on click. */}
+        <div className="pw-version-pick" data-tip={item.path}><VersionMenu current={item.version} selected={status.selected} installed={status.versions.map((entry) => entry.version)} available={available} error={pickError} disabled={busy} onOpen={() => void loadVersions()} onUse={(value) => { if (value !== item.version) void act(() => window.gearmod.invoke('playwright:select', { projectId, version: value })) }} onInstall={(value) => { setVersion(value); setConfirming(true) }} /></div>
+        {item.version === status.selected && <span className="pw-chip ok"><i aria-hidden="true" />{tw.inUse}</span>}
         {item.version === status.selected && newerInstalled && <><span className="pw-chip warn"><i aria-hidden="true" />{tw.downloadedNewer(newerInstalled)}</span><button type="button" className="mini" disabled={busy} onClick={() => void act(() => window.gearmod.invoke('playwright:select', { projectId, version: newerInstalled }))}>{tw.useVersion(newerInstalled)}</button></>}
-        {item.version === status.selected && !newerInstalled && latest && isOutdated(item.version, latest) && <><span className="pw-chip warn"><i aria-hidden="true" />{tw.newVersion(latest)}</span><button type="button" className="mini" disabled={busy} onClick={() => { setVersion(latest); void openPicker() }}>{tw.installVersion(latest)}</button></>}
+        {item.version === status.selected && !newerInstalled && latest && isOutdated(item.version, latest) && <><span className="pw-chip warn"><i aria-hidden="true" />{tw.newVersion(latest)}</span><button type="button" className="mini" disabled={busy} onClick={() => { setVersion(latest); setConfirming(true) }}>{tw.installVersion(latest)}</button></>}
         <span className="ch-spacer" />
         <button type="button" className="ibtn tip danger" data-tip={tw.removeVersion(item.version)} aria-label={tw.removeVersion(item.version)} disabled={busy} onClick={() => setRemoving(item.version)}><TrashIcon /></button>
-      </li>)}</ul> : <p className="cx-muted">{tw.noVersions}</p>}
+      </li></ul> })() : <ul className="pw-versions"><li><div className="pw-version-pick"><VersionMenu selected={null} installed={[]} available={available} error={pickError} disabled={busy} onOpen={() => void loadVersions()} onUse={() => undefined} onInstall={(value) => { setVersion(value); setConfirming(true) }} /></div><span className="cx-muted">{tw.noVersions}</span></li></ul>}
       <div className="cx-offerrow pw-install-row">
         <label className="ck-line"><Checkbox checked={enabled} disabled={status.versions.length === 0} onChange={toggle} /> {tw.offer}</label>
-        <button type="button" className="mini secondary" disabled={busy} onClick={() => void openPicker()}>{busy ? tw.installing : tw.installNew}</button>
       </div>
       {status.error && <div className="cx-error">{status.error}</div>}
     </> : <p className="cx-muted">{tw.checking}</p>}
     </section>
     {error && <div className="cx-error">{error}</div>}
-    {picking && !confirming && <ConfirmDialog eyebrow="Playwright CLI" title={tw.pickTitle} text={tw.pickText} extra={<div className="pw-pick">
-      {pickError ? <div className="cx-error">{pickError}</div> : !available ? <p className="cx-muted">{tw.loadingVersions}</p> : <ul className="pw-pick-list" role="listbox" aria-label={tw.pickTitle}>{available.map((item, index) => { const installed = status?.versions.some((entry) => entry.version === item) ?? false
-        return <li key={item}><button type="button" role="option" aria-selected={version === item} disabled={installed} className={`pw-pick-row ${version === item ? 'on' : ''}`} onClick={() => setVersion(item)}>
-          <code>v{item}</code>{index === 0 && <span className="pw-chip">{tw.newest}</span>}{installed && <span className="pw-chip ok"><i aria-hidden="true" />{tw.installedTag}</span>}</button></li> })}</ul>}
-    </div>} ok={tw.install} okDisabled={!version.trim() || !available || (status?.versions.some((entry) => entry.version === version) ?? false)} cancel={() => setPicking(false)} confirm={() => setConfirming(true)} />}
     {confirming && <ConfirmDialog eyebrow="Playwright CLI" title={tw.confirmTitle} text={tw.confirmText} extra={<div className="pw-install">
       <div className="pw-plan"><span className="pw-planlabel">{tw.command}</span><code>npm install @playwright/cli@{version.trim() || 'latest'}</code><small>{tw.installIn(status?.toolsDir ?? '')}</small></div>
       <label className="ck-line"><Checkbox checked={browser} onChange={setBrowser} /><span className="t">{tw.downloadBrowserOption}<small>{tw.downloadBrowserHint}</small></span></label>
       <label className="f"><span>{tw.agentSkill}</span><MultiSelect label={tw.agentSkill} empty={tw.noSkill} value={skills} options={[{ value: 'claude', label: tw.optionClaude }, { value: 'agents', label: tw.optionCodex }]} onChange={(value) => setSkills(value as Array<'claude' | 'agents'>)} /></label>
       {skills.length > 0 && <><label className="f"><span>{tw.skillRepo}</span><Select label={tw.skillRepo} value={sourceId} options={sources.map((item) => ({ value: item.id, label: item.name, disabled: false }))} onChange={setSourceId} /></label><div className="pw-skillnote">{tw.skillNote}</div></>}
-    </div>} ok={tw.install} okDisabled={skills.length > 0 && !sourceId} cancel={() => setConfirming(false)} confirm={() => { setPicking(false); runInstall() }} />}
+    </div>} ok={tw.install} okDisabled={skills.length > 0 && !sourceId} cancel={() => setConfirming(false)} confirm={() => runInstall()} />}
     {removing && <ConfirmDialog eyebrow="Playwright CLI" title={tw.removeTitle(removing)} text={tw.removeText} ok={tw.remove} danger cancel={() => setRemoving(undefined)} confirm={() => { const target = removing; setRemoving(undefined); void act(() => window.gearmod.invoke('playwright:remove', { projectId, version: target })) }} />}
     {processOpen && processId && <ProcessDialog taskId={processId} title={tw.processTitle} log={status?.log} background={() => setProcessOpen(false)} close={() => setProcessOpen(false)} />}
+  </div>
+}
+
+const versionParts = (value: string): number[] => value.split('.').map((part) => Number.parseInt(part, 10) || 0)
+const newerFirst = (a: string, b: string): number => { const left = versionParts(a), right = versionParts(b); for (let index = 0; index < 3; index++) { const diff = (right[index] ?? 0) - (left[index] ?? 0); if (diff) return diff } return 0 }
+
+/**
+ * The Playwright CLI versions in one list: every version published on npm (the newest first) plus the ones already installed. The one in use is painted
+ * green, installed ones carry a check icon. Choosing an installed version uses it in this project; choosing one that is not installed starts its installation.
+ */
+function VersionMenu({ current, selected, installed, available, error, disabled, onOpen, onUse, onInstall }: { current?: string; selected: string | null; installed: string[]; available?: string[]; error: string; disabled: boolean; onOpen(): void; onUse(version: string): void; onInstall(version: string): void }): React.JSX.Element {
+  const tw = useT().settings.playwright
+  useEffect(() => { onOpen() }, [])
+  const all = [...new Set([...(available ?? []), ...installed])].sort(newerFirst), newest = available?.[0]
+  const options = all.map((version) => {
+    const isInstalled = installed.includes(version)
+    return { value: version, label: `v${version}`, highlight: version === selected, badge: <span className="pw-vm-chips">
+      {version === newest && <span className="pw-chip">{tw.newest}</span>}
+      {version === selected && <span className="pw-chip use">{tw.inUseShort}</span>}
+      {isInstalled ? <svg className="pw-vm-ok" viewBox="0 0 24 24" aria-label={tw.installedTag} role="img"><title>{tw.installedTag}</title><path d="M5 12.5l4.5 4.5L19 7.5" /></svg> : <span className="pw-vm-install">{tw.installVersionShort}</span>}
+    </span> }
+  })
+  return <div className="pw-vm">
+    <Select label={tw.versionsTitle} value={current ?? selected ?? ''} disabled={disabled} menuWidth={360} options={options.length ? options : [{ value: '', label: tw.chooseVersion }]} onChange={(version) => { if (!version) return; if (installed.includes(version)) onUse(version); else onInstall(version) }} />
+    {error && <small className="hint">{tw.versionsOffline}</small>}
   </div>
 }

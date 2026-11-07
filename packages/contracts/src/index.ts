@@ -40,6 +40,12 @@ export const appUpdateSchema = z.object({
   error: z.string().nullable()
 })
 export type AppUpdate = z.output<typeof appUpdateSchema>
+export const storageKindSchema = z.enum(['playwright-version', 'playwright-browsers', 'node', 'voice-model', 'voice-engine', 'backup', 'update-download', 'worktrees', 'attachments', 'database'])
+export const storageEntrySchema = z.object({ id: z.string(), kind: storageKindSchema, name: z.string(), path: z.string(), bytes: z.number().nonnegative(), partial: z.boolean(), removable: z.boolean() })
+export const storageSnapshotSchema = z.object({ entries: z.array(storageEntrySchema), totalBytes: z.number().nonnegative() })
+export type StorageKind = z.output<typeof storageKindSchema>
+export type StorageEntry = z.output<typeof storageEntrySchema>
+export type StorageSnapshot = z.output<typeof storageSnapshotSchema>
 export const appAboutSchema = z.object({ name: z.string(), version: z.string(), author: z.string(), authorEmail: z.string().nullable(), license: z.string(), homepage: z.string(), buildDate: z.string().nullable(), electron: z.string(), chromium: z.string(), node: z.string(), v8: z.string(), system: z.string(), dataDir: z.string() })
 export type AppAbout = z.output<typeof appAboutSchema>
 
@@ -276,6 +282,17 @@ export const toolsStatusSchema = z.object({
   log: z.string(), error: z.string().nullable()
 })
 export type ToolsStatus = z.output<typeof toolsStatusSchema>
+/** What a folder chosen for Spec Kit is: a Git repository (or inside one), and whether Spec Kit is already in it. */
+export const toolsFolderInfoSchema = z.object({ isRepo: z.boolean(), parentRepo: z.string().nullable(), hasSpecKit: z.boolean(), integrations: z.array(z.string()) })
+export type ToolsFolderInfo = z.output<typeof toolsFolderInfoSchema>
+/** The Spec Kit steps the app runs for the user in a terminal inside a dialog. Each one maps to a fixed command; the screen never sends a command line. */
+export const specKitRunKindSchema = z.enum(['install-uv', 'install-cli', 'update-cli', 'init', 'init-with-git', 'upgrade-integration'])
+export type SpecKitRunKind = z.output<typeof specKitRunKindSchema>
+export const specKitRunInputSchema = z.object({
+  kind: specKitRunKindSchema, path: z.string().trim().min(1).max(2048).optional(),
+  version: z.string().regex(/^\d+\.\d+\.\d+$/).optional(), integration: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/).optional()
+}).strict()
+export type SpecKitRunInput = z.output<typeof specKitRunInputSchema>
 export const toolKeys = ['claude', 'codex', 'gemini', 'specify', 'openspec', 'playwright'] as const
 export const toolVersionsSchema = z.object({ checkedAt: z.string().nullable(), versions: z.object({ claude: z.string().nullable(), codex: z.string().nullable(), gemini: z.string().nullable(), specify: z.string().nullable(), openspec: z.string().nullable(), playwright: z.string().nullable() }), error: z.string().nullable() })
 export type ToolVersions = z.output<typeof toolVersionsSchema>
@@ -297,14 +314,14 @@ const projectIdInput = z.object({ projectId: uuid }).strict()
 export const mcpProviderSchema = z.enum(['claude', 'codex', 'gemini'])
 export const mcpPresetSchema = z.object({ id: z.string(), label: z.string(), description: z.string(), transport: z.enum(['stdio', 'http']), command: z.string(), args: z.array(z.string()), env: z.array(z.string()), headers: z.array(z.string()), note: z.string().optional() })
 export const mcpSecretKeySchema = z.object({ key: z.string(), set: z.boolean() })
-export const mcpServerSchema = z.object({ id: uuid, scope: z.enum(['global', 'project']), projectId: uuid.nullable(), name: z.string(), presetId: z.string().nullable(), transport: z.enum(['stdio', 'http']), command: z.string(), args: z.array(z.string()), url: z.string(), env: z.array(mcpSecretKeySchema), headers: z.array(mcpSecretKeySchema), providers: z.array(mcpProviderSchema), enabled: z.boolean(), disabledHere: z.boolean() })
-export const mcpServerInputSchema = z.object({ id: uuid.optional(), scope: z.enum(['global', 'project']), projectId: uuid.optional(), name: z.string().trim().min(1).max(40), presetId: z.string().max(40).nullable().optional(), transport: z.enum(['stdio', 'http']), command: z.string().max(500), args: z.array(z.string().max(2000)).max(50), url: z.string().max(2000), env: z.array(z.object({ key: z.string().max(100), value: z.string().max(10_000).optional() })).max(50), headers: z.array(z.object({ key: z.string().max(100), value: z.string().max(10_000).optional() })).max(50), providers: z.array(mcpProviderSchema).min(1), enabled: z.boolean() }).strict()
+export const mcpServerSchema = z.object({ id: uuid, scope: z.enum(['global', 'project']), projectId: uuid.nullable(), name: z.string(), presetId: z.string().nullable(), transport: z.enum(['stdio', 'http']), sse: z.boolean(), command: z.string(), args: z.array(z.string()), url: z.string(), env: z.array(mcpSecretKeySchema), headers: z.array(mcpSecretKeySchema), providers: z.array(mcpProviderSchema), enabled: z.boolean(), disabledHere: z.boolean() })
+export const mcpServerInputSchema = z.object({ id: uuid.optional(), scope: z.enum(['global', 'project']), projectId: uuid.optional(), name: z.string().trim().min(1).max(40), presetId: z.string().max(40).nullable().optional(), transport: z.enum(['stdio', 'http']), sse: z.boolean().optional(), command: z.string().max(500), args: z.array(z.string().max(2000)).max(50), url: z.string().max(2000), env: z.array(z.object({ key: z.string().max(100), value: z.string().max(10_000).optional() })).max(50), headers: z.array(z.object({ key: z.string().max(100), value: z.string().max(10_000).optional() })).max(50), providers: z.array(mcpProviderSchema).min(1), enabled: z.boolean() }).strict()
 export type McpPreset = z.output<typeof mcpPresetSchema>
 export type McpServer = z.output<typeof mcpServerSchema>
 export type McpServerInput = z.output<typeof mcpServerInputSchema>
 const cardIdInput = z.object({ cardId: uuid }).strict()
 export const createProjectInputSchema = z.object({
-  name: z.string().trim().max(120).optional(), sourcePaths: z.array(z.string().trim().min(1).max(2048)).min(1).max(20), profileIds: z.array(uuid).max(8).default([]), icon: projectIconSchema.nullable().optional()
+  name: z.string().trim().max(120).optional(), sourcePaths: z.array(z.string().trim().min(1).max(2048)).min(1).max(20), excludePaths: z.array(z.string().trim().min(1).max(2048)).max(200).optional(), profileIds: z.array(uuid).max(8).default([]), icon: projectIconSchema.nullable().optional()
 }).strict()
 export const updateProjectInputSchema = z.object({ projectId: uuid, name: z.string().trim().min(1).max(120), icon: projectIconSchema.nullable().optional() }).strict()
 export const setProjectProfilesInputSchema = z.object({ projectId: uuid, profileIds: z.array(uuid).max(8) }).strict()
@@ -312,9 +329,12 @@ const criterionInputSchema = z.object({ body: z.string().trim().min(1).max(2000)
 export const createCardInputSchema = z.object({
   projectId: uuid, columnId: uuid, sourceId: uuid.nullable().optional(), type: cardTypeSchema, title: z.string().trim().max(240),
   description: z.string().max(20_000).default(''), priority: cardPrioritySchema,
-  acceptanceCriteria: z.array(criterionInputSchema).max(50).default([])
+  acceptanceCriteria: z.array(criterionInputSchema).max(50).default([]),
+  /** Chosen when the card is created: the branch its worktree starts from, and a worktree to use instead of a new one (another card's or one made by hand). */
+  baseBranch: z.string().trim().min(1).max(200).optional(),
+  worktree: z.discriminatedUnion('kind', [z.object({ kind: z.literal('card'), cardId: uuid }).strict(), z.object({ kind: z.literal('external'), path: z.string().min(1).max(2048) }).strict()]).optional()
 }).strict()
-export const updateCardInputSchema = createCardInputSchema.omit({ projectId: true, columnId: true }).extend({ cardId: uuid, title: z.string().trim().min(1).max(240) }).strict()
+export const updateCardInputSchema = createCardInputSchema.omit({ projectId: true, columnId: true, baseBranch: true, worktree: true }).extend({ cardId: uuid, title: z.string().trim().min(1).max(240) }).strict()
 export const moveCardInputSchema = z.object({ cardId: uuid, columnId: uuid, beforeCardId: uuid.nullable().default(null), skipGate: z.boolean().default(false) }).strict()
 
 /** Git: agent commit rule (project default + per-branch exceptions; the first that matches wins). */
@@ -337,6 +357,8 @@ export const gitGraphSchema = z.object({
   repo: gitRepoSchema, rows: z.array(gitRowSchema), truncated: z.boolean(),
   branches: z.object({ local: z.array(z.object({ name: z.string(), cardId: uuid.nullable(), head: z.boolean(), ahead: z.number().int().default(0), behind: z.number().int().default(0) })), remote: z.array(z.object({ name: z.string(), cardId: uuid.nullable() })) }),
   worktrees: z.array(z.object({ cardId: uuid, title: z.string(), branch: z.string(), path: z.string() })),
+  /** Worktrees that Git knows in this repository and GearMod did not create for a card (made by hand or by another tool). */
+  externalWorktrees: z.array(z.object({ path: z.string(), branch: z.string().nullable(), detached: z.boolean() })).default([]),
   stashes: z.array(z.object({ ref: z.string(), message: z.string() }))
 })
 export const gitChangeSchema = z.object({ path: z.string(), status: z.enum(['M', 'A', 'D']), staged: z.boolean(), additions: z.number().int().nonnegative(), deletions: z.number().int().nonnegative() })
@@ -401,6 +423,8 @@ export type CodeIndexStatus = z.output<typeof codeIndexStatusSchema>
 export const ipcContracts = {
   'app:info': { input: z.undefined(), output: appInfoSchema },
   'app:about': { input: z.undefined(), output: appAboutSchema },
+  'storage:list': { input: z.undefined(), output: storageSnapshotSchema },
+  'storage:remove': { input: z.object({ id: z.string().min(1).max(300) }).strict(), output: storageSnapshotSchema },
   'updates:state': { input: z.undefined(), output: appUpdateSchema },
   'updates:check': { input: z.undefined(), output: appUpdateSchema },
   'updates:install': { input: z.undefined(), output: appUpdateSchema },
@@ -450,9 +474,13 @@ export const ipcContracts = {
   , 'speckit:choose': { input: z.object({ cardId: uuid, permission: z.enum(['manual', 'free']) }).strict(), output: specKitStateSchema }
   , 'speckit:request-move': { input: z.object({ cardId: uuid }).strict(), output: specKitStateSchema }
   , 'tools:status': { input: projectIdInput, output: toolsStatusSchema }
+  , 'tools:run-terminal': { input: specKitRunInputSchema, output: z.object({ id: z.string() }) }
+  , 'tools:inspect-folder': { input: z.object({ path: z.string().trim().min(1).max(2048) }).strict(), output: toolsFolderInfoSchema }
   , 'mcp:presets': { input: z.undefined(), output: z.array(mcpPresetSchema) }
   , 'mcp:list': { input: z.object({ projectId: uuid.optional() }).strict(), output: z.array(mcpServerSchema) }
   , 'mcp:save': { input: mcpServerInputSchema, output: mcpServerSchema }
+  , 'mcp:detect': { input: z.object({ projectId: uuid }).strict(), output: z.object({ path: z.string().nullable(), servers: z.array(z.object({ name: z.string(), kind: z.enum(['stdio', 'http', 'sse']), exists: z.boolean() })) }) }
+  , 'mcp:import': { input: z.object({ scope: z.enum(['global', 'project']), projectId: uuid.optional(), text: z.string().max(200_000).optional(), fromProjectFile: z.boolean().optional() }).strict(), output: z.object({ added: z.array(z.string()), skipped: z.array(z.string()) }) }
   , 'mcp:delete': { input: z.object({ id: uuid }).strict(), output: z.object({ deleted: z.literal(true) }) }
   , 'mcp:set-project-enabled': { input: z.object({ projectId: uuid, id: uuid, enabled: z.boolean() }).strict(), output: z.object({ ok: z.literal(true) }) }
   , 'tools:cached': { input: z.undefined(), output: toolVersionsSchema }
@@ -463,6 +491,8 @@ export const ipcContracts = {
   , 'profiles:login-terminal': { input: z.object({ profileId: uuid }).strict(), output: z.object({ id: z.string().min(1).max(80) }) }
   , 'projects:list': { input: z.undefined(), output: z.array(projectSchema) }
   , 'projects:create': { input: createProjectInputSchema, output: projectSchema }
+  , 'projects:add-repositories': { input: z.object({ projectId: uuid, localPath: z.string().trim().min(1).max(2048) }).strict(), output: projectSchema }
+  , 'projects:remove-repository': { input: z.object({ projectId: uuid, sourceId: uuid }).strict(), output: projectSchema }
   , 'projects:update': { input: updateProjectInputSchema, output: projectSchema }
   , 'projects:set-base-branch': { input: z.object({ projectId: uuid, sourceId: uuid, branch: z.string().trim().min(1).max(200) }).strict(), output: projectSchema }
   , 'projects:reorder': { input: z.object({ projectIds: z.array(uuid).max(500) }).strict(), output: z.array(projectSchema) }
@@ -625,6 +655,9 @@ export const ipcContracts = {
   , 'worktrees:prepare': { input: cardIdInput, output: worktreeSchema }
   , 'worktrees:snapshot': { input: cardIdInput, output: gitSnapshotSchema }
   , 'worktrees:candidates': { input: cardIdInput, output: z.array(z.object({ cardId: uuid, title: z.string(), branch: z.string(), path: z.string() })) }
+  , 'worktrees:options': { input: z.object({ projectId: uuid }).strict(), output: z.object({ cards: z.array(z.object({ cardId: uuid, title: z.string(), branch: z.string(), path: z.string() })), external: z.array(z.object({ path: z.string(), repoPath: z.string(), repoName: z.string(), branch: z.string().nullable() })) }) }
+  , 'git:external-worktree-open': { input: z.object({ projectId: uuid, path: z.string().min(1).max(2048), target: z.enum(['folder', 'vscode']) }).strict(), output: z.object({ opened: z.literal(true) }) }
+  , 'worktrees:adopt': { input: z.object({ cardId: uuid, path: z.string().min(1).max(2048) }).strict(), output: z.object({}) }
   , 'worktrees:link': { input: z.object({ cardId: uuid, fromCardId: uuid.nullable() }).strict(), output: z.object({}) }
   , 'tests:run': { input: z.object({ cardId: uuid, executable: z.string().min(1).max(2048), args: z.array(z.string().max(4096)).max(100) }).strict(), output: testRunSchema }
   , 'tests:detect-command': { input: cardIdInput, output: z.object({ command: z.string() }) }

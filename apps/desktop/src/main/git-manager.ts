@@ -280,6 +280,9 @@ export class GitManager {
     }
     await look(project.path)
     for (const row of rows) if (!sameDir(row.path, project.path)) await look(row.path)
+    // What the user took out of the project stays out.
+    const excluded = this.database.db.prepare('SELECT local_path FROM project_excluded_repos WHERE project_id = ?').pluck().all(projectId) as string[]
+    for (const [key, repo] of [...found]) if (excluded.some((path) => sameDir(path, repo.root))) found.delete(key)
     let changed = false
     this.database.db.transaction(() => {
       const mark = this.database.db.prepare('UPDATE project_sources SET is_git_repository = ?, current_branch = ? WHERE id = ?')
@@ -432,6 +435,7 @@ export class GitManager {
         remote: [...remotes].sort().map((name) => ({ name, cardId: cardByBranch.get(name.replace(/^[^/]+\//, '')) ?? null }))
       },
       worktrees: live.map((member, index) => ({ cardId: member.cardId, title: member.title, branch: opened[index] || member.branch, path: member.path })),
+      externalWorktrees: await this.externalWorktrees(source.path, live.map((member) => member.path)),
       stashes: stashEntries.map(({ ref, message }) => ({ ref, message }))
     }
   }
@@ -774,7 +778,7 @@ ${diff}`
    */
   async deleteWorktree(projectId: string, cardId: string, deleteBranch: boolean, sourceId?: string): Promise<{ output: string; keptBranches: string[] }> {
     const members = this.worktreeMembers(projectId, cardId, sourceId)
-    const worktree = this.database.db.prepare(`SELECT id, path FROM worktrees WHERE card_id = ? AND cleanup_state != 'removed' ORDER BY created_at DESC LIMIT 1`).get(cardId) as { id: string; path: string } | undefined
+    const worktree = this.database.db.prepare(`SELECT id, path, external FROM worktrees WHERE card_id = ? AND cleanup_state != 'removed' ORDER BY created_at DESC LIMIT 1`).get(cardId) as { id: string; path: string; external: number } | undefined
     if (!members.length || !worktree) throw new Error(tm().git.cardHasNoWorktree)
     const busy = this.database.db.prepare(`SELECT c.title FROM cards c WHERE (c.id = ? OR c.worktree_card_id = ?)
       AND EXISTS (SELECT 1 FROM runs r WHERE r.card_id = c.id AND r.status IN ('queued', 'running')) LIMIT 1`).pluck().get(cardId, cardId) as string | undefined
@@ -782,6 +786,15 @@ ${diff}`
     const info = await this.worktreeInfo(projectId, cardId, sourceId), kept: string[] = []
     // The card folders are going away: their undo history is no longer useful.
     await this.release(this.undo.clearWhere((key) => key.endsWith(`:${cardId}`)))
+    // A worktree the user made and the card adopted is only let go: its folder and its branch are not ours to delete.
+    if (worktree.external === 1) {
+      this.database.db.transaction(() => {
+        this.database.db.prepare('DELETE FROM worktree_members WHERE worktree_id = ?').run(worktree.id)
+        this.database.db.prepare(`UPDATE worktrees SET cleanup_state = 'removed' WHERE id = ?`).run(worktree.id)
+        this.database.db.prepare('UPDATE cards SET worktree_card_id = NULL WHERE worktree_card_id = ?').run(cardId)
+      })()
+      return { output: tm().git.worktreeReleased(info.title), keptBranches: [] }
+    }
     for (const member of members) {
       const branch = info.repos.find((repo) => repo.name === basename(member.repoPath))?.branch ?? member.branch
       await this.tryRun(member.repoPath, ['worktree', 'remove', '--force', member.path])
@@ -802,6 +815,18 @@ ${diff}`
       this.database.db.prepare('UPDATE cards SET worktree_card_id = NULL WHERE worktree_card_id = ?').run(cardId)
     })()
     return { output: tm().git.worktreeDeleted(info.title), keptBranches: kept }
+  }
+
+  /** Worktrees listed by Git that are neither the main folder nor a card's: made by hand or by another tool. Folders that no longer exist are left out. */
+  private async externalWorktrees(repoPath: string, known: string[]): Promise<Array<{ path: string; branch: string | null; detached: boolean }>> {
+    const found: Array<{ path: string; branch: string | null; detached: boolean }> = []
+    const listing = (await this.tryRun(repoPath, ['worktree', 'list', '--porcelain'])) ?? ''
+    for (const block of listing.split(/\r?\n\r?\n/)) {
+      const path = /^worktree (.+)$/m.exec(block)?.[1]?.trim()
+      if (!path || /^(bare|prunable)\b/m.test(block) || sameDir(path, repoPath) || known.some((item) => sameDir(item, path)) || !existsSyncDir(path)) continue
+      found.push({ path, branch: /^branch refs\/heads\/(.+)$/m.exec(block)?.[1]?.trim() ?? null, detached: /^detached$/m.test(block) })
+    }
+    return found
   }
 
   /** Folder (worktree) where the branch is open, if it is not the main folder; `null` if it is not open anywhere. */

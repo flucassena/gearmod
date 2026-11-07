@@ -56,6 +56,7 @@ import { randomUUID } from 'node:crypto'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { tm } from './i18n'
 import type { UpdateService } from './updater'
+import type { StorageService } from './storage'
 
 /** Attachment types the chat may open in the system's app: documents, spreadsheets, text, images. */
 const openableAttachment = /^\.(pdf|docx?|dotx?|xlsx?|xlsm|csv|tsv|pptx?|odt|ods|odp|rtf|txt|md|json|jsonl|log|xml|ya?ml|png|jpe?g|gif|webp|bmp|svg|ico)$/i
@@ -126,6 +127,7 @@ interface Services {
   saveTextFile(input: { content: string; defaultName: string }): Promise<{ saved: boolean; path: string | null }>
   appVersion: string
   updates: UpdateService
+  storage: StorageService
   about(): Promise<import('@gearmod/contracts').AppAbout>
   dataDir: string
   reopen(): Promise<void>
@@ -207,6 +209,8 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'mcp:presets': () => mcpPresets,
     'mcp:list': (input: { projectId?: string }) => services.mcp.list(input.projectId),
     'mcp:save': (input: Parameters<McpRegistry['save']>[0]) => services.mcp.save(input),
+    'mcp:detect': (input: { projectId: string }) => services.mcp.detect(input.projectId),
+    'mcp:import': (input: Parameters<McpRegistry['importJson']>[0]) => services.mcp.importJson(input),
     'mcp:delete': async (input: { id: string }) => { await services.mcp.remove(input.id); return { deleted: true as const } },
     'mcp:set-project-enabled': (input: { projectId: string; id: string; enabled: boolean }) => { services.mcp.setProjectEnabled(input.projectId, input.id, input.enabled); return { ok: true as const } },
     'speckit:availability': (input: { projectId: string }) => services.speckit.availability(input.projectId),
@@ -291,6 +295,8 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'workspace:write': (input: { projectId: string; cardId: string | null; path: string; content: string; expected: string }) => writeProjectFile(workspaceRoots(input), input.path, input.content, input.expected),
     'windows:return-file': (input: { projectId: string; cardId: string | null; path: string }) => { workspaceRoots(input); services.returnFile?.(input); return {} },
     'app:about': () => services.about(),
+    'storage:list': () => services.storage.list(),
+    'storage:remove': (input: { id: string }) => services.storage.remove(input.id),
     'updates:state': () => services.updates.get(),
     'updates:check': () => services.updates.check(),
     'updates:install': () => services.updates.install(),
@@ -321,6 +327,8 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'profiles:update-provider': (input: { provider: 'codex' | 'claude' }) => services.agentProbes.updateProvider(input.provider),
     'profiles:update-terminal': (input: { provider: 'codex' | 'claude' | 'gemini' }) => ({ id: services.terminals.run(services.agentProbes.updatePlan(input.provider)) }),
     'tools:status': (input: { projectId: string }) => services.specTools.status(input.projectId),
+    'tools:inspect-folder': (input: { path: string }) => services.specTools.inspectFolder(input.path),
+    'tools:run-terminal': (input: Parameters<SpecToolsService['terminalPlan']>[0]) => ({ id: services.terminals.run(services.specTools.terminalPlan(input)) }),
     'tools:cached': () => services.toolUpdates.cached(),
     'tools:latest': (input: { force: boolean }) => services.toolUpdates.latest(input.force),
     'profiles:install-provider': (input: { provider: 'codex' | 'claude' }) => services.agentProbes.installProvider(input.provider),
@@ -329,11 +337,13 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     // Login inside the app: the CLI runs in a terminal the screen shows (reuses `terminal:info/write/resize/kill`).
     'profiles:login-terminal': (input: { profileId: string }) => ({ id: services.terminals.run(services.agentProbes.loginPlan(input.profileId)) }),
     'projects:list': () => services.projects.list(),
-    'projects:create': async (input: { name?: string; sourcePaths: string[]; profileIds: string[] }) => {
+    'projects:create': async (input: { name?: string; sourcePaths: string[]; excludePaths?: string[]; profileIds: string[] }) => {
       const probes = await Promise.all(input.profileIds.map((profileId) => services.agentProbes.probe(profileId)))
       if (probes.some((probe) => !probe.installed || !probe.authenticated)) throw new Error(tm().ipc.agentsMustBeConnected)
       return services.projects.create(input)
     },
+    'projects:add-repositories': (input: { projectId: string; localPath: string }) => services.projects.addRepositories(input.projectId, input.localPath),
+    'projects:remove-repository': (input: { projectId: string; sourceId: string }) => services.projects.removeRepository(input.projectId, input.sourceId),
     'projects:reorder': (input: { projectIds: string[] }) => services.projects.reorder(input.projectIds),
     'projects:delete': (input: { projectId: string }) => ({ deleted: services.projects.delete(input.projectId) }),
     'projects:update': (input: { projectId: string; name: string; icon?: string | null }) => services.projects.update(input),
@@ -359,7 +369,17 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'card-types:set-default': (input: { types: CardTypeDef[] }) => setDefaultCardTypes(services.database.db, input.types),
     'card-types:usage': (input: { projectId?: string }) => cardTypeUsage(services.database.db, input.projectId),
     'board:get': (input: { projectId: string }) => services.board.get(input.projectId),
-    'cards:create': (input: { projectId: string; columnId: string; sourceId?: string | null; type: string; title: string; description: string; priority: string; acceptanceCriteria: { body: string; checked: boolean }[] }) => services.board.create(input),
+    'cards:create': async (input: { projectId: string; columnId: string; sourceId?: string | null; type: string; title: string; description: string; priority: string; acceptanceCriteria: { body: string; checked: boolean }[]; baseBranch?: string; worktree?: { kind: 'card'; cardId: string } | { kind: 'external'; path: string } }) => {
+      const { baseBranch, worktree, ...fields } = input
+      const card = services.board.create(fields)
+      // What the user chose when creating the card.
+      try {
+        if (baseBranch) services.board.setBaseBranch(card.id, baseBranch)
+        if (worktree?.kind === 'card') services.worktrees.link(card.id, worktree.cardId)
+        if (worktree?.kind === 'external') await services.worktrees.adopt(card.id, worktree.path)
+      } catch (error) { services.board.delete(card.id); throw error }  // no half-made card is left behind when the chosen worktree cannot be used
+      return services.board.card(card.id)
+    },
     'cards:update': (input: { cardId: string; sourceId?: string | null; type: string; title: string; description: string; priority: string; acceptanceCriteria: { body: string; checked: boolean }[] }) => services.board.update(input),
     'cards:move': (input: { cardId: string; columnId: string; beforeCardId: string | null; skipGate?: boolean }) => services.board.move(input.cardId, input.columnId, input.beforeCardId, 'user', input.skipGate),
     'cards:archive': (input: { cardId: string }) => services.board.archive(input.cardId),
@@ -498,7 +518,8 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
       const shared = services.database.db.prepare('SELECT 1 FROM cards WHERE worktree_card_id = ? AND id <> ? LIMIT 1').get(input.cardId, input.cardId)
       if (ownsWorktree && !shared) {
         const info = await services.gitManager.worktreeInfo(card.projectId, input.cardId).catch(() => null)
-        if (info?.repos.some((repo) => repo.exists && repo.files > 0)) throw new Error(tm().ipc.deleteCardUncommitted)
+        // A worktree the user made (adopted) is only let go, so its uncommitted changes are not at risk.
+        if (info?.repos.some((repo) => repo.exists && repo.files > 0) && !services.worktrees.isExternal(input.cardId)) throw new Error(tm().ipc.deleteCardUncommitted)
         if (info) await services.gitManager.deleteWorktree(card.projectId, input.cardId, true)
       }
       if (input.deleteArtifacts) {
@@ -588,6 +609,14 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     , 'worktrees:prepare': (input: { cardId: string }) => services.worktrees.prepare(input.cardId)
     , 'worktrees:snapshot': (input: { cardId: string }) => services.worktrees.snapshot(input.cardId)
     , 'worktrees:candidates': (input: { cardId: string }) => services.worktrees.candidates(input.cardId)
+    , 'worktrees:options': (input: { projectId: string }) => services.worktrees.startOptions(input.projectId)
+    // Only a folder that Git lists as a worktree of the project's repositories: never a path that just came from the screen.
+    , 'git:external-worktree-open': async (input: { projectId: string; path: string; target: 'folder' | 'vscode' }) => {
+      const found = await services.worktrees.findExternal(input.projectId, input.path)
+      if (!found || !services.openFileExternal) throw new Error(tm().worktrees.externalGone)
+      await services.openFileExternal(found.path, input.target === 'vscode' ? 'vscode' : 'default'); return { opened: true as const }
+    }
+    , 'worktrees:adopt': async (input: { cardId: string; path: string }) => { await services.worktrees.adopt(input.cardId, input.path); return {} }
     , 'worktrees:link': (input: { cardId: string; fromCardId: string | null }) => { services.worktrees.link(input.cardId, input.fromCardId); return {} }
     , 'tests:run': (input: { cardId: string; executable: string; args: string[] }) => services.quality.runTest(input.cardId, input.executable, input.args)
     , 'tests:detect-command': (input: { cardId: string }) => services.quality.detectCommand(input.cardId)

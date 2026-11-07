@@ -79,7 +79,7 @@ describe('free chat', () => {
     expect(created.ok).toBe(true)
     const card = board.get(project.id).cards.find((item) => item.title === 'Separar dados e tela')!
     expect(card).toMatchObject({ type: 'improvement', priority: 'high' })
-    expect(board.get(project.id).columns.find((column) => column.id === card.columnId)?.semanticState).toBe('backlog')
+    expect(board.get(project.id).columns.find((column) => column.id === card.columnId)?.semanticState).toBe('todo')
     expect(conversations.listChats(project.id, card.id)[0]).toMatchObject({ id: chat.id, purpose: 'planning', cardId: card.id })
     expect(database.db.prepare('SELECT card_id AS cardId FROM runs WHERE id = ?').get(run.id)).toEqual({ cardId: card.id })
     expect(changes).toContainEqual({ type: 'converted', cardId: card.id, chatId: chat.id })

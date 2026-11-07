@@ -115,7 +115,7 @@ export class McpBridge {
         const type = args.tipo === undefined ? types[0]!.id : findCardType(types, String(args.tipo))?.id
         if (!type) return { ok: false, error: cardTypeError(types) }
         const columns = board.get(projectId).columns
-        const column = columns.find((item) => item.semanticState === 'backlog') ?? columns[0]
+        const column = columns.find((item) => item.semanticState === 'backlog') ?? columns.find((item) => item.semanticState === 'todo') ?? columns[0]
         if (!column) return { ok: false, error: 'The project has no columns' }
         const card = board.create({ projectId, columnId: column.id, type: String(type), title: title.trim(), description: summary, priority: String(priority), acceptanceCriteria: [] })
         this.deps.conversations.convertToPlanning(run.chatId, card.id)

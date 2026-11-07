@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
-import type { ToolsStatus } from '@gearmod/contracts'
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
+import type { SpecKitRunInput, ToolsFolderInfo, ToolsStatus } from '@gearmod/contracts'
 import type { AppDatabase } from './database'
 import { nativeCommands, type CommandRunner } from './playwright-cli'
 import { tm } from './i18n'
@@ -58,6 +59,49 @@ export class SpecToolsService {
   constructor(private readonly database: AppDatabase, private readonly commands: CommandRunner = nativeCommands) {}
 
   private async version(command: string, args: string[]): Promise<string | null> { return this.commands.run(command, args, process.cwd(), 15_000).then(versionOf, () => null) }
+
+  /**
+   * A folder the user picked to run Spec Kit in, even when it is not one of the project's repositories: is it a Git repository (its own root), is it inside
+   * another one, and is Spec Kit already there. Only reads; the app terminal does the `git init` and the `specify init`.
+   */
+  async inspectFolder(path: string): Promise<ToolsFolderInfo> {
+    if (!existsSync(path)) throw new Error(tm().speckit.folderMissing)
+    const real = (value: string): string => { try { return realpathSync.native(value).toLowerCase() } catch { return resolve(value).toLowerCase() } }
+    const top = await this.commands.run('git', ['rev-parse', '--show-toplevel'], path, 10_000).then((output) => output.trim(), () => '')
+    const isRepo = top !== '' && real(top) === real(path)
+    return { isRepo, parentRepo: top !== '' && !isRepo ? top : null, hasSpecKit: existsSync(join(path, '.specify')), integrations: specKitIntegrations(path) }
+  }
+
+  /**
+   * What to run in the dialog's terminal for a Spec Kit step. Fixed commands: the only things that come from outside are a version (digits), an
+   * integration name (letters, digits, "-" and "_") and a folder that must exist, and none of them is pasted into a shell line except those two validated words.
+   * On Windows it goes through PowerShell, elsewhere through `sh`, so the user's PATH decides which `uv` and `specify` run.
+   */
+  terminalPlan(input: SpecKitRunInput): { file: string; args: string[]; env: NodeJS.ProcessEnv; cwd: string; title: string } {
+    const env = { ...process.env }, windows = process.platform === 'win32'
+    const folder = (): string => {
+      const path = input.path ?? ''
+      let isDir = false
+      try { isDir = statSync(path).isDirectory() } catch { /* not there */ }
+      if (!isDir) throw new Error(tm().speckit.folderMissing)
+      return path
+    }
+    const version = (): string => { if (!input.version) throw new Error(tm().speckit.runNeedsVersion); return input.version }
+    const install = (flags: string): string => `uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v${version()}${flags}`
+    let line: string, cwd = homedir()
+    switch (input.kind) {
+      case 'install-uv': line = windows ? 'winget install --id=astral-sh.uv -e' : 'curl -LsSf https://astral.sh/uv/install.sh | sh'; break
+      case 'install-cli': line = install(''); break
+      case 'update-cli': line = install(' --force'); break
+      case 'init': cwd = folder(); line = 'specify init --here'; break
+      case 'init-with-git': cwd = folder(); line = windows ? 'git init; if ($?) { specify init --here }' : 'git init && specify init --here'; break
+      case 'upgrade-integration': {
+        if (!input.integration) throw new Error(tm().speckit.runNeedsIntegration)
+        cwd = folder(); line = `specify integration upgrade ${input.integration}`; break
+      }
+    }
+    return windows ? { file: 'powershell.exe', args: ['-NoLogo', '-NoProfile', '-Command', line], env, cwd, title: 'Spec Kit' } : { file: 'sh', args: ['-c', line], env, cwd, title: 'Spec Kit' }
+  }
 
   async status(projectId: string): Promise<ToolsStatus> {
     const [node, uv, python, specify, openspec] = await Promise.all([

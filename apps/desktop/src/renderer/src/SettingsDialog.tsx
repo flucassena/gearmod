@@ -1,5 +1,6 @@
 import { providerLabels } from '@gearmod/contracts'
 import { AboutPanel } from './AboutPanel'
+import { StoragePanel } from './StoragePanel'
 import { useAppUpdate } from './appUpdate'
 import { setLocale, useT } from './i18n'
 import React, { useEffect, useState } from 'react'
@@ -189,7 +190,7 @@ export function ThemePicker({ value, onChange, project = false }: { value: AppTh
 
 
 export function SettingsDialog({ profiles, settings, initialTab, close, changed, settingsChanged }: { profiles: AgentProfile[]; settings: AppSettings; initialTab?: 'general' | 'agents' | 'about'; close(): void; changed(): Promise<void>; settingsChanged(settings: AppSettings): void }): React.JSX.Element {
-  const [tab, setTab] = useState<'agents' | 'skills' | 'mcp' | 'general' | 'shortcuts' | 'about'>(initialTab ?? 'general'), [editing, setEditing] = useState<AgentProfile | 'new'>(), [items, setItems] = useState(profiles), [statuses, setStatuses] = useState<Record<string, AgentProbe>>({}), [error, setError] = useState('')
+  const [tab, setTab] = useState<'agents' | 'skills' | 'mcp' | 'general' | 'shortcuts' | 'about' | 'tools'>(initialTab ?? 'general'), [editing, setEditing] = useState<AgentProfile | 'new'>(), [items, setItems] = useState(profiles), [statuses, setStatuses] = useState<Record<string, AgentProbe>>({}), [error, setError] = useState('')
   const appUpdate = useAppUpdate()
   const [messageSpacing, setMessageSpacing] = useState<MessageSpacing>(() => readMessageSpacing())
   const t = useT(), td = t.settings.dialog
@@ -215,12 +216,13 @@ export function SettingsDialog({ profiles, settings, initialTab, close, changed,
   const commitLimit = (): void => { const value = Math.round(Number(limitDraft)); setLimitDraft(undefined); if (limitDraft !== undefined && Number.isFinite(value) && value >= 1 && value !== limitValue) void save({ execucoesSimultaneas: Math.min(16, value) }) }
   return <div className="overlay" role="dialog" aria-label={t.common.settings}><div className="modal settings-dialog">
     <header><div><div className="eyebrow">{t.common.settings}</div><h2>GearMod</h2></div><button className="x" onClick={close} aria-label={t.common.close}>×</button></header>
-    <div className="tabs" role="tablist" style={{ marginBottom: 14 }}>{([['general', td.tabGeneral], ['agents', td.tabAgents], ['skills', td.tabSkills], ['mcp', td.tabMcp], ['shortcuts', td.tabShortcuts], ['about', td.tabAbout]] as const).map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={`tab ${tab === value ? 'on' : ''}`} onClick={() => setTab(value)}>{label}{value === 'agents' && updatesPending && <i className="tab-dot" data-tip={td.agentUpdateTip} />}{value === 'about' && appUpdate?.available && <i className="tab-dot" data-tip={td.appUpdateTip} />}</button>)}</div>
+    <div className="tabs" role="tablist" style={{ marginBottom: 14 }}>{([['general', td.tabGeneral], ['agents', td.tabAgents], ['skills', td.tabSkills], ['mcp', td.tabMcp], ['tools', td.tabTools], ['shortcuts', td.tabShortcuts], ['about', td.tabAbout]] as const).map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={`tab ${tab === value ? 'on' : ''}`} onClick={() => setTab(value)}>{label}{value === 'agents' && updatesPending && <i className="tab-dot" data-tip={td.agentUpdateTip} />}{value === 'about' && appUpdate?.available && <i className="tab-dot" data-tip={td.appUpdateTip} />}</button>)}</div>
     <div className="settings-dialog-body">{tab === 'agents' && <><p style={{ marginBottom: 12 }}>{td.agentsIntro}</p>
       <div className="stack" style={{ gap: 8 }}>{items.length === 0 && <div className="emptyBox">{td.noAgents}</div>}{items.map((profile) => { const probe = statuses[profile.id], state = !probe ? 'checking' : probe.authenticated ? 'on' : 'off'; return <div className="ck-line" key={profile.id}><span className="settings-agent-avatar tip" data-tip={!probe ? td.checkingConnection : probe.authenticated ? td.connected : probe.installed ? td.disconnectedNoLogin : td.disconnectedNotInstalled} aria-label={!probe ? td.checkingConnection : probe.authenticated ? td.connected : td.disconnected}><AgentIcon profile={profile} size="lg" tip={false} /><i className={`settings-agent-status ${state}`} aria-hidden="true" /></span><span className="t">{profile.label}<small>{item(profile.provider)}</small>{probe?.account && <small className="acct" data-tip={td.accountTip}>{probe.account}</small>}</span>{newer(profile) && <span className="agupdate" data-tip={td.versionTip(statuses[profile.id]?.version ?? '?', newer(profile) ?? '')}>{td.updateAvailable}<button type="button" className="linklike" onClick={() => setUpdating(profile.provider)}>{td.update}</button></span>}<span className="agtype" data-tip={td.usageTip}>{profile.scope}</span><button className="mini secondary" onClick={() => setEditing(profile)}>{t.common.edit}</button></div> })}</div>
       <button className="bigadd" onClick={() => setEditing('new')}>{td.addAgent}</button></>}
     {tab === 'skills' && <SkillsPanel scope="global" profiles={items} />}
     {tab === 'mcp' && <McpPanel scope="global" available={['claude', 'codex']} />}
+    {tab === 'tools' && <StoragePanel />}
     {tab === 'shortcuts' && <ShortcutsPanel />}
     {tab === 'about' && <AboutPanel />}
     {tab === 'general' && <><div className="stack">

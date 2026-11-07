@@ -16,6 +16,7 @@ import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { registerIpc } from './ipc'
 import { readAbout, UpdateService } from './updater'
+import { StorageService } from './storage'
 import { boundsFor, readWindowState, writeWindowState } from './window-state'
 import { release as osRelease, version as osVersion } from 'node:os'
 import { SpecKitRuntime } from './speckit'
@@ -213,6 +214,7 @@ const updates = new UpdateService({
   },
   quit: () => { quitting = true; app.quit() }
 })
+const storage = new StorageService({ dataDir, toolsDir: join(dataDir, 'tools'), updatesDir: join(app.getPath('temp'), 'gearmod-update') })
 const terminals = new TerminalService(pushEvent)
 const fileWatch = new FileWatchService(pushEvent)
 const autoResume = new AutoResumeService({
@@ -480,7 +482,7 @@ app.whenReady().then(async () => {
   await openDatabase()
   setMainLocale(settings.get().idioma)  // only after opening the database: before that the settings cannot be read
   await mcpBridge.listen()
-  disposeIpc = registerIpc(ipcMain, { updates, about: () => readAbout(app.getAppPath(), appVersion, { versions: process.versions, system: `${osVersion()} ${osRelease()} (${process.arch})`, buildDate: aboutBuildDate(), dataDir }), database, speckit, pullRequests, gitAccounts, mcp: mcpRegistry, backups, notes, settings, profiles, projects, board, git, chooseDirectory, chooseFiles, agentProbes, conversations, orchestrator, worktrees, quality, executions, agentConfigs, skills, constitution, checklists, voice, usage, collab, gitManager, history, playwright, specTools, toolUpdates, approvals, sddResolver, sddWriter, dbManager, fileWatch, terminals, returnFile, codeIndex, codeRoots: projectCodeRoots, codeIndexSettings, ...fileActions, openExternal: (url) => shell.openExternal(url), setBrandColor, setTitleBarTheme: (light) => { for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay(process.platform, light, titleBarHeight)) }, openWindow: openPopout, placeWindow: (placement) => { const window = BrowserWindow.getFocusedWindow(); if (window) placeWindow(window, placement) }, openPath: async (path) => { await mkdir(path, { recursive: true }); const error = await shell.openPath(path); if (error) throw new Error(error) }, chooseSkillSource, saveTextFile, appVersion, dataDir, reopen: openDatabase })
+  disposeIpc = registerIpc(ipcMain, { updates, storage, about: () => readAbout(app.getAppPath(), appVersion, { versions: process.versions, system: `${osVersion()} ${osRelease()} (${process.arch})`, buildDate: aboutBuildDate(), dataDir }), database, speckit, pullRequests, gitAccounts, mcp: mcpRegistry, backups, notes, settings, profiles, projects, board, git, chooseDirectory, chooseFiles, agentProbes, conversations, orchestrator, worktrees, quality, executions, agentConfigs, skills, constitution, checklists, voice, usage, collab, gitManager, history, playwright, specTools, toolUpdates, approvals, sddResolver, sddWriter, dbManager, fileWatch, terminals, returnFile, codeIndex, codeRoots: projectCodeRoots, codeIndexSettings, ...fileActions, openExternal: (url) => shell.openExternal(url), setBrandColor, setTitleBarTheme: (light) => { for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay(process.platform, light, titleBarHeight)) }, openWindow: openPopout, placeWindow: (placement) => { const window = BrowserWindow.getFocusedWindow(); if (window) placeWindow(window, placement) }, openPath: async (path) => { await mkdir(path, { recursive: true }); const error = await shell.openPath(path); if (error) throw new Error(error) }, chooseSkillSource, saveTextFile, appVersion, dataDir, reopen: openDatabase })
   Menu.setApplicationMenu(null)  // no File/Edit/View/Window/Help: the top strip belongs to the app
   if (app.isPackaged) updates.start()  // the development build does not look for releases
   createTray()

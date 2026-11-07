@@ -30,7 +30,7 @@ describe('project board', () => {
     const { root, database, profiles, projects, board } = await setup()
     const project = await projects.create({ name: 'Produto', localPath: root, baseBranch: 'dev', profileIds: profiles.list().map((item) => item.id) })
     const state = board.get(project.id)
-    expect(state.columns.map((column) => column.semanticState)).toEqual(['backlog', 'todo', 'doing', 'test', 'done'])
+    expect(state.columns.map((column) => column.semanticState)).toEqual(['todo', 'doing', 'test', 'done'])
     expect(project.allowedProfileIds).toHaveLength(2)
     expect(profiles.list()).toHaveLength(2)
     database.close()
@@ -96,7 +96,33 @@ describe('project board', () => {
     database.close()
   })
 
-  it('migrates MR columns to Test keeping history and adds Backlog', async () => {
+  it('merges the Backlog column into To do: cards go to the end, history follows and the column goes away', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'gearmod-backlog-')); roots.push(root)
+    const path = join(root, 'data.sqlite')
+    const old = new AppDatabase(path, '0.1.0', migrations.slice(0, 44)); await old.open()
+    const now = '2026-01-01T00:00:00.000Z', project = '41000000-0000-4000-8000-000000000001'
+    old.db.prepare(`INSERT INTO projects(id, name, local_path, base_branch, created_at, updated_at) VALUES (?, 'P', ?, 'dev', ?, ?)`).run(project, root, now, now)
+    const ids: Record<string, string> = {}
+    ;[['Backlog', 'backlog'], ['To do', 'todo'], ['Doing', 'doing'], ['Test', 'test'], ['Done', 'done']].forEach(([label, state], index) => {
+      ids[state!] = `41000000-0000-4000-8000-00000000010${index}`
+      old.db.prepare('INSERT INTO board_columns(id, project_id, label, sort_order, semantic_state, is_default) VALUES (?, ?, ?, ?, ?, ?)').run(ids[state!], project, label, index, state, state === 'backlog' ? 1 : 0)
+    })
+    const card = (id: string, column: string, order: number): void => { old.db.prepare(`INSERT INTO cards(id, project_id, column_id, type, title, description, priority, order_key, created_at, updated_at) VALUES (?, ?, ?, 'task', ?, '', 'medium', ?, ?, ?)`).run(id, project, column, id, order, now, now) }
+    card('41000000-0000-4000-8000-000000000201', ids.todo!, 1024); card('41000000-0000-4000-8000-000000000202', ids.backlog!, 1024); card('41000000-0000-4000-8000-000000000203', ids.backlog!, 2048)
+    old.db.prepare(`INSERT INTO column_history(id, card_id, from_column_id, to_column_id, changed_at, actor, reason) VALUES ('41000000-0000-4000-8000-000000000300', '41000000-0000-4000-8000-000000000202', ?, ?, ?, 'user', 'kanban-move')`).run(ids.backlog, ids.doing, now)
+    old.close()
+
+    const upgraded = new AppDatabase(path, '0.1.0'); await upgraded.open()
+    const columns = upgraded.db.prepare('SELECT label, semantic_state AS state, sort_order AS sortOrder, is_default AS isDefault FROM board_columns WHERE project_id = ? ORDER BY sort_order').all(project)
+    expect(columns).toEqual([{ label: 'To do', state: 'todo', sortOrder: 0, isDefault: 1 }, { label: 'Doing', state: 'doing', sortOrder: 1, isDefault: 0 }, { label: 'Test', state: 'test', sortOrder: 2, isDefault: 0 }, { label: 'Done', state: 'done', sortOrder: 3, isDefault: 0 }])
+    const cards = upgraded.db.prepare('SELECT id, column_id AS columnId FROM cards WHERE project_id = ? ORDER BY order_key').all(project) as Array<{ id: string; columnId: string }>
+    expect(cards.map((item) => item.id.slice(-3))).toEqual(['201', '202', '203'])  // the Backlog cards come after the ones that were already in To do
+    expect(cards.every((item) => item.columnId === ids.todo)).toBe(true)
+    expect(upgraded.db.prepare('SELECT from_column_id AS fromId FROM column_history').get()).toEqual({ fromId: ids.todo })
+    upgraded.close()
+  })
+
+  it('migrates MR columns to Test keeping history, and merges Backlog into To do', async () => {
     const root = await mkdtemp(join(tmpdir(), 'gearmod-mr-')); roots.push(root)
     const path = join(root, 'data.sqlite')
     const old = new AppDatabase(path, '0.1.0', migrations.slice(0, 5)); await old.open()
@@ -115,7 +141,7 @@ describe('project board', () => {
     const upgraded = new AppDatabase(path, '0.1.0'); await upgraded.open()
     const git = { validate: async () => undefined, branches: async () => ['dev'], inspect: async (localPath: string) => ({ localPath, name: 'p', repositories: [] }) }
     const board = new BoardRepository(upgraded, new ProjectRepository(upgraded, git)).get(project)
-    expect(board.columns.map((column) => column.semanticState)).toEqual(['backlog', 'todo', 'doing', 'test', 'done'])
+    expect(board.columns.map((column) => column.semanticState)).toEqual(['todo', 'doing', 'test', 'done'])
     expect(board.columns.find((column) => column.semanticState === 'todo')?.label).toBe('To do')
     expect(board.cards[0]?.columnId).toBe(ids.test)
     expect(upgraded.db.prepare('SELECT COUNT(*) AS value FROM column_history WHERE card_id = ?').get(card)).toEqual({ value: 2 })

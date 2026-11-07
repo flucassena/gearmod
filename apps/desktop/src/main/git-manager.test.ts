@@ -147,6 +147,59 @@ describe('GitManager with real repositories', () => {
     expect((await git(wt, 'show', ':README.md')).stdout).toBe('preparado\n')
     await expect(manager.renameCommit({ sourceId, cardId, hash: before, message: 'Antigo' })).rejects.toThrow(/último commit/)
   })
+  it('also lists worktrees made outside GearMod, without the main folder or the card worktree', async () => {
+    const { manager, projectId, sourceId, repo, wt } = await setup()
+    const outside = join(repo, '..', 'outside-wt')
+    await git(repo, 'worktree', 'add', '-b', 'feature/outside', outside)
+    const graph = await manager.graph(projectId, sourceId)
+    expect(graph.externalWorktrees).toHaveLength(1)
+    expect(graph.externalWorktrees[0]).toMatchObject({ branch: 'feature/outside', detached: false })
+    expect(graph.externalWorktrees[0]!.path.endsWith('outside-wt')).toBe(true)
+    expect(graph.worktrees.map((item) => item.path)).toEqual([wt])
+  })
+
+  it('lets a card adopt a worktree made by hand, and letting it go never deletes the folder or the branch', async () => {
+    const { database, manager, projectId, sourceId, repo, root } = await setup()
+    const outside = join(root, 'by-hand')
+    await git(repo, 'worktree', 'add', '-b', 'feature/by-hand', outside)
+    await writeFile(join(outside, 'mine.txt'), 'mine\n')
+    const projects = new ProjectRepository(database, new GitService()), board = new BoardRepository(database, projects), column = board.get(projectId).columns[0]!
+    const card = board.create({ projectId, columnId: column.id, title: 'Uses it', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
+    const service = new WorktreeService(database, join(root, 'data'))
+    expect((await service.startOptions(projectId)).external.map((item) => item.branch)).toEqual(['feature/by-hand'])
+    // Only what Git lists as a worktree of the project can be opened or adopted, never an arbitrary folder.
+    expect((await service.findExternal(projectId, outside))?.branch).toBe('feature/by-hand')
+    expect(await service.findExternal(projectId, root)).toBeUndefined()
+    await service.adopt(card.id, outside)
+    expect(service.isExternal(card.id)).toBe(true)
+    // Used as it is: nothing is created, renamed or added inside the user's folder.
+    const used = await service.prepare(card.id)
+    expect(used.path.endsWith('by-hand')).toBe(true); expect(used.branch).toBe('feature/by-hand')
+    expect((await service.ensureMember(card.id, sourceId)).status).toBe('active')
+    expect((await manager.graph(projectId, sourceId)).externalWorktrees).toEqual([])  // it is the card's now
+    expect((await service.startOptions(projectId)).external).toEqual([])
+    const result = await manager.deleteWorktree(projectId, card.id, true)
+    expect(result.keptBranches).toEqual([])
+    await expect(access(join(outside, 'mine.txt'))).resolves.toBeUndefined()
+    expect((await git(repo, 'branch', '--list', 'feature/by-hand')).stdout.trim()).not.toBe('')
+    expect(service.isExternal(card.id)).toBe(false)
+    expect((await service.startOptions(projectId)).external.map((item) => item.branch)).toEqual(['feature/by-hand'])  // free to be adopted again
+  })
+
+  it('does not adopt a worktree on a detached HEAD, one that is gone, or when the card already has a worktree', async () => {
+    const { database, projectId, repo, root, cardId } = await setup()
+    const detached = join(root, 'detached')
+    await git(repo, 'worktree', 'add', '--detach', detached)
+    const projects = new ProjectRepository(database, new GitService()), board = new BoardRepository(database, projects), column = board.get(projectId).columns[0]!
+    const card = board.create({ projectId, columnId: column.id, title: 'Other', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
+    const service = new WorktreeService(database, join(root, 'data'))
+    await expect(service.adopt(card.id, detached)).rejects.toThrow(/detached|HEAD/i)
+    await expect(service.adopt(card.id, join(root, 'nowhere'))).rejects.toThrow()
+    const outside = join(root, 'by-hand')
+    await git(repo, 'worktree', 'add', '-b', 'feature/by-hand', outside)
+    await expect(service.adopt(cardId, outside)).rejects.toThrow()
+  })
+
   it('lists repositories, graph with the card commits, WIP and worktrees', async () => {
     const { manager, projectId, sourceId, cardId, wt, branch, repo } = await setup()
     const repos = await manager.repos(projectId)

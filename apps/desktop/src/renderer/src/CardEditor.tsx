@@ -1,4 +1,5 @@
 import { providerLabels } from '@gearmod/contracts'
+import type { StartChoice } from './NewCardDialog'
 import React, { useEffect, useState } from 'react'
 import type { Extension } from '@codemirror/state'
 import { placeholder } from '@codemirror/view'
@@ -25,7 +26,7 @@ import { Switch } from './Switch'
 import { getLocale, tr, useT } from './i18n'
 
 /** `workflow`: the card's already chosen flow (read-only here; comes from the board so it does not wait for the query). */
-export interface Draft { id?: string; columnId: string; sourceId?: string | null; title: string; type: Card['type']; priority: Card['priority']; workflow?: Card['workflow'] }
+export interface Draft { /** Where the work runs, chosen on the new-card dialog (only used when the card is created). */ start?: StartChoice; id?: string; columnId: string; sourceId?: string | null; title: string; type: Card['type']; priority: Card['priority']; workflow?: Card['workflow'] }
 /** A new card starts with the first type in the project's list. */
 export const blankDraft = (columnId: string, type: string): Draft => ({ columnId, title: '', type, priority: 'medium' })
 
@@ -106,7 +107,7 @@ export function CardEditor({ projectId, sources, profiles, cardTypes, draft: sta
     try {
       const sourceId = d.sourceId ?? gitSources[0]?.id ?? null
       const base = { sourceId, title: d.title, type: d.type, priority: d.priority, description: texts.resumo, acceptanceCriteria: [] }
-      const card = d.id ? await window.gearmod.invoke('cards:update', { cardId: d.id, ...base }) : await window.gearmod.invoke('cards:create', { projectId, columnId: d.columnId, ...base })
+      const card = d.id ? await window.gearmod.invoke('cards:update', { cardId: d.id, ...base }) : await window.gearmod.invoke('cards:create', { projectId, columnId: d.columnId, ...base, ...d.start })
       for (const k of cardDocumentKinds) if (k !== 'resumo' && !systemKinds.includes(k) && dirty(k)) await window.gearmod.invoke('cards:write-document', { cardId: card.id, kind: k, contentMd: texts[k] })
       if (!d.id) for (const [purpose, state] of [['planning', planAgent], ['execution', execAgent], ['test', testAgent]] as const) if (state.touched && state.config) await window.gearmod.invoke('cards:set-agent-config', { cardId: card.id, purpose, config: state.config })
       saved()

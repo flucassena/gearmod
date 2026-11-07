@@ -4,6 +4,7 @@ import { plainError } from './NoticeDialog'
 import { Select } from './Select'
 import { ConstitutionPanel } from './ConstitutionPanel'
 import { useT } from './i18n'
+import { specRunFinishedEvent } from './specKitRun'
 
 const FolderIcon = (): React.JSX.Element => <svg className="cx-foldico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
 const slash = (value: string): string => value.replace(/\\/g, '/').replace(/\/$/, '')
@@ -17,11 +18,24 @@ export function SddSettings({ project, openConstitutionChat, onOpenReference }: 
   const [editRoot, setEditRoot] = useState(false), [editConstitution, setEditConstitution] = useState(false)
   // Bumped on each save: the Constitution panel below reads the file again from the new location.
   const [savedCount, setSavedCount] = useState(0)
-  const sources = project.sources.filter((source) => source.isGitRepository)
+  // The project's repositories are read again when something adds one (the Spec Kit start does), so the list and the choice do not wait for the dialog to be reopened.
+  const [fresh, setFresh] = useState<Project>()
+  const sources = (fresh ?? project).sources.filter((source) => source.isGitRepository)
   const source = sources.find((item) => item.id === config?.sourceId) ?? sources[0]
   useEffect(() => { void window.gearmod.invoke('sdd:config-get', { projectId: project.id }).then(setConfig).catch((e) => setMessage(plainError(e))) }, [project.id])
-  useEffect(() => { void window.gearmod.invoke('projects:list', undefined).then((items) => { const current = items.find((item) => item.id === project.id); if (current) setBranch(current.baseBranch) }).catch((e) => setMessage(plainError(e))) }, [project.id])
+  useEffect(() => { void window.gearmod.invoke('projects:list', undefined).then((items) => { const current = items.find((item) => item.id === project.id); if (current) { setBranch(current.baseBranch); setFresh(current) } }).catch((e) => setMessage(plainError(e))) }, [project.id])
   useEffect(() => { if (!source) { setBranches([]); return }; void window.gearmod.invoke('projects:branches', { localPath: source.localPath }).then(setBranches).catch((e) => setMessage(plainError(e))) }, [source?.id, source?.localPath])
+  // A Spec Kit start that just ended may have changed this configuration (repository and Constitution path): read it again.
+  useEffect(() => {
+    const again = (event: Event): void => {
+      if ((event as CustomEvent<string>).detail !== project.id) return
+      void window.gearmod.invoke('projects:list', undefined).then((items) => setFresh(items.find((item) => item.id === project.id))).catch(() => undefined)
+      void window.gearmod.invoke('sdd:config-get', { projectId: project.id }).then((next) => { setConfig(next); setSavedCount((count) => count + 1) }).catch(() => undefined)
+    }
+    const listChanged = (): void => { void window.gearmod.invoke('projects:list', undefined).then((items) => setFresh(items.find((item) => item.id === project.id))).catch(() => undefined) }
+    window.addEventListener(specRunFinishedEvent, again); window.addEventListener('gearmod:board-changed', listChanged)
+    return () => { window.removeEventListener(specRunFinishedEvent, again); window.removeEventListener('gearmod:board-changed', listChanged) }
+  }, [project.id])
   const save = async (): Promise<void> => {
     if (!config || !source) return
     setBusy(true); setMessage(''); setPreview(undefined)
