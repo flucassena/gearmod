@@ -153,6 +153,11 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
+      # Only the notes of the version are needed from the repository (release-notes/<version>.md).
+      - uses: actions/checkout@v7
+        with:
+          path: source
+          sparse-checkout: release-notes
       - uses: actions/download-artifact@v8
         with:
           path: release
@@ -177,7 +182,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat > notes.md <<'NOTES'
+          # What the version brings (release-notes/<version>.md) comes first; the app's About tab shows the same text.
+          changes="../source/release-notes/$VERSION.md"
+          if [ -f "$changes" ]; then cat "$changes" > notes.md; printf '\n\n' >> notes.md; else echo "::warning::No release-notes/$VERSION.md: the Release has only the download steps"; : > notes.md; fi
+          cat >> notes.md <<'NOTES'
           ## Download
 
           ### Windows
@@ -222,6 +230,8 @@ jobs:
             "GearMod-Setup-$VERSION-x64.exe" \
             "GearMod-$VERSION-x86_64.AppImage" \
             "GearMod-$VERSION-amd64.deb" \
+            "GearMod-$VERSION-arm64.dmg" \
+            "GearMod-$VERSION-x64.dmg" \
             SHA256SUMS.txt \
             --repo "$GITHUB_REPOSITORY" \
             --title "GearMod $VERSION" --notes-file notes.md --generate-notes "${extra[@]}"
