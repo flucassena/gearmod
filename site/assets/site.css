@@ -153,7 +153,7 @@ html:not([data-os="windows"]) .os-win{display:none}
 .cmd{margin:-6px 0 22px}
 .cmd-label{color:var(--muted);font-size:13.5px;margin:6px 0}
 .cmd-line{display:flex;align-items:center;gap:10px;background:#0a0e16;border:1px solid var(--line);border-radius:10px;padding:8px 8px 8px 14px}
-.cmd-line code{flex:1;min-width:0;font:13.5px var(--mono);color:var(--text);overflow-x:auto;white-space:nowrap}
+.cmd-line code{flex:1;min-width:0;background:none;border:0;padding:0;border-radius:0;font:13.5px var(--mono);color:var(--text);overflow-x:auto;white-space:nowrap}
 .note code,.req code{font:12.5px var(--mono);overflow-wrap:anywhere}
 .dl-main{display:grid;grid-template-columns:1.1fr 1fr;gap:28px;margin-top:36px}
 @media(max-width:900px){.dl-main{grid-template-columns:1fr}}
