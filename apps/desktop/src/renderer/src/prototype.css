@@ -687,6 +687,8 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .caret{display:inline-block;width:7px;height:1em;margin-left:2px;vertical-align:text-bottom;background:var(--accent);border-radius:1px;animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:0}}
 @media (prefers-reduced-motion:reduce){.thinking .tverb,.caret{animation:none}}
+/* Loading: standard loading state of a panel or page (mascot + text with growing dots). */
+.loading-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:220px;padding:24px;color:var(--muted)}.loading-text{font-size:13px}.loading-rest{visibility:hidden}
 
 .ck-line .t small.acct{display:block;color:var(--accent-strong);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 

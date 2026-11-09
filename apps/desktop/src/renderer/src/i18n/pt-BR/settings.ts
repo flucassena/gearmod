@@ -102,6 +102,7 @@ export const settings = {
     title: 'Ferramentas e espaço em disco',
     intro: 'O que o GearMod guarda neste computador e quanto espaço cada coisa ocupa. Você pode remover o que é antigo ou que não usa mais; ferramentas e modelos são baixados de novo quando forem necessários.',
     measuring: 'Medindo…',
+    measuringLabel: 'Medindo o espaço',
     refresh: 'Atualizar',
     total: 'Total ocupado',
     groups: {

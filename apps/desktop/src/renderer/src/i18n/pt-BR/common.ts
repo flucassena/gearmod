@@ -25,6 +25,7 @@ export const common = {
   no: 'Não',
   ok: 'OK',
   loading: 'Carregando…',
+  loadingLabel: 'Carregando',
   saving: 'Salvando…',
   none: 'Nenhum',
   all: 'Todos',

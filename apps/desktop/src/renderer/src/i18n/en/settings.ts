@@ -103,6 +103,7 @@ export const settings: typeof source = {
     title: 'Tools and disk space',
     intro: 'What GearMod keeps on this computer and how much space each thing takes. You can remove what is old or that you no longer use; tools and models are downloaded again when they are needed.',
     measuring: 'Measuring…',
+    measuringLabel: 'Measuring the space',
     refresh: 'Refresh',
     total: 'Total used',
     groups: {

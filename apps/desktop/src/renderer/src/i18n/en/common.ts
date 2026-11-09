@@ -26,6 +26,7 @@ export const common: typeof source = {
   no: 'No',
   ok: 'OK',
   loading: 'Loading…',
+  loadingLabel: 'Loading',
   saving: 'Saving…',
   none: 'None',
   all: 'All',

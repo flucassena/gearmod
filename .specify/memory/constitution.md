@@ -61,6 +61,7 @@ App desktop Electron (Windows 10/11 x64, Linux x64 e macOS 12+) que entrega card
 
 ### VIII. Controles, dicas e cores vêm dos componentes e do tema
 - Lista de escolha **DEVE** usar `Select` / `MultiSelect`; caixa de seleção, `Checkbox`; liga/desliga, `Switch`; escolha exclusiva descrita, linhas `.ck-line.pickrow`. **NÃO DEVE** haver `<select>` ou checkbox nativo solto.
+- Estado de carregamento de painel, página ou corpo de diálogo **DEVE** usar `Loading` (mascote pensando e texto com pontos animados, `label` para dizer o que carrega). **NÃO DEVE** ser um texto solto como "Carregando…". Botão e texto curto em linha continuam com o texto simples.
 - Campo de texto **DEVE** usar a classe `in` e ter rótulo (`label.f` ou `aria-label`).
 - Dica **DEVE** usar `data-tip` (mostrado pelo `TooltipLayer`). **NÃO DEVE** usar o atributo `title` nativo em elemento HTML. Botão só com ícone **DEVE** ter `data-tip` e `aria-label`.
 - Cor **DEVE** vir das variáveis de `prototype.css` / `theme-tokens.css` ou de classes que as usam. **NÃO DEVE** haver `#hex` ou `rgb()` em `style` inline. Exceção: dados que são a própria cor (paleta de agentes, amostras de tema, cor escolhida).

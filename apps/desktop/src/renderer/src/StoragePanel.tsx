@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import type { StorageEntry, StorageKind, StorageSnapshot } from '@gearmod/contracts'
 import { ConfirmDialog } from './ConfirmDialog'
+import { Loading } from './Loading'
 import { TrashIcon } from './icons'
 import { dateLocale, useT } from './i18n'
 import { plainError } from './NoticeDialog'
@@ -86,7 +87,7 @@ export function StoragePanel(): React.JSX.Element {
     <div className="gacc-head"><div><div className="sectitle">{ts.title}</div><small className="hint">{ts.intro}</small></div>
       <button type="button" className="mini secondary" disabled={loading || busy} onClick={() => void load()}>{loading ? ts.measuring : ts.refresh}</button></div>
     {error && <p className="error" role="alert">{error}</p>}
-    {!snapshot ? <small className="hint">{ts.measuring}</small> : <>
+    {!snapshot ? (error ? null : <Loading label={ts.measuringLabel} />) : <>
       <div className="storage-total"><span>{ts.total}</span><b>{formatBytes(snapshot.totalBytes)}</b></div>
       {groupOrder.map((group) => {
         const entries = group === 'backups' ? backups : snapshot.entries.filter((entry) => groupOf[entry.kind] === group)
