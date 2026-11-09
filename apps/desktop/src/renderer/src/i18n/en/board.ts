@@ -33,6 +33,9 @@ export const board: typeof source = {
     planningWithAgent: 'Planning with agent',
     planReady: 'Plan ready',
     paused: 'Paused',
+    failed: 'Could not run',
+    failedTip: (error) => `${error ? `${error}\n\n` : ''}Click to choose the agent and try again.`,
+    chooseAgent: 'Choose agent and try again',
     finishedViewChat: 'Finished · view chat',
     testingTap: 'Testing · tap to view',
     executionTap: 'Tap to view execution',
@@ -163,6 +166,8 @@ export const board: typeof source = {
   start: {
     startTest: 'Start test',
     startExecution: 'Start execution',
+    retryNote: (error) => `The last run did not go through${error ? `: ${error}` : ''}. Choose the agent and try again.`,
+    switchResets: (label) => `Switching from ${label} to another agent restarts this step's chat.`,
     agentLocked: (label) => `This step already has a chat with ${label}; the agent is locked. To switch, reset the chat from the agent menu in the chat.`,
     modelAndEffort: 'Model and effort',
     baseBranch: 'Base branch',

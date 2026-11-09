@@ -220,7 +220,8 @@ export const cardDocumentsSchema = z.object({ resumo: cardDocumentSchema, especi
 export const documentVersionSchema = z.object({ id: uuid, version: z.number().int().positive(), contentMd: z.string(), createdAt: isoDate, actor: z.enum(['user', 'agent', 'system']) })
 export const taskCountSchema = z.object({ done: z.number().int().nonnegative(), total: z.number().int().nonnegative() })
 export const criterionSchema = z.object({ id: uuid, cardId: uuid, body: z.string(), checked: z.boolean(), sortOrder: z.number().int() })
-export const cardRunStateSchema = z.object({ state: z.enum(['idle', 'planning', 'running', 'paused', 'finished']), runId: uuid.nullable(), profileId: uuid.nullable(), purpose: agentPurposeSchema.nullable() })
+/** `failed`: the last run ended with an error (e.g. agent without login/token); `error` says why. `paused`: stopped by the user or interrupted. */
+export const cardRunStateSchema = z.object({ state: z.enum(['idle', 'planning', 'running', 'paused', 'failed', 'finished']), runId: uuid.nullable(), profileId: uuid.nullable(), purpose: agentPurposeSchema.nullable(), error: z.string().nullable().optional() })
 export const cardSchema = z.object({
   id: uuid, projectId: uuid, columnId: uuid, sourceId: uuid.nullable(), type: cardTypeSchema, title: z.string(), description: z.string(),
   priority: cardPrioritySchema, orderKey: z.number(), createdAt: isoDate, updatedAt: isoDate,
@@ -537,7 +538,7 @@ export const ipcContracts = {
   , 'cards:write-document': { input: z.object({ cardId: uuid, kind: cardDocumentKindSchema, contentMd: z.string().max(200_000) }).strict(), output: cardDocumentSchema }
   , 'cards:document-versions': { input: z.object({ cardId: uuid, kind: cardDocumentKindSchema }).strict(), output: z.array(documentVersionSchema) }
   , 'cards:toggle-task': { input: z.object({ cardId: uuid, line: z.number().int().nonnegative(), checked: z.boolean() }).strict(), output: cardDocumentSchema }
-  , 'cards:start': { input: z.object({ cardId: uuid, config: agentConfigSchema, purpose: z.enum(['execution', 'test']).optional(), baseBranch: z.string().trim().min(1).max(200).optional() }).strict(), output: runSchema }
+  , 'cards:start': { input: z.object({ cardId: uuid, config: agentConfigSchema, purpose: z.enum(['execution', 'test']).optional(), baseBranch: z.string().trim().min(1).max(200).optional(), replaceAgent: z.boolean().optional() }).strict(), output: runSchema }
   , 'cards:set-base-branch': { input: z.object({ cardId: uuid, branch: z.string().trim().min(1).max(200) }).strict(), output: z.object({ branch: z.string() }) }
   , 'cards:branches': { input: cardIdInput, output: z.object({ branches: z.array(z.string()), current: z.string().nullable(), selected: z.string().nullable(), locked: z.boolean() }) }
   , 'cards:resume': { input: z.object({ cardId: uuid, purpose: z.enum(['execution', 'test']).optional() }).strict(), output: runSchema }

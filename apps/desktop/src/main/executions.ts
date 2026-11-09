@@ -1,4 +1,4 @@
-import type { AgentConfig, Run } from '@gearmod/contracts'
+import { withErrorCode, type AgentConfig, type Run } from '@gearmod/contracts'
 import type { AgentConfigRepository } from './agent-config'
 import type { ConversationRepository } from './conversations'
 import type { AgentOrchestrator } from './orchestrator'
@@ -29,7 +29,8 @@ export class ExecutionService {
     return { branches, current: project.baseBranch || (source?.currentBranch ?? null), selected: this.board.baseBranch(cardId), locked: Boolean(card.workspace) }
   }
 
-  start(cardId: string, config: AgentConfig, purpose: 'execution' | 'test' = 'execution', baseBranch?: string): Run {
+  /** `replaceAgent`: the user chose another agent for a stage that already has a chat (e.g. after a failure for lack of a token): restarts that stage's chat. */
+  start(cardId: string, config: AgentConfig, purpose: 'execution' | 'test' = 'execution', baseBranch?: string, replaceAgent = false): Run {
     const card = this.assertIdle(cardId), small = card.workflow === 'light'
     if (small && purpose === 'test') throw new Error(tm().executions.smallTaskNoTestStage)
     const speckit = purpose === 'execution' && !small && this.speckit?.active(cardId)
@@ -39,7 +40,8 @@ export class ExecutionService {
     // Short flow: one chat only. Without a work chat yet, the planning chat carries on as the work chat (same conversation and agent).
     const planningChat = small && !chats.some((chat) => chat.purpose === 'execution') ? chats.find((chat) => chat.purpose === 'planning') : undefined
     const existing = chats.find((chat) => chat.purpose === purpose) ?? planningChat
-    if (existing && existing.profileId !== profileId) throw new Error(tm().executions.stageHasOtherAgent)
+    // Only the stage's own chat is restarted; the planning chat that the short flow reuses is never discarded here.
+    if (existing && existing.profileId !== profileId) { if (!replaceAgent || existing.purpose !== purpose) throw new Error(tm().executions.stageHasOtherAgent); this.conversations.resetChat(existing.id) }
     this.configs?.set(cardId, purpose, config)
     if (planningChat) this.conversations.promotePlanningChat(planningChat.id)
     // The card goes to its stage's column: implementation to Doing, test to Test.
@@ -61,7 +63,7 @@ export class ExecutionService {
     const card = this.assertIdle(cardId)
     const chats = this.conversations.listChats(card.projectId, cardId).filter((item) => purpose ? item.purpose === purpose : item.purpose !== 'planning')
     const chat = chats[0]
-    if (!chat) throw new Error(tm().executions.nothingToContinue)
+    if (!chat) throw new Error(withErrorCode('nothing-to-continue', tm().executions.nothingToContinue))
     const step = steps[card.workflow === 'light' ? 'short' : chat.purpose === 'test' ? 'test' : 'execution']
     return this.orchestrator.start({ chatId: chat.id, prompt: skillPrompt(step.resume, step.skill), planning: false, notice: skillNotice(step.skill, ' · retomando de onde parou') })
   }

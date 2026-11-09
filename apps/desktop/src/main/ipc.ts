@@ -404,7 +404,7 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'cards:document-versions': (input: { cardId: string; kind: CardDocumentKind }) => services.board.documents.versions(input.cardId, input.kind),
     // Spec Kit: the feature's tasks.md is the source; checking in the card writes to it (otherwise the mirror would erase the mark).
     'cards:toggle-task': (input: { cardId: string; line: number; checked: boolean }) => services.speckit.setTask(input.cardId, input.line, input.checked) ? services.board.documents.get(input.cardId).tasks : services.board.documents.setTask(input.cardId, input.line, input.checked, 'user'),
-    'cards:start': (input: { cardId: string; config: AgentConfig; purpose?: 'execution' | 'test'; baseBranch?: string }) => { const run = services.executions.start(input.cardId, input.config, input.purpose, input.baseBranch); services.speckit.settleStart(input.cardId); return run },
+    'cards:start': (input: { cardId: string; config: AgentConfig; purpose?: 'execution' | 'test'; baseBranch?: string; replaceAgent?: boolean }) => { const run = services.executions.start(input.cardId, input.config, input.purpose, input.baseBranch, input.replaceAgent); services.speckit.settleStart(input.cardId); return run },
     'cards:branches': (input: { cardId: string }) => services.executions.branches(input.cardId),
     'agents:options': (input: { profileId: string }) => services.agentConfigs.options(input.profileId),
     'cards:agent-config': (input: { cardId: string }) => services.agentConfigs.get(input.cardId),

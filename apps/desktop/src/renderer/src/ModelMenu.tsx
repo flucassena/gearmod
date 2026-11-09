@@ -18,8 +18,10 @@ export function permissionModeText(provider: AgentProfile['provider'], mode: Per
 
 /** Card agent configuration (agent, model, effort and mode) for planning or executing; saved on the card at each change. */
 export function useAgentConfig(cardId: string, purpose: AgentPurpose, profiles: AgentProfile[], lockedProfileId?: string): { config?: AgentConfig; options?: AgentOptions; update(patch: Partial<AgentConfig>): Promise<void>; error: string; touched: boolean } {
-  const [config, setConfig] = useState<AgentConfig>(), [options, setOptions] = useState<AgentOptions>(), [error, setError] = useState('')
+  const [config, setConfig] = useState<AgentConfig>(), [loaded, setLoaded] = useState<{ profileId: string; options: AgentOptions }>(), [error, setError] = useState('')
   const profileId = config?.profileId, profileKey = profiles.map((item) => item.id).join(',')
+  // The models belong to one agent: right after a switch, the previous agent's list must not be used (it would pick e.g. "sonnet" for a GPT agent).
+  const options = loaded && loaded.profileId === profileId ? loaded.options : undefined
   const latest = useRef(profiles); latest.current = profiles
   const [touched, setTouched] = useState(false)
   const switchedFrom = useRef<{ rank: number; effort: Effort | null } | null>(null)
@@ -41,13 +43,15 @@ export function useAgentConfig(cardId: string, purpose: AgentPurpose, profiles: 
   useEffect(() => {
     if (!profileId) return
     let alive = true
-    setOptions(undefined) // do not let the previous agent's models leak into the new agent's default
-    void window.gearmod.invoke('agents:options', { profileId }).then((loaded) => { if (alive) setOptions(loaded) }).catch(() => { if (alive) setOptions({ models: [], mostUsed: { planning: null, execution: null, test: null } }) })
+    void window.gearmod.invoke('agents:options', { profileId }).then((value) => { if (alive) setLoaded({ profileId, options: value }) }).catch(() => { if (alive) setLoaded({ profileId, options: { models: [], mostUsed: { planning: null, execution: null, test: null } } }) })
     return () => { alive = false }
   }, [profileId])
   // With no saved choice, shows the default: the most used or the recommended one for the purpose.
   useEffect(() => {
-    if (!config || !options || config.model !== null || config.effort !== null) return
+    if (!config || !options) return
+    // Saved model that this agent does not have (e.g. left over from another agent): goes back to choosing the default.
+    if (config.model !== null && options.models.length && !options.models.some((item) => item.id === config.model)) { setConfig({ ...config, model: null, effort: null }); return }
+    if (config.model !== null || config.effort !== null) return
     const from = switchedFrom.current
     if (from && options.models.length) {
       // Agent just switched: pick the equivalent tier (same position in the list) and keep the effort when supported.

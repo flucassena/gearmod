@@ -33,6 +33,9 @@ export const board = {
     planningWithAgent: 'Planejando com agente',
     planReady: 'Plano pronto',
     paused: 'Pausado',
+    failed: 'Não foi possível executar',
+    failedTip: (error: string) => `${error ? `${error}\n\n` : ''}Clique para escolher o agente e tentar de novo.`,
+    chooseAgent: 'Escolher agente e tentar de novo',
     finishedViewChat: 'Terminou · ver chat',
     testingTap: 'Testando · toque para ver',
     executionTap: 'Toque para ver execução',
@@ -163,6 +166,8 @@ export const board = {
   start: {
     startTest: 'Iniciar teste',
     startExecution: 'Iniciar execução',
+    retryNote: (error: string) => `A última execução não rodou${error ? `: ${error}` : ''}. Escolha o agente e tente de novo.`,
+    switchResets: (label: string) => `Trocar de ${label} para outro agente reinicia o chat desta etapa.`,
     agentLocked: (label: string) => `Esta etapa já tem um chat com ${label}; o agente fica travado. Para trocar, reinicie o chat pelo menu do agente no chat.`,
     modelAndEffort: 'Modelo e esforço',
     baseBranch: 'Branch base',

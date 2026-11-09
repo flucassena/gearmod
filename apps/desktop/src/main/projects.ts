@@ -187,9 +187,9 @@ export class ProfileRepository {
  * finished (run completed and not yet seen) or planning.
  */
 export function cardRunState(db: Database.Database, cardId: string): CardRunState {
-  const row = db.prepare(`SELECT r.id, r.status, r.ended_at AS endedAt, r.profile_id AS profileId, ch.purpose, k.viewed_at AS viewedAt
+  const row = db.prepare(`SELECT r.id, r.status, r.exit_reason AS exitReason, r.ended_at AS endedAt, r.profile_id AS profileId, ch.purpose, k.viewed_at AS viewedAt
     FROM runs r JOIN chats ch ON ch.id = r.chat_id JOIN cards k ON k.id = r.card_id WHERE r.card_id = ? ORDER BY r.started_at DESC, r.rowid DESC LIMIT 1`).get(cardId) as
-    { id: string; status: string; endedAt: string | null; profileId: string; purpose: string; viewedAt: string | null } | undefined
+    { id: string; status: string; exitReason: string | null; endedAt: string | null; profileId: string; purpose: string; viewedAt: string | null } | undefined
   const none = { state: 'idle' as const, runId: null, profileId: null, purpose: null }
   if (!row) return none
   const purpose = row.purpose === 'test' ? 'test' as const : row.purpose === 'planning' ? 'planning' as const : 'execution' as const
@@ -198,6 +198,8 @@ export function cardRunState(db: Database.Database, cardId: string): CardRunStat
   if (row.purpose === 'planning') return active ? { state: 'planning', ...base } : none
   if (active) return { state: 'running', ...base }
   if (row.status === 'completed') return row.endedAt && (!row.viewedAt || row.endedAt > row.viewedAt) ? { state: 'finished', ...base } : none
+  // Failed (e.g. the agent has no login/token): not a pause, there is nothing useful to continue; the card asks to pick the agent again.
+  if (row.status === 'failed') return { state: 'failed', ...base, error: row.exitReason }
   return { state: 'paused', ...base }
 }
 

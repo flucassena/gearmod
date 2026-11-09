@@ -22,11 +22,30 @@ async function setup() {
   const columns = board.get(project.id).columns
   const card = board.create({ projectId: project.id, columnId: columns[0]!.id, title: 'Executar', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
   const started: Array<{ chatId: string; prompt: string; planning: boolean; notice?: string }> = []
-  const orchestrator = { start(input: { chatId: string; prompt: string; planning: boolean; notice?: string }) { started.push(input); const run = conversations.createRun({ cardId: card.id, chatId: input.chatId, profileId: profile.id }); conversations.updateRun(run.id, 'running', null); return { ...run, status: 'running' as const } } }
+  const orchestrator = { start(input: { chatId: string; prompt: string; planning: boolean; notice?: string }) { started.push(input); const run = conversations.createRun({ cardId: card.id, chatId: input.chatId, profileId: String(database.db.prepare('SELECT profile_id FROM chats WHERE id = ?').pluck().get(input.chatId) ?? profile.id) }); conversations.updateRun(run.id, 'running', null); return { ...run, status: 'running' as const } } }
   return { database, board, conversations, projects, profile, profiles: profiles.list(), project, columns, card, started, service: new ExecutionService(board, conversations, orchestrator) }
 }
 
 describe('ExecutionService', () => {
+  it('a failed run (e.g. agent without a token) leaves the card "failed" with the reason, and picking another agent restarts the stage chat', async () => {
+    const { database, board, conversations, profile, profiles, projects, project, card, started, service } = await setup()
+    const other = profiles.find((item) => item.id !== profile.id)!
+    projects.setProfiles(project.id, [profile.id, other.id])
+    board.documents.write(card.id, 'plano', '## Plano\nFazer')
+    const first = service.start(card.id, { profileId: profile.id, model: null, effort: null, mode: 'auto' })
+    conversations.updateRun(first.id, 'failed', 'Not logged in')
+    expect(board.card(card.id).run).toMatchObject({ state: 'failed', error: 'Not logged in', purpose: 'execution' })
+    expect(() => service.start(card.id, { profileId: other.id, model: null, effort: null, mode: 'auto' })).toThrow()
+    service.start(card.id, { profileId: other.id, model: null, effort: null, mode: 'auto' }, 'execution', undefined, true)
+    const chats = conversations.listChats(board.card(card.id).projectId, card.id).filter((chat) => chat.purpose === 'execution')
+    expect(chats).toHaveLength(1); expect(chats[0]!.profileId).toBe(other.id); expect(started[1]!.chatId).toBe(chats[0]!.id)
+    database.close()
+  })
+  it('continuing a card with no stage chat says so with its own code, so the screen can ask for the agent', async () => {
+    const { database, card, service } = await setup()
+    expect(() => service.resume(card.id, 'test')).toThrow(/^\[\[nothing-to-continue\]\]/)
+    database.close()
+  })
   it('Iniciar approves the plan, moves the card to Doing and reuses one execution chat per card', async () => {
     const { database, board, conversations, profile, columns, card, started, service } = await setup()
     board.documents.write(card.id, 'plano', '## Plano\nFazer')
