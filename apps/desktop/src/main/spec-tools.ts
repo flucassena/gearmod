@@ -29,6 +29,18 @@ export function specKitIntegrations(repo: string): string[] {
   return [...found]
 }
 
+/** Spec Kit version that wrote each integration's files (`.specify/integrations/<name>.manifest.json`); older repos fall back to `integration.json`. */
+export function specKitFileVersions(repo: string, integrations: string[]): Record<string, string> {
+  const read = (file: string): Record<string, unknown> | null => { try { return JSON.parse(readFileSync(join(repo, '.specify', ...file.split('/')), 'utf8')) as Record<string, unknown> } catch { return null } }
+  const general = read('integration.json')?.version
+  const out: Record<string, string> = {}
+  for (const name of integrations) {
+    const version = read(`integrations/${name}.manifest.json`)?.version ?? general
+    if (typeof version === 'string' && version) out[name] = version
+  }
+  return out
+}
+
 export type SpecKitStage = 'specify' | 'clarify' | 'plan' | 'checklist' | 'tasks' | 'analyze' | 'implement'
 
 /** `speckit-implement` request in the planning chat: run control refuses and the screen offers to move the card. */
@@ -69,7 +81,7 @@ export class SpecToolsService {
     const real = (value: string): string => { try { return realpathSync.native(value).toLowerCase() } catch { return resolve(value).toLowerCase() } }
     const top = await this.commands.run('git', ['rev-parse', '--show-toplevel'], path, 10_000).then((output) => output.trim(), () => '')
     const isRepo = top !== '' && real(top) === real(path)
-    return { isRepo, parentRepo: top !== '' && !isRepo ? top : null, hasSpecKit: existsSync(join(path, '.specify')), integrations: specKitIntegrations(path) }
+    return { isRepo, parentRepo: top !== '' && !isRepo ? top : null, hasSpecKit: existsSync(join(path, '.specify')), ...((integrations) => ({ integrations, integrationVersions: specKitFileVersions(path, integrations) }))(specKitIntegrations(path)) }
   }
 
   /**
@@ -110,7 +122,7 @@ export class SpecToolsService {
       this.version('specify', ['version']).then((found) => found ?? this.version('specify', ['--version'])), this.version('openspec', ['--version'])
     ])
     const repos = (this.database.db.prepare('SELECT id, name, local_path AS path FROM project_sources WHERE project_id = ? ORDER BY sort_order').all(projectId) as Array<{ id: string; name: string; path: string }>)
-      .map((source) => { const integrations = specKitIntegrations(source.path); return { sourceId: source.id, name: source.name, path: source.path, specKit: existsSync(join(source.path, '.specify')), specKitIntegrations: integrations, openSpec: existsSync(join(source.path, 'openspec')) } })
+      .map((source) => { const integrations = specKitIntegrations(source.path); return { sourceId: source.id, name: source.name, path: source.path, specKit: existsSync(join(source.path, '.specify')), specKitIntegrations: integrations, specKitVersions: specKitFileVersions(source.path, integrations), openSpec: existsSync(join(source.path, 'openspec')) } })
     return { node, uv, python, specify: { installed: specify !== null, version: specify }, openspec: { installed: openspec !== null, version: openspec }, repos, log: '', error: null }
   }
 }

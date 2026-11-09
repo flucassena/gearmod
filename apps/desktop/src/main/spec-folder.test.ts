@@ -19,7 +19,7 @@ describe('SpecToolsService.inspectFolder', () => {
     const service = new SpecToolsService({} as AppDatabase)
 
     expect(await service.inspectFolder(repo)).toMatchObject({ isRepo: true, parentRepo: null, hasSpecKit: false })
-    expect(await service.inspectFolder(plain)).toEqual({ isRepo: false, parentRepo: null, hasSpecKit: false, integrations: [] })
+    expect(await service.inspectFolder(plain)).toEqual({ isRepo: false, parentRepo: null, hasSpecKit: false, integrations: [], integrationVersions: {} })
     const nested = await service.inspectFolder(inside)
     expect(nested.isRepo).toBe(false); expect(nested.parentRepo).not.toBeNull()
 

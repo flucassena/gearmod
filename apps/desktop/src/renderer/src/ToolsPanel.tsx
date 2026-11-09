@@ -8,7 +8,6 @@ import { SpecKitRunDialog } from './SpecKitRunDialog'
 import { cachedStatus, probeTools, toolsChangedEvent } from './toolsStatusCache'
 import { checkedAgo, isOutdated, loadLatest, useLatestVersions } from './toolUpdates'
 import { specKitInstallCommand, specKitUpdateCeiling, specKitUpdateState } from './specKitUpdates'
-import { toast } from './toasts'
 import { useT } from './i18n'
 
 const pendingByProject = new Map<string, boolean>()
@@ -55,7 +54,7 @@ interface Step { label: string; command: string; next?: string | undefined; disa
 export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; openedTerminal(): void }): React.JSX.Element {
   const t = useT(), tt = t.settings.tools
   const [status, setStatus] = useState<ToolsStatus | undefined>(() => cachedStatus(projectId)), [error, setError] = useState(''), [checking, setChecking] = useState(false), [config, setConfig] = useState<WorkflowConfig>()
-  const [specRepo, setSpecRepo] = useState(''), [copied, setCopied] = useState(''), latest = useLatestVersions()
+  const [specRepo, setSpecRepo] = useState(''), latest = useLatestVersions()
   const [probing, setProbing] = useState(false), [specRun, setSpecRun] = useState<{ input: SpecKitRunInput; title: string }>(), [custom, setCustom] = useState<{ path: string; name: string; info: ToolsFolderInfo }>(), [folderBusy, setFolderBusy] = useState(false)
   const refresh = useCallback(async (): Promise<void> => {
     try { const next = await probeTools(projectId); setStatus(next); setError(''); setSpecRepo((current) => next.repos.some((repo) => repo.sourceId === current) ? current : next.repos.find((repo) => repo.specKit)?.sourceId ?? next.repos[0]?.sourceId ?? '') } catch (reason) { setError(plainError(reason)) }
@@ -92,25 +91,29 @@ export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; o
   const togglePlaywright = (value: boolean): void => { if (!config) return; const next = { ...config, playwrightCli: value }; setConfig(next); void window.gearmod.invoke('workflow:set', { projectId, config: next }).then((state) => setConfig(state.config)).catch((reason) => setError(plainError(reason))) }
   const folder = (id: string): string => (id === '__custom__' ? custom?.path : status?.repos.find((repo) => repo.sourceId === id)?.path) ?? ''
   const run = async (command: string, id: string): Promise<void> => { const path = folder(id); if (!path) return; setError(''); if (await terminal.runIn({ projectId, cardId: null, path }, command)) openedTerminal(); else setError(tt.cannotOpenTerminal) }
-  const copy = (command: string): void => { void navigator.clipboard.writeText(command).then(() => { setCopied(command); window.setTimeout(() => setCopied(''), 1400) }).catch((reason: unknown) => toast.error(tt.cannotCopy, plainError(reason))) }
   const upToDate = (installed: string | null): { from: string; to: string } | null => installed && latest?.versions.specify && isOutdated(installed, latest.versions.specify) ? { from: installed, to: latest.versions.specify } : null
 
   // The buttons sit side by side; each one's "Next step" goes on its own line below (otherwise it widens the first button's column and pushes the others away).
   const buttons = (steps: Step[], repoId: string): React.JSX.Element => <div className="tl-steps"><div className="tl-btns">{steps.map((step) => <button key={step.label + step.command} type="button" className="mini" disabled={Boolean(step.disabled) || !folder(repoId)} data-tip={step.disabled ?? tt.runTip(folder(repoId), step.command)} onClick={() => { if (step.run) setSpecRun({ input: { ...step.run, ...(step.run.kind === 'init' || step.run.kind === 'init-with-git' || step.run.kind === 'upgrade-integration' ? { path: folder(repoId) } : {}) }, title: step.label }); else void run(step.command, repoId) }}>{step.label}</button>)}</div>
-    {steps.filter((step) => step.next).map((step) => <small key={step.label + step.command} className="tl-next">{tt.nextStep}<code>{step.next}</code><button type="button" className="tl-copy" aria-label={tt.copyCommand} data-tip={tt.copyCommand} onClick={() => copy(step.next!)}>{copied === step.next ? tt.copiedShort : tt.copyShort}</button></small>)}</div>
+</div>
   // Only repositories that have the tool become a chip; the rest are summarized in one sentence (names appear on hover).
   type RepoInfo = NonNullable<typeof status>['repos'][number]
   const startedChips = (started: (repo: RepoInfo) => boolean, detail: (repo: RepoInfo) => string): React.JSX.Element => {
     const all = status?.repos ?? [], on = all.filter(started), off = all.filter((repo) => !started(repo))
-    return <>{on.map((repo) => <span key={repo.sourceId} className="pw-chip ok" data-tip={repo.path}>{tt.started(repo.name, detail(repo))}</span>)}{off.length > 0 && <span className="pw-chip muted" data-tip={off.map((repo) => repo.name).join(', ')}>{on.length ? tt.notStartedSome(off.length) : tt.notStartedAny}</span>}</>
+    return <>{on.map((repo) => {
+      const versions = Object.values(repo.specKitVersions ?? {}), files = versions.length ? versions.sort((a, b) => (isOutdated(a, b) ? -1 : 1))[0]! : null
+      const old = Boolean(files && status?.specify.version && isOutdated(files, status.specify.version))
+      return <span key={repo.sourceId} className={`pw-chip ${old ? 'warn' : 'ok'}`} data-tip={old ? tt.filesOutdatedTip(repo.path, files!, status!.specify.version!) : files ? tt.filesVersion(repo.path, files) : repo.path}>{tt.started(repo.name, detail(repo))}{old ? ` · ${tt.filesOutdated}` : ''}</span>
+    })}{off.length > 0 && <span className="pw-chip muted" data-tip={off.map((repo) => repo.name).join(', ')}>{on.length ? tt.notStartedSome(off.length) : tt.notStartedAny}</span>}</>
   }
 
-  const spec = specRepo === '__custom__' && custom ? { sourceId: '__custom__', name: custom.name, path: custom.path, specKit: custom.info.hasSpecKit, specKitIntegrations: custom.info.integrations, openSpec: false } : status?.repos.find((repo) => repo.sourceId === specRepo)
+  // Project files written by an older Spec Kit than the CLI (or of unknown version): only then the "update files" step shows up.
+  const filesOutdated = (files: string | undefined): boolean => !files || Boolean(status?.specify.version && isOutdated(files, status.specify.version))
+  const spec = specRepo === '__custom__' && custom ? { sourceId: '__custom__', name: custom.name, path: custom.path, specKit: custom.info.hasSpecKit, specKitIntegrations: custom.info.integrations, specKitVersions: custom.info.integrationVersions, openSpec: false } : status?.repos.find((repo) => repo.sourceId === specRepo)
   const needsRepo = specRepo === '__custom__' && custom !== undefined && !custom.info.isRepo && !custom.info.parentRepo
   const customOutside = custom !== undefined && !(status?.repos ?? []).some((repo) => repo.path.toLowerCase() === custom.path.toLowerCase())
   const specPicker = status ? <div className="f tl-repo"><span>{tt.specKitRepo}</span>
     <Select label={tt.specKitRepo} value={specRepo} options={[...status.repos.map((repo) => ({ value: repo.sourceId, label: repo.name })), ...(custom ? [{ value: '__custom__', label: tt.customFolder(custom.name), sub: custom.path }] : []), { value: '__other__', label: tt.otherFolder }]} onChange={(value) => { if (value === '__other__') void pickFolder(); else setSpecRepo(value) }} />
-    <small className="hint">{tt.specFolderHint}</small>
     {specRepo === '__custom__' && custom && <small className="hint">{custom.info.parentRepo ? tt.folderInsideRepo(custom.info.parentRepo) : custom.info.isRepo ? tt.folderIsRepo : tt.folderNotRepo}</small>}
     {specRepo === '__custom__' && custom && custom.info.isRepo && customOutside && <div><button type="button" className="mini secondary" disabled={folderBusy} onClick={() => void addFolderToProject()}>{tt.addFolderToProject}</button></div>}
   </div> : null
@@ -121,29 +124,27 @@ export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; o
     ...(status.uv && !status.specify.installed ? [{ label: tt.installCli, command: specKitInstallCommand, next: 'specify init --here', run: { kind: 'install-cli' as const, version: specKitUpdateCeiling } }] : []),
     ...(status.specify.installed && spec && !spec.specKit ? [{ label: needsRepo ? tt.createRepoAndStart : tt.startInRepo, command: needsRepo ? 'git init; specify init --here' : 'specify init --here', run: { kind: needsRepo ? 'init-with-git' as const : 'init' as const } }] : []),
     ...(specUpdate.canUpdate ? [{ label: tt.updateCli(specKitUpdateCeiling), command: `${specKitInstallCommand} --force`, run: { kind: 'update-cli' as const, version: specKitUpdateCeiling } }] : []),
-    ...(status.specify.installed && spec?.specKit ? (spec.specKitIntegrations.filter(safeName).length ? spec.specKitIntegrations.filter(safeName).map((name) => ({ label: tt.updateFiles(spec.specKitIntegrations.length > 1 ? name : ''), command: `specify integration upgrade ${name}`, run: { kind: 'upgrade-integration' as const, integration: name } })) : [{ label: tt.updateFiles(''), command: 'specify integration upgrade', disabled: tt.integrationNotDetected }]) : [])
+    ...(status.specify.installed && spec?.specKit ? (spec.specKitIntegrations.filter(safeName).length ? spec.specKitIntegrations.filter(safeName).filter((name) => filesOutdated(spec.specKitVersions[name])).map((name) => ({ label: tt.updateFiles(spec.specKitIntegrations.length > 1 ? name : ''), command: `specify integration upgrade ${name}`, run: { kind: 'upgrade-integration' as const, integration: name } })) : [{ label: tt.updateFiles(''), command: 'specify integration upgrade', disabled: tt.integrationNotDetected }]) : [])
   ]
   const notice = (old: { from: string; to: string } | null): React.JSX.Element | null => old ? <p className="pw-warn" role="status">{tt.updateAvailable(old.from, old.to)}</p> : null
   return <div className="cx-wfpanel">
     <div className="cx-autosave" role="status">{latest?.error ? <span className="cx-warn">{latest.error}</span> : latest?.checkedAt ? tt.checked(checkedAgo(latest.checkedAt)) : tt.notChecked} · <button type="button" className="linklike" disabled={checking} onClick={() => void verify()}>{checking ? tt.checking : tt.searchUpdates}</button></div>
     {error && <div className="cx-error">{error}</div>}
     {specRun && <SpecKitRunDialog projectId={projectId} input={specRun.input} title={specRun.title} close={() => setSpecRun(undefined)} />}
-    <section className="cx-wfcard">
-      <h4>Spec Kit (GitHub)</h4>
-      <p className="cx-muted">{tt.specKitDescription}</p>
-      <div className="pw-badges"><span>{tt.badgeTerminal}</span><span>{tt.badgeCli}</span></div>
+    <section className="cx-wfcard tl-card">
+      <header className="tl-head"><h4>Spec Kit (GitHub)</h4></header>
       {status ? <>
-        <div className="pw-chips">
-          <span className={`pw-chip ${status.uv ? '' : 'warn'}`}>{status.uv ? `uv ${status.uv}` : tt.uvMissing}</span>
-          <span className={`pw-chip ${status.python ? '' : 'muted'}`} data-tip={tt.pythonTip}>{status.python ? `Python ${status.python}` : tt.pythonMissing}</span>
-          <span className={`pw-chip ${status.specify.installed ? 'ok' : 'muted'}`}>{status.specify.installed ? <><i aria-hidden="true" />specify{status.specify.version ? ` · v${status.specify.version}` : ''}</> : tt.specifyNotInstalled}</span>
-          {startedChips((repo) => repo.specKit, (repo) => repo.specKitIntegrations.length ? ` · ${repo.specKitIntegrations.join(', ')}` : '')}
+        <div className="tl-facts">
+          {(!status.uv || !status.python) && <div className="tl-fact"><span className="tl-flabel">{tt.factNeeds}</span><div className="pw-chips">
+            {!status.uv && <span className="pw-chip warn">{tt.uvMissing}</span>}
+            {!status.python && <span className="pw-chip muted" data-tip={tt.pythonTip}>{tt.pythonMissing}</span>}</div></div>}
+          <div className="tl-fact"><span className="tl-flabel">{tt.factCli}</span><div className="pw-chips"><span className={`pw-chip ${status.specify.installed ? 'ok' : 'muted'}`}>{status.specify.installed ? <><i aria-hidden="true" />specify{status.specify.version ? ` · v${status.specify.version}` : ''}</> : tt.specifyNotInstalled}</span></div></div>
+          <div className="tl-fact"><span className="tl-flabel">{tt.factRepos}</span><div className="pw-chips">{startedChips((repo) => repo.specKit, (repo) => repo.specKitIntegrations.length ? ` · ${repo.specKitIntegrations.join(', ')}` : '')}</div></div>
         </div>
-        {specPicker}
+        <div className="tl-reporow">{specPicker}{specSteps.length > 0 && buttons(specSteps, specRepo)}</div>
         {notice(specOld)}
         {specUpdate.newerAvailable && <p className="pw-warn" role="status">{tt.newerThanCeiling(specKitUpdateCeiling)}</p>}
-        {buttons(specSteps, specRepo)}
-      </> : <p className="cx-muted">{probing ? tt.checking : tt.noSavedCheck}</p>}
+      </> : <><p className="cx-muted">{probing ? tt.checking : tt.noSavedCheck}</p></>}
     </section>
     <PlaywrightSection projectId={projectId} enabled={config?.playwrightCli ?? false} toggle={togglePlaywright} latest={latest?.versions.playwright ?? null} />
   </div>

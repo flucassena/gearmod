@@ -283,12 +283,12 @@ export type PlaywrightStatus = z.output<typeof playwrightStatusSchema>
 export const toolsStatusSchema = z.object({
   node: z.string().nullable(), uv: z.string().nullable(), python: z.string().nullable(),
   specify: z.object({ installed: z.boolean(), version: z.string().nullable() }), openspec: z.object({ installed: z.boolean(), version: z.string().nullable() }),
-  repos: z.array(z.object({ sourceId: uuid, name: z.string(), path: z.string(), specKit: z.boolean(), specKitIntegrations: z.array(z.string()), openSpec: z.boolean() })),
+  repos: z.array(z.object({ sourceId: uuid, name: z.string(), path: z.string(), specKit: z.boolean(), specKitIntegrations: z.array(z.string()), specKitVersions: z.record(z.string(), z.string()).default({}), openSpec: z.boolean() })),
   log: z.string(), error: z.string().nullable()
 })
 export type ToolsStatus = z.output<typeof toolsStatusSchema>
 /** What a folder chosen for Spec Kit is: a Git repository (or inside one), and whether Spec Kit is already in it. */
-export const toolsFolderInfoSchema = z.object({ isRepo: z.boolean(), parentRepo: z.string().nullable(), hasSpecKit: z.boolean(), integrations: z.array(z.string()) })
+export const toolsFolderInfoSchema = z.object({ isRepo: z.boolean(), parentRepo: z.string().nullable(), hasSpecKit: z.boolean(), integrations: z.array(z.string()), integrationVersions: z.record(z.string(), z.string()).default({}) })
 export type ToolsFolderInfo = z.output<typeof toolsFolderInfoSchema>
 /** The Spec Kit steps the app runs for the user in a terminal inside a dialog. Each one maps to a fixed command; the screen never sends a command line. */
 export const specKitRunKindSchema = z.enum(['install-uv', 'install-cli', 'update-cli', 'init', 'init-with-git', 'upgrade-integration'])

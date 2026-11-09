@@ -56,15 +56,12 @@ export function PlaywrightSection({ projectId, enabled, toggle, latest }: { proj
   const newerInstalled = status?.selected ? status.versions.map((item) => item.version).filter((item) => isOutdated(status.selected, item)).sort((a, b) => (isOutdated(a, b) ? -1 : 1)).pop() : undefined
   const nodeChip = status ? (status.node.system ? tw.nodeSystem(status.node.system.replace(/^v/, '')) : status.node.managed ? tw.nodeManaged(status.node.managed) : null) : null
   return <div className="cx-wfpanel">
-    <section className="cx-wfcard">
-    <h4>{tw.title}</h4>
-    <p className="cx-muted">{tw.description}</p>
-    <div className="pw-badges"><span>{tw.badgeApp}</span><span>{tw.badgeVersions}</span><span>{tw.badgeConfirm}</span></div>
+    <section className="cx-wfcard tl-card">
+    <header className="tl-head"><h4>{tw.title}</h4></header>
     {status ? <>
-      <div className="pw-chips">
-        <span className={`pw-chip ${nodeChip ? '' : 'warn'}`} data-tip={tw.nodeTip}>{nodeChip ?? tw.nodeWillDownload}</span>
-        <span className={`pw-chip ${status.browserReady ? 'ok' : 'warn'}`}>{status.browserReady ? <><i aria-hidden="true" />{tw.browserDownloaded}</> : tw.browserPending}</span>
-        <span className="pw-chip" data-tip={status.toolsDir}>{tw.folderChip}</span>
+      <div className="tl-facts">
+        {!nodeChip && <div className="tl-fact"><span className="tl-flabel">{tw.factNeeds}</span><div className="pw-chips"><span className="pw-chip warn" data-tip={tw.nodeTip}>{tw.nodeWillDownload}</span></div></div>}
+        <div className="tl-fact"><span className="tl-flabel">{tw.factBrowser}</span><div className="pw-chips"><span className={`pw-chip ${status.browserReady ? 'ok' : 'warn'}`}>{status.browserReady ? <><i aria-hidden="true" />{tw.browserReady}</> : tw.browserNotReady}</span></div></div>
       </div>
       {status.versions.length > 0 && !status.browserReady && <div className="cx-note warn cx-browserrow"><span>{tw.browserMissing}</span><button type="button" className="mini" disabled={downloading || busy} onClick={() => void downloadBrowser()}>{downloading ? tw.downloading : tw.downloadBrowser}</button></div>}
       <h5 className="pw-subtitle pw-subtitle-row"><span>{tw.versionsTitle}</span>{!latest && <button type="button" className="linklike" disabled={checkingLatest} onClick={() => { setCheckingLatest(true); void loadLatest(true).catch(() => undefined).finally(() => setCheckingLatest(false)) }}>{checkingLatest ? tw.checkingVersion : tw.checkNewVersion}</button>}</h5>

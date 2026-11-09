@@ -2365,7 +2365,17 @@ button.pathchip.tb-path svg{width:13px;height:13px}
 /* Tools: refresh buttons side by side, with the "Next step" on a single line below. */
 .tl-steps{flex-direction:column;align-items:flex-start;gap:6px}
 .tl-btns{display:flex;flex-wrap:wrap;gap:10px}
-.tl-btns>.mini{height:34px;padding:0 16px;border-radius:999px}
+/* Tool cards (Spec Kit, Playwright): each piece of information sits under a group label, in a grid that uses the card width. */
+.tl-card{display:grid;gap:12px}
+.tl-head{display:grid;gap:4px}.cx-wfpanel .tl-head h4{margin:0;padding:0;border:0}
+.tl-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.tl-fact{display:grid;gap:6px;align-content:start;min-width:0;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:color-mix(in srgb, var(--accent) 3%, transparent)}
+.tl-flabel{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tl-fact .pw-chips{margin:0}.tl-fact .pw-chip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-path{font-family:var(--mono);font-size:11px}
+.tl-reporow{display:grid;grid-template-columns:minmax(220px,360px) 1fr;gap:12px 20px;align-items:end}
+.tl-reporow .tl-repo{max-width:none}.tl-reporow .tl-steps{padding-bottom:1px}
+@media (max-width:720px){.tl-reporow{grid-template-columns:1fr}}
 
 /* Chat at minimum size: the field and the buttons/model row never exceed the panel width; the bottom row wraps instead of being cut off. */
 .composer{grid-template-columns:minmax(0,1fr);min-width:0;box-sizing:border-box}
@@ -3126,6 +3136,8 @@ body:has(.overlay) .viewdock.floating{display:none}
 .gacc-info p+p{margin-top:4px}
 .gacc-info-i{flex:none;width:18px;height:18px;margin-top:1px;border-radius:50%;display:grid;place-items:center;font:italic 800 11px/1 Georgia,serif;color:var(--accent-strong);background:var(--accent-deep);border:1px solid color-mix(in srgb, var(--accent) 40%, transparent)}
 .stack.gacc{margin-top:0}
+
+.cx-wfpanel .cx-muted{max-width:none}
 
 /* Quick view tile: the "Card" button sits in the bottom-right corner; the state goes next to the agent icon. */
 .tile{cursor:pointer}.tile .tfoot{justify-content:flex-start}.tile .tfoot .tst{flex:1;min-width:0}.tile .tcard{margin-left:auto;flex:none;width:24px;height:22px}.tile .tcard svg{width:14px;height:14px}
