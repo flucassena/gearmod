@@ -19,6 +19,8 @@ import { ApprovalService } from './approvals'
 import { PolicyEngine } from './policy'
 import { CardHistoryService } from './history'
 import { defaultWorkflowConfig } from '@gearmod/contracts'
+import { QualityService } from './quality'
+import type { WorktreeService } from './worktrees'
 
 const roots: string[] = []
 const closers: Array<() => Promise<void>> = []
@@ -66,6 +68,24 @@ describe('GearMod MCP server', () => {
     expect(board.documents.read(card.id, 'especificacao')).toBe('')
     expect(board.card(card.id).hasPlan).toBe(false)
   })
+  it('lets the agent read and save the project test command, shared with the Changes panel', async () => {
+    const { board, card, project, database } = await setup()
+    const quality = new QualityService(database, { get: () => undefined } as unknown as WorktreeService)
+    const context = new AgentContextService(board, new SettingsRepository(database), null)
+    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, testCommand: { get: (id) => quality.testCommand(id).command, set: (id, command) => quality.setTestCommand(id, command).command, suggest: () => 'pnpm test' } })
+    await bridge.listen(); closers.push(() => bridge.close())
+    const changes: CardChange[] = []
+    const client = mcpClient(bridge.register('run-cmd', card.id, (change) => changes.push(change), { id: 'chat', purpose: 'execution' }))
+    expect((await client.request('tools/list')).result).toMatchObject({ tools: expect.arrayContaining([expect.objectContaining({ name: 'gearmod_test_command' })]) })
+    expect((await client.call('gearmod_test_command', {})).content[0]!.text).toContain('pnpm test')
+    const saved = await client.call('gearmod_test_command', { comando: '  docker compose run --rm api pytest  ' })
+    expect(saved.isError).toBe(false)
+    expect(quality.testCommand(project.id).command).toBe('docker compose run --rm api pytest')
+    expect(changes).toContainEqual({ type: 'card' })
+    expect((await client.call('gearmod_test_command', { comando: 'a\nb' })).isError).toBe(true)
+    await client.call('gearmod_test_command', { comando: '' })
+    expect(quality.testCommand(project.id).command).toBe('')
+  })
   it('proposes the Constitution without writing before approval', async () => {
     const { board, card, project, database } = await setup()
     const approvals = new ApprovalService(database)
@@ -88,7 +108,7 @@ describe('GearMod MCP server', () => {
     const listed = await client.request('tools/list')
     // Without a code index in the bridge, the gearmod_code_* tools do not appear (see code-index/mcp-code-tools.test.ts).
     // S14: run-1 is 'execution' (register() default); tools/list returns only that role's tools, not the 23 of the whole catalog.
-    expect((listed.result as { tools: Array<{ name: string }> }).tools.map((tool) => tool.name)).toEqual(['gearmod_read_skill', 'gearmod_card_context', 'gearmod_write_document', 'gearmod_mark_task', 'gearmod_update_card', 'gearmod_propose_change', 'gearmod_ask_planner', 'gearmod_read_constitution', 'gearmod_propose_constitution', 'gearmod_move_card', 'gearmod_request_commit', 'gearmod_record_understanding', 'gearmod_record_exploration', 'gearmod_assess_complexity', 'gearmod_choose_workflow', 'gearmod_set_repositories', 'gearmod_record_decision'])
+    expect((listed.result as { tools: Array<{ name: string }> }).tools.map((tool) => tool.name)).toEqual(['gearmod_read_skill', 'gearmod_card_context', 'gearmod_write_document', 'gearmod_mark_task', 'gearmod_update_card', 'gearmod_propose_change', 'gearmod_ask_planner', 'gearmod_read_constitution', 'gearmod_propose_constitution', 'gearmod_test_command', 'gearmod_move_card', 'gearmod_request_commit', 'gearmod_record_understanding', 'gearmod_record_exploration', 'gearmod_assess_complexity', 'gearmod_choose_workflow', 'gearmod_set_repositories', 'gearmod_record_decision'])
 
     expect((await client.call('gearmod_card_context', {})).content[0]!.text).toContain('"titulo": "MCP"')
     const bad = await client.call('gearmod_write_document', { tipo: 'tasks', markdown: 'sem itens' })

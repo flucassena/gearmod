@@ -662,6 +662,8 @@ export const ipcContracts = {
   , 'worktrees:link': { input: z.object({ cardId: uuid, fromCardId: uuid.nullable() }).strict(), output: z.object({}) }
   , 'tests:run': { input: z.object({ cardId: uuid, executable: z.string().min(1).max(2048), args: z.array(z.string().max(4096)).max(100) }).strict(), output: testRunSchema }
   , 'tests:detect-command': { input: cardIdInput, output: z.object({ command: z.string() }) }
+  , 'tests:command': { input: projectIdInput, output: z.object({ command: z.string() }) }
+  , 'tests:set-command': { input: z.object({ projectId: uuid, command: z.string().max(2048) }).strict(), output: z.object({ command: z.string() }) }
   , 'quality:status': { input: cardIdInput, output: z.object({ test: testRunSchema.nullable(), review: reviewSchema.nullable() }) }
   , 'reviews:prepare-local': { input: cardIdInput, output: reviewSchema }
   , 'reviews:approve-local': { input: z.object({ reviewId: uuid }).strict(), output: reviewSchema }

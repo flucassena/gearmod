@@ -43,7 +43,7 @@ export class McpBridge {
   private readonly dir: string
   readonly socketPath: string
 
-  constructor(private readonly deps: { board: BoardRepository; context: Pick<AgentContextService, 'block' | 'skillInstructions'>; serverScript: string; runtime?: string; collab?: CollaborationService; conversations?: Pick<ConversationRepository, 'projectOf' | 'convertToPlanning'>; constitution?: Pick<ConstitutionRepository, 'get' | 'write' | 'propose'>; checklists?: Pick<ChecklistRepository, 'write' | 'get'>; git?: Pick<GitManager, 'agentCommit'>; history?: CardHistoryService; approvals?: ApprovalService; policy?: PolicyEngine; sddResolver?: Pick<SddResolver, 'constitution' | 'locate'>; sddWriter?: Pick<SddWriter, 'write'>; planReady?: (cardId: string) => { notices: string[] }; prepareWorktree?: (cardId: string) => Promise<unknown>; repositories?: (cardId: string) => Array<{ path: string; status: string }>; agentMoveApproval?: boolean; codeIndex?: Pick<CodeIndexService, 'tool' | 'isTool' | 'prewarm'>; codeRoots?: (run: { cardId: string | null; chatId: string }) => string[]; codeEnabled?: (run: { cardId: string | null; chatId: string }) => boolean }) {
+  constructor(private readonly deps: { board: BoardRepository; context: Pick<AgentContextService, 'block' | 'skillInstructions'>; serverScript: string; runtime?: string; collab?: CollaborationService; conversations?: Pick<ConversationRepository, 'projectOf' | 'convertToPlanning'>; constitution?: Pick<ConstitutionRepository, 'get' | 'write' | 'propose'>; checklists?: Pick<ChecklistRepository, 'write' | 'get'>; git?: Pick<GitManager, 'agentCommit'>; history?: CardHistoryService; approvals?: ApprovalService; policy?: PolicyEngine; sddResolver?: Pick<SddResolver, 'constitution' | 'locate'>; sddWriter?: Pick<SddWriter, 'write'>; planReady?: (cardId: string) => { notices: string[] }; prepareWorktree?: (cardId: string) => Promise<unknown>; trimWorktree?: (cardId: string, keep: string[]) => Promise<{ removed: string[]; kept: Array<{ name: string; reason: string }> }>; repositories?: (cardId: string) => Array<{ path: string; status: string }>; agentMoveApproval?: boolean; codeIndex?: Pick<CodeIndexService, 'tool' | 'isTool' | 'prewarm'>; codeRoots?: (run: { cardId: string | null; chatId: string }) => string[]; codeEnabled?: (run: { cardId: string | null; chatId: string }) => boolean; testCommand?: { get(projectId: string): string; set(projectId: string, command: string): string; suggest(cardId: string): string } }) {
     const id = randomBytes(6).toString('hex')
     this.dir = join(tmpdir(), `gearmod-${id}`)
     this.socketPath = process.platform === 'win32' ? `\\\\.\\pipe\\gearmod-${id}` : join(this.dir, 'mcp.sock')
@@ -66,6 +66,22 @@ export class McpBridge {
     })
     await new Promise<void>((resolve, reject) => { this.server!.once('error', reject); this.server!.listen(this.socketPath, resolve) })
     if (process.platform !== 'win32') chmodSync(this.socketPath, 0o600)
+  }
+
+  /** Reads or saves the project's automated-test command (the "Configure command" of the Changes panel). It never runs the command. */
+  private testCommand(run: RunState, args: Record<string, unknown>): Reply {
+    const store = this.deps.testCommand
+    if (!store) return { ok: false, error: 'The test command is not available' }
+    const projectId = run.cardId ? this.deps.board.card(run.cardId).projectId : this.deps.conversations?.projectOf(run.chatId)
+    if (!projectId) return { ok: false, error: 'This conversation has no project' }
+    if (args.comando === undefined) {
+      const current = store.get(projectId), suggested = run.cardId && !current ? store.suggest(run.cardId) : ''
+      return { ok: true, text: current ? `Current test command: ${current}` : suggested ? `No test command saved. Suggested from the worktree: ${suggested}` : 'No test command saved.' }
+    }
+    if (typeof args.comando !== 'string') return { ok: false, error: 'comando must be a text (empty to clear)' }
+    const saved = store.set(projectId, args.comando)
+    if (run.cardId) run.notify({ type: 'card' })
+    return { ok: true, text: saved ? `Test command saved for the project: ${saved}. The user runs it from "Testes automatizados" in the Changes panel.` : 'Test command cleared.' }
   }
 
   async close(): Promise<void> {
@@ -126,6 +142,7 @@ export class McpBridge {
       if (tool === 'gearmod_read_constitution' || tool === 'gearmod_write_constitution' || tool === 'gearmod_propose_constitution') return this.constitution(run, tool, args)
       // code index: read-only, in this conversation's folders (card worktree or project folders); also applies in the free chat
       if (tool.startsWith('gearmod_code_')) return this.codeTool(run, tool, args)
+      if (tool === 'gearmod_test_command') return this.testCommand(run, args)
       if (!run.cardId) return { ok: false, error: 'This conversation has no card yet. If the user asks to plan something, call gearmod_create_card first.' }
       if (tool === 'gearmod_request_commit') return this.requestCommit(run, args)
       if (historyTools.has(tool)) return this.history(run, tool, args)

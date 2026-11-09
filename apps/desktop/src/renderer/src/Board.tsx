@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { shortcutEvent } from './shortcuts'
 import { createPortal } from 'react-dom'
 import type { AgentProfile, AgentPurpose, Card, CardTypeDef, Chat, ProjectBoard } from '@gearmod/contracts'
+import { loadTestCommand } from './ChangesCard'
 import { AgentIcon } from './AgentIcon'
 import { CardChat } from './CardChat'
 import { CardContextMenu } from './CardContextMenu'
@@ -275,8 +276,8 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
     } catch (reason) { say(plainError(reason), 'error') }
     await refresh()
   }
-  const runGateTests = (card: Card): void => {
-    let command = ''; try { command = localStorage.getItem(`gearmod.testCommand.${board.project.id}`) ?? '' } catch { /* no saved command */ }
+  const runGateTests = async (card: Card): Promise<void> => {
+    let command = ''; try { command = await loadTestCommand(board.project.id) } catch { /* no saved command */ }
     const parts = command.trim().split(/\s+/).filter(Boolean)
     if (!parts.length) { setChatCard(card, 'test'); say(t.view.setTestCommand, 'notify'); return }
     say(t.view.runningTests, 'notify')
@@ -325,7 +326,7 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
     {choosing && <NewCardDialog project={board.project} close={() => setChoosing(undefined)} manual={(start) => { setDraft({ ...blankDraft(choosing, cardTypes[0]?.id ?? 'feature'), start }); setChoosing(undefined) }} plan={(start) => { const columnId = choosing; setChoosing(undefined); setChatCardState(undefined); setFreeChat(undefined); setChatPurpose('planning'); setChatInstance(Date.now()); setDraftPlan({ columnId, start }) }} />}
     {draft && <CardEditor projectId={board.project.id} sources={board.project.sources} profiles={allowed} cardTypes={cardTypes} pending={draft.id ? (board.cards.find((item) => item.id === draft.id)?.pending) : undefined} onPending={() => { const card = board.cards.find((item) => item.id === draft.id); if (card) setPendingCard(card) }} draft={draft} close={() => setDraft(undefined)} saved={async () => { setDraft(undefined); await refresh() }} openChat={draft.id ? (purpose) => { const card = board.cards.find((item) => item.id === draft.id); setDraft(undefined); if (card) setChatCard(card, purpose) } : undefined} onStart={draft.id ? (purpose) => { const card = board.cards.find((item) => item.id === draft.id); setDraft(undefined); if (card) setStartingState({ card, purpose }) } : undefined} />}
     {starting && <StartDialog card={starting.card} purpose={starting.purpose} profiles={allowed} close={() => setStartingState(undefined)} start={async (config, baseBranch) => { await window.gearmod.invoke('cards:start', { cardId: starting.card.id, config, purpose: starting.purpose, baseBranch }); setStartingState(undefined); await refresh(); setChatCard(starting.card, starting.purpose) }} />}
-    {gate && (() => { const card = board.cards.find((item) => item.id === gate.cardId); if (!card) return null; return <ConfirmDialog eyebrow={t.view.gate.eyebrow} title={card.title || t.newCard} text={gate.stage === 'test' ? t.view.gate.textTest : t.view.gate.textReview} ok={gate.stage === 'test' ? t.view.gate.runTests : t.view.gate.openChanges} secondary={{ label: t.view.gate.moveAnyway, run: () => { const next = gate; setGate(undefined); void move(next.cardId, next.columnId, next.beforeCardId, true) } }} cancel={() => setGate(undefined)} confirm={() => { const next = gate; setGate(undefined); if (next.stage === 'test') runGateTests(card); else setChatCard(card, 'test') }} /> })()}
+    {gate && (() => { const card = board.cards.find((item) => item.id === gate.cardId); if (!card) return null; return <ConfirmDialog eyebrow={t.view.gate.eyebrow} title={card.title || t.newCard} text={gate.stage === 'test' ? t.view.gate.textTest : t.view.gate.textReview} ok={gate.stage === 'test' ? t.view.gate.runTests : t.view.gate.openChanges} secondary={{ label: t.view.gate.moveAnyway, run: () => { const next = gate; setGate(undefined); void move(next.cardId, next.columnId, next.beforeCardId, true) } }} cancel={() => setGate(undefined)} confirm={() => { const next = gate; setGate(undefined); if (next.stage === 'test') void runGateTests(card); else setChatCard(card, 'test') }} /> })()}
     {stopping && <ConfirmDialog eyebrow={t.view.stop.eyebrow} title={t.view.stop.title} text={t.view.stop.text} ok={t.view.stop.ok} danger cancel={() => setStopping(undefined)} confirm={() => { const card = stopping; setStopping(undefined); if (card.run.runId) void window.gearmod.invoke('agents:cancel', { runId: card.run.runId }).then(refresh).catch((reason: unknown) => say(plainError(reason), 'error')) }} />}
     {assessing && <AssessmentDialog card={fresh(assessing)} close={() => setAssessing(undefined)} changed={() => void refresh()} />}
     {pendingCard && <PendingDialog card={fresh(pendingCard)} close={() => setPendingCard(undefined)} changed={() => void refresh()} />}

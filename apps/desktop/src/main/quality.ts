@@ -10,6 +10,7 @@ import { tm } from './i18n'
 import { detectTestCommand } from './test-command'
 
 const exec = promisify(execFile)
+const testCommandKey = (projectId: string): string => `tests.command.${projectId}`
 export class QualityService {
   constructor(private readonly database: AppDatabase, private readonly worktrees: WorktreeService) {}
 
@@ -30,6 +31,22 @@ export class QualityService {
     const endedAt = new Date().toISOString()
     this.database.db.prepare('UPDATE test_runs SET status = ?, exit_code = ?, summary = ?, ended_at = ? WHERE id = ?').run(status, exitCode, redact(summary), endedAt, id)
     return { id, cardId, command, status, exitCode, summary: redact(summary), startedAt, endedAt }
+  }
+
+  /** Test command saved for the project ('' when none). Lives in `settings`, one key per project, so the screen and the agent share it. */
+  testCommand(projectId: string): { command: string } {
+    const raw = this.database.db.prepare('SELECT json_value FROM settings WHERE key = ?').pluck().get(testCommandKey(projectId))
+    try { const value = typeof raw === 'string' ? JSON.parse(raw) as unknown : ''; return { command: typeof value === 'string' ? value : '' } } catch { return { command: '' } }
+  }
+
+  /** Saves (or clears, with '') the project's test command. Only saves: running it is still the user's click, with confirmation. */
+  setTestCommand(projectId: string, command: string): { command: string } {
+    const value = command.trim()
+    if (value.length > 2048 || /[\r\n]/.test(value)) throw new Error('The test command must be a single line of up to 2048 characters')
+    if (!value) this.database.db.prepare('DELETE FROM settings WHERE key = ?').run(testCommandKey(projectId))
+    else this.database.db.prepare(`INSERT INTO settings(key, json_value, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET json_value = excluded.json_value, updated_at = excluded.updated_at`).run(testCommandKey(projectId), JSON.stringify(value), new Date().toISOString())
+    return { command: value }
   }
 
   /** Suggested test command for the card's worktree ('' when nothing is recognized). */

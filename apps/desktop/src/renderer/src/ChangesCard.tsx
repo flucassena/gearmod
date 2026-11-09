@@ -7,8 +7,19 @@ import { plainError } from './NoticeDialog'
 import { LinkWorktreeDialog } from './LinkWorktreeDialog'
 import { useT } from './i18n'
 
-const commandKey = (projectId: string): string => `gearmod.testCommand.${projectId}`
-const readCommand = (projectId: string): string => { try { return localStorage.getItem(commandKey(projectId)) ?? '' } catch { return '' } }
+// The command used to live only in this browser's localStorage; it now lives in the app (per project) so the agent can configure it too.
+const legacyKey = (projectId: string): string => `gearmod.testCommand.${projectId}`
+/** Project test command saved in the app; moves an old localStorage value over the first time. */
+export async function loadTestCommand(projectId: string): Promise<string> {
+  const { command } = await window.gearmod.invoke('tests:command', { projectId })
+  if (command) return command
+  let legacy = ''; try { legacy = localStorage.getItem(legacyKey(projectId))?.trim() ?? '' } catch { /* no storage */ }
+  if (!legacy) return ''
+  const saved = await window.gearmod.invoke('tests:set-command', { projectId, command: legacy })
+  try { localStorage.removeItem(legacyKey(projectId)) } catch { /* no storage */ }
+  return saved.command
+}
+const saveTestCommand = (projectId: string, command: string): Promise<string> => window.gearmod.invoke('tests:set-command', { projectId, command }).then((result) => result.command)
 
 /**
  * Card changes (worktree): +/− of what the agent changed, files and the two steps that unlock Done (test and review).
@@ -18,7 +29,7 @@ export function ChangesCard({ cardId, projectId, busy, shared }: { cardId: strin
   const { board: tb, common } = useT(), t = tb.changesCard
   const [picking, setPicking] = useState(false), [noWorktree, setNoWorktree] = useState(false)
   const [files, setFiles] = useState<FileChange[]>(), [test, setTest] = useState<TestRun | null>(null), [review, setReview] = useState<Review | null>(null)
-  const [command, setCommand] = useState(() => readCommand(projectId)), [draftCommand, setDraftCommand] = useState(() => readCommand(projectId))
+  const [command, setCommand] = useState(''), [draftCommand, setDraftCommand] = useState('')
   const [ask, setAsk] = useState<'' | 'test' | 'review'>(''), [configuring, setConfiguring] = useState<'' | 'save' | 'run'>(''), [working, setWorking] = useState<'' | 'refresh' | 'test' | 'review'>(''), [error, setError] = useState('')
   const [suggested, setSuggested] = useState('')
   const loading = useRef(false)
@@ -35,13 +46,15 @@ export function ChangesCard({ cardId, projectId, busy, shared }: { cardId: strin
     loading.current = true
     if (!silent) setWorking('refresh')
     try {
+      // The command is re-read too: the agent can change it (gearmod_test_command) while the card is open.
+      void loadTestCommand(projectId).then(setCommand).catch(() => undefined)
       const [snapshot, quality] = await Promise.all([window.gearmod.invoke('worktrees:snapshot', { cardId }), window.gearmod.invoke('quality:status', { cardId })])
       setFiles(snapshot.exists ? parseChanges(snapshot) : []); setTest(quality.test); setReview(quality.review); setError(''); setNoWorktree(false)
     } catch (reason) {
       // Card without a worktree (has not executed yet, or the work was done in another card's): not an error, just offers to link.
       if (errorCodeOf(plainError(reason)) === 'no-worktree') { setFiles([]); setNoWorktree(true); setError('') } else setError(withoutErrorCode(plainError(reason)))
     } finally { loading.current = false; if (!silent) setWorking('') }
-  }, [cardId])
+  }, [cardId, projectId])
   // Reloads on open and when the agent finishes a turn (that is when the files change).
   useEffect(() => { if (!busy) void refresh() }, [busy, refresh])
   // Files also change from outside (another chat, you in the editor, the tester): refreshes on its own, silently, every few seconds,
@@ -58,8 +71,8 @@ export function ChangesCard({ cardId, projectId, busy, shared }: { cardId: strin
     const nextCommand = value.trim(), parts = nextCommand.split(/\s+/).filter(Boolean)
     if (!parts.length) { setDraftCommand(suggested); setConfiguring('run'); return }
     setCommand(nextCommand); setDraftCommand(nextCommand)
-    try { localStorage.setItem(commandKey(projectId), nextCommand) } catch { /* convenience only */ }
     setWorking('test'); setError('')
+    try { if (nextCommand !== command) await saveTestCommand(projectId, nextCommand) } catch (reason) { setError(plainError(reason)); setWorking(''); return }
     try { setTest(await window.gearmod.invoke('tests:run', { cardId, executable: parts[0]!, args: parts.slice(1) })) } catch (reason) { setError(plainError(reason)) } finally { setWorking('') }
   }
   const approve = async (): Promise<void> => {
@@ -77,8 +90,9 @@ export function ChangesCard({ cardId, projectId, busy, shared }: { cardId: strin
   const configure = (action: 'save' | 'run'): void => { setDraftCommand(command || suggested); setConfiguring(action) }
   const saveConfiguredCommand = (): void => {
     const next = draftCommand.trim(); if (!next) return
-    setCommand(next); try { localStorage.setItem(commandKey(projectId), next) } catch { /* convenience only */ }
-    const action = configuring; setConfiguring(''); if (action === 'run') void runTest(next)
+    const action = configuring; setConfiguring('')
+    if (action === 'run') { void runTest(next); return }
+    void saveTestCommand(projectId, next).then(setCommand, (reason: unknown) => setError(plainError(reason)))
   }
   return <aside className="changes" aria-label={t.cardChanges}>
     <div className="ch-head">
