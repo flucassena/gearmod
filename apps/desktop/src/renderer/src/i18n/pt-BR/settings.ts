@@ -140,7 +140,8 @@ export const settings = {
       database: ''
     } as Record<string, string>,
     keep: 'necessário',
-    keepTip: 'O GearMod precisa disto para funcionar: não há botão para apagar.'
+    keepTip: 'O GearMod precisa disto para funcionar: não há botão para apagar.',
+    shareTip: (percent: number, group: string) => `${percent}% de ${group}`
   },
   about: {
     version: (value: string) => `Versão ${value}`,

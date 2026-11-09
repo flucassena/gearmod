@@ -48,7 +48,6 @@ export function StoragePanel(): React.JSX.Element {
       case 'database': return ts.kinds.database
     }
   }
-  const biggest = Math.max(1, ...(snapshot?.entries.map((entry) => entry.bytes) ?? [1]))
   return <div className="stack storage">
     <div className="gacc-head"><div><div className="sectitle">{ts.title}</div><small className="hint">{ts.intro}</small></div>
       <button type="button" className="mini secondary" disabled={loading || busy} onClick={() => void load()}>{loading ? ts.measuring : ts.refresh}</button></div>
@@ -64,7 +63,7 @@ export function StoragePanel(): React.JSX.Element {
           <p className="cx-muted">{ts.groups[group].text}</p>
           <ul className="storage-list">{entries.map((entry) => <li key={entry.id}>
             <div className="storage-main"><b>{label(entry)}</b><small data-tip={entry.path}>{entry.path}</small>
-              <i className="storage-bar" aria-hidden="true"><span style={{ width: `${Math.max(2, Math.round((entry.bytes / biggest) * 100))}%` }} /></i></div>
+              <i className="storage-bar" aria-hidden="true" data-tip={ts.shareTip(Math.round((entry.bytes / Math.max(1, sum)) * 100), ts.groups[group].title)}><span style={{ width: `${Math.max(2, Math.round((entry.bytes / Math.max(1, sum)) * 100))}%` }} /></i></div>
             <span className="storage-size" data-tip={entry.partial ? ts.partialTip : undefined}>{entry.partial ? '≥ ' : ''}{formatBytes(entry.bytes)}</span>
             {entry.removable
               ? <button type="button" className="trashbtn tip" disabled={busy} data-tip={ts.removeTip(label(entry))} aria-label={ts.removeTip(label(entry))} onClick={() => setRemoving(entry)}><TrashIcon /></button>

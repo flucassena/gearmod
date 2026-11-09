@@ -141,7 +141,8 @@ export const settings: typeof source = {
       database: ''
     } as Record<string, string>,
     keep: 'required',
-    keepTip: 'GearMod needs this to work: there is no delete button.'
+    keepTip: 'GearMod needs this to work: there is no delete button.',
+    shareTip: (percent, group) => `${percent}% of ${group}`
   },
   about: {
     version: (value: string) => `Version ${value}`,
