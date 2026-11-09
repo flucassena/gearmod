@@ -82,7 +82,7 @@ export class WorktreeService {
   async adopt(cardId: string, path: string): Promise<Worktree> {
     if (this.ownerOf(cardId) !== cardId) throw new Error(tm().worktrees.cardUsesAnotherWorktree)
     if (this.database.db.prepare(`SELECT 1 FROM worktrees WHERE card_id = ? AND cleanup_state = 'active' LIMIT 1`).get(cardId)) throw new Error(tm().worktrees.cardHasOwnWorktree)
-    const card = this.database.db.prepare('SELECT project_id AS projectId, base_branch AS baseBranch FROM cards WHERE id = ?').get(cardId) as { projectId: string; baseBranch: string | null } | undefined
+    const card = this.database.db.prepare(`SELECT project_id AS projectId, NULLIF(cards.base_branch, '') AS baseBranch FROM cards WHERE id = ?`).get(cardId) as { projectId: string; baseBranch: string | null } | undefined
     if (!card) throw new Error(tm().common.cardNotFound)
     const chosen = await this.findExternal(card.projectId, path)
     if (!chosen) throw new Error(tm().worktrees.externalGone)
@@ -150,14 +150,17 @@ export class WorktreeService {
     if (existing && !alive) this.database.db.prepare(`UPDATE worktrees SET cleanup_state = 'missing' WHERE id = ?`).run(existing.id)
     // A worktree the user made and the card adopted is used as it is: nothing is created, renamed or added inside it.
     if (alive && this.database.db.prepare('SELECT external FROM worktrees WHERE id = ?').pluck().get(alive.id) === 1) return alive
-    const card = this.database.db.prepare(`SELECT c.title, c.type AS type, c.project_id AS projectId, c.base_branch AS baseBranch, c.repo_ids AS repoIds, p.local_path AS projectPath
+    const card = this.database.db.prepare(`SELECT c.title, c.type AS type, c.project_id AS projectId, NULLIF(c.base_branch, '') AS baseBranch, c.repo_ids AS repoIds, p.local_path AS projectPath
       FROM cards c JOIN projects p ON p.id = c.project_id WHERE c.id = ?`).get(cardId) as { title: string; type: string; projectId: string; baseBranch: string | null; repoIds: string | null; projectPath: string } | undefined
     if (!card) throw new Error(tm().common.cardNotFound)
     const all = await this.gitSources(card.projectId, card.projectPath)
     if (!all.length) throw new Error(tm().worktrees.noGitRepoFound)
     const wanted = card.repoIds ? JSON.parse(card.repoIds) as string[] : null
-    // With no repositories chosen on the card, only the first gets a worktree; the others join on demand (ensureMember) when the agent needs them.
-    const sources = wanted?.length ? all.filter((source) => wanted.includes(source.id)) : all.slice(0, 1)
+    // With no repositories chosen on the card, a new worktree starts with all of them (the agent then keeps only the ones it will change, see `trim`);
+    // an existing one keeps the repositories it already has. The others join on demand (ensureMember).
+    const had = alive ? this.members(alive.id).filter((member) => member.status === 'active') : []
+    const kept = all.filter((source) => had.some((member) => same(member.repoPath, source.repoPath)))
+    const sources = wanted?.length ? all.filter((source) => wanted.includes(source.id)) : alive ? (kept.length ? kept : all.slice(0, 1)) : all
     if (!sources.length) throw new Error(tm().worktrees.chosenReposGone)
     // Short path (wt/<8 letters of the card>/<repo>): on Windows the 260-character limit breaks repositories with long names (migrations etc.).
     const short = cardId.slice(0, 8), path = alive?.path ?? join(this.dataDir, 'wt', short)
@@ -228,6 +231,8 @@ export class WorktreeService {
     try {
       // Branch chosen at start: applies to the repositories that have it (local or in origin); in the others the current branch stays.
       if (cardBaseBranch) for (const candidate of [cardBaseBranch, `origin/${cardBaseBranch}`]) { if (await this.git.run(['-C', source.repoPath, 'rev-parse', '--verify', candidate]).then(() => true, () => false)) { baseRef = candidate; break } }
+      // Always from the latest version of the base: fetches it and uses the remote's when the local copy is behind.
+      baseRef = await this.freshest(source.repoPath, baseRef)
       await this.git.run(['-C', source.repoPath, 'rev-parse', '--verify', baseRef])
       await this.releaseStale(source.repoPath, branch, memberPath)
       try {
@@ -251,6 +256,56 @@ export class WorktreeService {
     }
   }
 
+  /**
+   * Latest version of a base branch: fetches it from origin (quick, without asking for credentials) and returns `origin/<branch>`, unless the local
+   * branch has commits the remote does not (then the local one) or there is no remote copy (offline, or never published: the local one).
+   */
+  private async freshest(repoPath: string, ref: string): Promise<string> {
+    const branch = ref.replace(/^origin\//, '')
+    if (!branch || branch === 'HEAD') return ref
+    const verify = (name: string): Promise<boolean> => this.git.run(['-C', repoPath, 'rev-parse', '--verify', '-q', `${name}^{commit}`]).then(() => true, () => false)
+    const remotes = await this.git.run(['-C', repoPath, 'remote']).then((result) => result.stdout.split(/\r?\n/).map((item) => item.trim()), () => [] as string[])
+    if (!remotes.includes('origin')) return ref
+    const fetch = this.git.run(['-c', 'credential.interactive=never', '-C', repoPath, 'fetch', '--quiet', '--no-tags', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`]).then(() => undefined, () => undefined)
+    await Promise.race([fetch, new Promise<void>((done) => setTimeout(done, 20_000))])
+    const [local, remote] = await Promise.all([verify(`refs/heads/${branch}`), verify(`refs/remotes/origin/${branch}`)])
+    if (!remote) return local ? branch : ref
+    if (!local) return `origin/${branch}`
+    const ahead = Number((await this.git.run(['-C', repoPath, 'rev-list', '--count', `origin/${branch}..${branch}`]).catch(() => ({ stdout: '0' }))).stdout.trim()) || 0
+    return ahead > 0 ? branch : `origin/${branch}`
+  }
+
+  /**
+   * Keeps in the card's worktree only the repositories it works in (`keep`, ids of project repositories): the others leave the worktree (folder
+   * and branch) when they have nothing of their own (no uncommitted change and no commit beyond the base). The ones with work stay, and say why.
+   * A worktree adopted from outside or shared with other cards is not touched. A repository that left comes back with `prepare`/`ensureMember`.
+   */
+  async trim(cardId: string, keep: string[]): Promise<{ removed: string[]; kept: Array<{ name: string; reason: string }> }> {
+    const owner = this.ownerOf(cardId), worktree = this.get(owner), done = { removed: [] as string[], kept: [] as Array<{ name: string; reason: string }> }
+    if (!worktree || owner !== cardId || this.isExternal(owner)) return done
+    if (this.database.db.prepare('SELECT 1 FROM cards WHERE worktree_card_id = ? AND id <> ? LIMIT 1').get(owner, owner)) return done
+    const projectId = this.database.db.prepare('SELECT project_id FROM cards WHERE id = ?').pluck().get(owner) as string | undefined
+    if (!projectId) return done
+    const sources = this.database.db.prepare('SELECT id, name, local_path AS repoPath FROM project_sources WHERE project_id = ?').all(projectId) as Array<{ id: string; name: string; repoPath: string }>
+    const wanted = sources.filter((source) => keep.includes(source.id))
+    if (!wanted.length) return done
+    for (const member of this.members(worktree.id)) {
+      if (wanted.some((source) => same(source.repoPath, member.repoPath))) continue
+      const name = sources.find((source) => same(source.repoPath, member.repoPath))?.name ?? basename(member.repoPath)
+      if (member.status === 'active' && existsSync(member.path)) {
+        const changes = await this.git.run(['-C', member.path, 'status', '--porcelain']).then((result) => result.stdout.trim(), () => 'unknown')
+        if (changes) { done.kept.push({ name, reason: 'has uncommitted changes' }); continue }
+        const ahead = Number((await this.git.run(['-C', member.path, 'rev-list', '--count', `${member.baseRef}..HEAD`]).catch(() => ({ stdout: '1' }))).stdout.trim()) || 0
+        if (ahead > 0) { done.kept.push({ name, reason: 'has commits of its own' }); continue }
+        await this.discard(member.repoPath, member.path)
+        await this.git.run(['-C', member.repoPath, 'branch', '-D', worktree.branch]).catch(() => undefined)
+      }
+      this.database.db.prepare('DELETE FROM worktree_members WHERE worktree_id = ? AND repo_path = ?').run(worktree.id, member.repoPath)
+      done.removed.push(name)
+    }
+    return done
+  }
+
   private readonly ensuring = new Map<string, Promise<unknown>>()
   /**
    * G07 — ensures a specific repository is in the card's composite worktree, even outside `cards.repo_ids` (e.g. the
@@ -269,14 +324,17 @@ export class WorktreeService {
 
   private async ensureMemberNow(owner: string, sourceId: string): Promise<{ repoPath: string; path: string; baseRef: string; status: 'active' | 'failed'; error: string | null }> {
     const worktree = await this.prepare(owner)
-    const source = this.database.db.prepare('SELECT name, local_path AS repoPath, current_branch AS baseRef FROM project_sources WHERE id = ?').get(sourceId) as { name: string; repoPath: string; baseRef: string } | undefined
+    const source = this.database.db.prepare(`SELECT name, local_path AS repoPath, COALESCE(NULLIF(base_branch, ''), current_branch) AS baseRef FROM project_sources WHERE id = ?`).get(sourceId) as { name: string; repoPath: string; baseRef: string } | undefined
     if (!source) throw new Error(tm().common.repoNotFoundInProject)
     const current = this.members(worktree.id)
     const existing = current.find((member) => same(member.repoPath, source.repoPath))
     if (existing && existing.status === 'active' && existsSync(existing.path)) return existing
     if (this.isExternal(owner)) return { repoPath: source.repoPath, path: worktree.path, baseRef: worktree.baseRef, status: 'failed', error: tm().worktrees.externalOneRepo }
-    const card = this.database.db.prepare('SELECT base_branch AS baseBranch FROM cards WHERE id = ?').get(owner) as { baseBranch: string | null }
-    const memberPath = existing?.path ?? join(worktree.path, `${current.length + 1}-${memberName(source.name, current.length)}`)
+    const card = this.database.db.prepare(`SELECT NULLIF(cards.base_branch, '') AS baseBranch FROM cards WHERE id = ?`).get(owner) as { baseBranch: string | null }
+    // First free number: a repository that left the worktree (trim) leaves a gap.
+    let slot = current.length + 1
+    while (current.some((member) => basename(member.path).startsWith(`${slot}-`)) || existsSync(join(worktree.path, `${slot}-${memberName(source.name, slot - 1)}`))) slot++
+    const memberPath = existing?.path ?? join(worktree.path, `${slot}-${memberName(source.name, slot - 1)}`)
     const result = await this.addMember(source, card.baseBranch, worktree.branch, memberPath)
     this.database.db.prepare(`INSERT INTO worktree_members(id, worktree_id, repo_path, path, base_ref, status, error) VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(worktree_id, repo_path) DO UPDATE SET path = excluded.path, base_ref = excluded.base_ref, status = excluded.status, error = excluded.error`)
@@ -297,7 +355,8 @@ export class WorktreeService {
 
   /** Project Git repositories; without a registry, searches the project folder and saves what it found. */
   private async gitSources(projectId: string, projectPath: string): Promise<Array<{ id: string; name: string; repoPath: string; baseRef: string }>> {
-    const read = (): Array<{ id: string; name: string; repoPath: string; baseRef: string }> => this.database.db.prepare(`SELECT id, name, local_path AS repoPath, current_branch AS baseRef
+    // Each repository's own base branch (set in the Git tab or when the project was created); without one, its current branch.
+    const read = (): Array<{ id: string; name: string; repoPath: string; baseRef: string }> => this.database.db.prepare(`SELECT id, name, local_path AS repoPath, COALESCE(NULLIF(base_branch, ''), current_branch) AS baseRef
       FROM project_sources WHERE project_id = ? AND is_git_repository = 1 ORDER BY sort_order`).all(projectId) as Array<{ id: string; name: string; repoPath: string; baseRef: string }>
     const saved = read()
     if (saved.length) return saved

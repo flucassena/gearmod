@@ -127,7 +127,9 @@ export const createAgentProfileInputSchema = z.object({
 }).strict()
 export const boardColumnSchema = z.object({ id: uuid, projectId: uuid, label: z.string(), sortOrder: z.number().int(), semanticState: semanticStateSchema, isDefault: z.boolean() })
 export const projectSourceSchema = z.object({
-  id: uuid, projectId: uuid, name: z.string(), localPath: z.string(), isGitRepository: z.boolean(), currentBranch: z.string().nullable(), sortOrder: z.number().int()
+  id: uuid, projectId: uuid, name: z.string(), localPath: z.string(), isGitRepository: z.boolean(), currentBranch: z.string().nullable(),
+  /** Branch new card worktrees start from in this repository (always from its latest version). `null`: follows the current branch. */
+  baseBranch: z.string().nullable(), sortOrder: z.number().int()
 })
 /** Project icon: small image (the app shrinks it to 96px) stored as a data URL. */
 export const projectIconSchema = z.string().max(300_000).regex(/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/, 'Ícone deve ser uma imagem PNG, JPEG, WebP ou GIF')
@@ -138,7 +140,9 @@ export const projectSchema = z.object({
   cardTypes: z.array(cardTypeDefSchema), customCardTypes: z.boolean(), activity: z.object({ running: z.number().int().nonnegative(), finished: z.number().int().nonnegative() }), createdAt: isoDate, updatedAt: isoDate
 })
 export const projectInspectionSchema = z.object({
-  localPath: z.string(), name: z.string(), repositories: z.array(z.object({ localPath: z.string(), name: z.string(), currentBranch: z.string(), branches: z.array(z.string()) }))
+  localPath: z.string(), name: z.string(), repositories: z.array(z.object({ localPath: z.string(), name: z.string(), currentBranch: z.string(), branches: z.array(z.string()),
+    /** Suggested base: the remote's default branch (origin/HEAD), or the current one. */
+    defaultBranch: z.string().optional() }))
 })
 export const agentPurposeSchema = z.enum(['planning', 'execution', 'test'])
 export const permissionModeSchema = z.enum(['plan', 'auto', 'accept_edits', 'manual', 'on_request', 'read_only', 'bypass'])
@@ -321,7 +325,9 @@ export type McpServer = z.output<typeof mcpServerSchema>
 export type McpServerInput = z.output<typeof mcpServerInputSchema>
 const cardIdInput = z.object({ cardId: uuid }).strict()
 export const createProjectInputSchema = z.object({
-  name: z.string().trim().max(120).optional(), sourcePaths: z.array(z.string().trim().min(1).max(2048)).min(1).max(20), excludePaths: z.array(z.string().trim().min(1).max(2048)).max(200).optional(), profileIds: z.array(uuid).max(8).default([]), icon: projectIconSchema.nullable().optional()
+  name: z.string().trim().max(120).optional(), sourcePaths: z.array(z.string().trim().min(1).max(2048)).min(1).max(20), excludePaths: z.array(z.string().trim().min(1).max(2048)).max(200).optional(),
+  /** Base branch chosen per repository in the dialog (key: the repository's folder). */
+  baseBranches: z.record(z.string().max(2048), z.string().trim().min(1).max(200)).optional(), profileIds: z.array(uuid).max(8).default([]), icon: projectIconSchema.nullable().optional()
 }).strict()
 export const updateProjectInputSchema = z.object({ projectId: uuid, name: z.string().trim().min(1).max(120), icon: projectIconSchema.nullable().optional() }).strict()
 export const setProjectProfilesInputSchema = z.object({ projectId: uuid, profileIds: z.array(uuid).max(8) }).strict()
@@ -495,6 +501,7 @@ export const ipcContracts = {
   , 'projects:add-repositories': { input: z.object({ projectId: uuid, localPath: z.string().trim().min(1).max(2048) }).strict(), output: projectSchema }
   , 'projects:remove-repository': { input: z.object({ projectId: uuid, sourceId: uuid }).strict(), output: projectSchema }
   , 'projects:update': { input: updateProjectInputSchema, output: projectSchema }
+  , 'projects:set-source-base': { input: z.object({ projectId: uuid, sourceId: uuid, branch: z.string().trim().min(1).max(200) }).strict(), output: projectSchema }
   , 'projects:set-base-branch': { input: z.object({ projectId: uuid, sourceId: uuid, branch: z.string().trim().min(1).max(200) }).strict(), output: projectSchema }
   , 'projects:reorder': { input: z.object({ projectIds: z.array(uuid).max(500) }).strict(), output: z.array(projectSchema) }
   , 'projects:delete': { input: projectIdInput, output: z.object({ deleted: z.boolean() }) }

@@ -125,7 +125,7 @@ export const board: typeof source = {
     createManuallyHint: 'Describe everything in the card itself, without needing an agent.',
     whereTitle: 'Where the work runs',
     useExisting: (branch) => `Use an existing one: ${branch}`,
-    hintNew: 'GearMod creates an isolated worktree for the card, from the base branch.',
+    hintNew: 'GearMod creates an isolated worktree for the card, from each repository’s base branch (set in the Git tab), at its latest version.',
     hintCard: 'The card works in another card\'s worktree; cleanup and merge stay with its owner.',
     hintExternal: 'GearMod uses that folder as it is. When the card\'s worktree is removed, the folder and the branch stay.'
   },
@@ -595,6 +595,7 @@ export const board: typeof source = {
     firstGitRepo: 'First Git repository',
     projectBaseBranch: 'Project base branch',
     notFound: (branch) => `${branch} (not found)`,
+    branchMissingIn: (branch, repo) => `The branch ${branch} does not exist in ${repo}. Choose a branch from that repository.`,
     sddFolder: 'SDD folder relative to the repository',
     chosenFolder: 'Chosen folder',
     repoRoot: 'Repository root',

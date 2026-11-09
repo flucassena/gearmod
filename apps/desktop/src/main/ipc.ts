@@ -338,7 +338,7 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     // Login inside the app: the CLI runs in a terminal the screen shows (reuses `terminal:info/write/resize/kill`).
     'profiles:login-terminal': (input: { profileId: string }) => ({ id: services.terminals.run(services.agentProbes.loginPlan(input.profileId)) }),
     'projects:list': () => services.projects.list(),
-    'projects:create': async (input: { name?: string; sourcePaths: string[]; excludePaths?: string[]; profileIds: string[] }) => {
+    'projects:create': async (input: { name?: string; sourcePaths: string[]; excludePaths?: string[]; baseBranches?: Record<string, string>; profileIds: string[] }) => {
       const probes = await Promise.all(input.profileIds.map((profileId) => services.agentProbes.probe(profileId)))
       if (probes.some((probe) => !probe.installed || !probe.authenticated)) throw new Error(tm().ipc.agentsMustBeConnected)
       return services.projects.create(input)
@@ -348,6 +348,7 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'projects:reorder': (input: { projectIds: string[] }) => services.projects.reorder(input.projectIds),
     'projects:delete': (input: { projectId: string }) => ({ deleted: services.projects.delete(input.projectId) }),
     'projects:update': (input: { projectId: string; name: string; icon?: string | null }) => services.projects.update(input),
+    'projects:set-source-base': (input: { projectId: string; sourceId: string; branch: string }) => services.projects.setSourceBase(input.projectId, input.sourceId, input.branch),
     'projects:set-base-branch': (input: { projectId: string; sourceId: string; branch: string }) => services.projects.setBaseBranch(input.projectId, input.sourceId, input.branch),
     'cards:set-base-branch': async (input: { cardId: string; branch: string }) => {
       const info = await services.executions.branches(input.cardId)

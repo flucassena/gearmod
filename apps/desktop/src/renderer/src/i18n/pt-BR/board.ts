@@ -125,7 +125,7 @@ export const board = {
     createManuallyHint: 'Descreva tudo no próprio card, sem precisar de um agente.',
     whereTitle: 'Onde o trabalho roda',
     useExisting: (branch: string) => `Usar uma existente: ${branch}`,
-    hintNew: 'O GearMod cria uma worktree isolada para o card, a partir da branch base.',
+    hintNew: 'O GearMod cria uma worktree isolada para o card, a partir da branch base de cada repositório (configurada na aba Git), na versão mais atualizada.',
     hintCard: 'O card trabalha na worktree de outro card; a limpeza e o merge continuam com o dono.',
     hintExternal: 'O GearMod usa essa pasta como ela está. Ao remover a worktree do card, a pasta e a branch ficam.'
   },
@@ -595,6 +595,7 @@ export const board = {
     firstGitRepo: 'Primeiro repositório Git',
     projectBaseBranch: 'Branch base do projeto',
     notFound: (branch: string) => `${branch} (não encontrada)`,
+    branchMissingIn: (branch: string, repo: string) => `A branch ${branch} não existe em ${repo}. Escolha uma branch desse repositório.`,
     sddFolder: 'Pasta SDD relativa ao repositório',
     chosenFolder: 'Pasta escolhida',
     repoRoot: 'Raiz do repositório',

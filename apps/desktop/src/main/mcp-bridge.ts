@@ -265,9 +265,16 @@ export class McpBridge {
     board.setRepos(run.cardId, chosen.length ? chosen.map((source) => source!.id) : null)
     try { this.deps.history?.decide(run.cardId, { kind: 'scope', statement: `Repositórios do card: ${chosen.length ? chosen.map((source) => source!.name).join(', ') : 'todos'}`, rationale: typeof args.motivo === 'string' ? args.motivo : '', actor: 'agent', source: { actor: 'agent', runId: run.runId, chatId: run.chatId } }) } catch { /* decision is a record, it does not block */ }
     let prepared = ''
-    if (run.purpose === 'execution' || run.purpose === 'test') {
-      const worktree = await this.deps.prepareWorktree?.(run.cardId).catch((error: unknown) => { prepared = ` Could not prepare: ${error instanceof Error ? error.message : String(error)}`; return null })
-      if (worktree) prepared = ` Worktree updated; folders: ${(this.deps.repositories?.(run.cardId) ?? []).map((repo) => `${repo.path} (${repo.status})`).join(', ')}.`
+    // Repositories outside the list leave the card's worktree (when they have nothing of their own); the ones in it get their folder now.
+    const hasWorktree = (this.deps.repositories?.(run.cardId) ?? []).length > 0
+    if (chosen.length && hasWorktree && this.deps.trimWorktree) {
+      const trimmed = await this.deps.trimWorktree(run.cardId, chosen.map((source) => source!.id)).catch(() => null)
+      if (trimmed?.removed.length) prepared += ` Left the worktree: ${trimmed.removed.join(', ')}.`
+      if (trimmed?.kept.length) prepared += ` Kept (not in the list, but ${trimmed.kept.map((item) => `${item.name} ${item.reason}`).join('; ')}).`
+    }
+    if (run.purpose === 'execution' || run.purpose === 'test' || hasWorktree) {
+      const worktree = await this.deps.prepareWorktree?.(run.cardId).catch((error: unknown) => { prepared += ` Could not prepare: ${error instanceof Error ? error.message : String(error)}`; return null })
+      if (worktree) prepared += ` Worktree updated; folders: ${(this.deps.repositories?.(run.cardId) ?? []).map((repo) => `${repo.path} (${repo.status})`).join(', ')}.`
     }
     run.notify({ type: 'card' })
     return { ok: true, text: `The card works in: ${chosen.length ? chosen.map((source) => source!.name).join(', ') : 'all repositories'}.${prepared}` }

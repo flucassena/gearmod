@@ -18,6 +18,7 @@ import { projectTheme, setProjectTheme } from './projectTheme'
 import { Checkbox } from './Checkbox'
 import { plainError } from './NoticeDialog'
 import { useEscape } from './useEscape'
+import { Select } from './Select'
 import { ProjectCardTypes } from './CardTypes'
 import { ProjectCodeIndex } from './ProjectCodeIndex'
 
@@ -25,6 +26,9 @@ import { ProjectCodeIndex } from './ProjectCodeIndex'
 export function ProjectDialog({ close, created }: { close(): void; created(project: Project): void }): React.JSX.Element {
   const t = useT(), tp = t.settings.project
   const [name, setName] = useState(''), [icon, setIcon] = useState<string | null>(null), [sources, setSources] = useState<ProjectInspection[]>([]), [excluded, setExcluded] = useState<string[]>([]), [error, setError] = useState(''), [choosing, setChoosing] = useState(false), [dragging, setDragging] = useState(false)
+  // Base branch picked per repository (key: its folder); without a pick, the remote's default branch (or the current one).
+  const [bases, setBases] = useState<Record<string, string>>({})
+  const baseOf = (repository: ProjectInspection['repositories'][number]): string => bases[repository.localPath] ?? repository.defaultBranch ?? repository.currentBranch
   useEscape(close)
   const addPath = async (path: string): Promise<void> => {
     const inspected = await window.gearmod.invoke('projects:inspect', { localPath: path })
@@ -43,7 +47,7 @@ export function ProjectDialog({ close, created }: { close(): void; created(proje
     setSources((current) => current.filter((item) => item.localPath !== source.localPath))
     setExcluded((current) => current.filter((path) => !source.repositories.some((repository) => repository.localPath === path)))
   }
-  const submit = async (): Promise<void> => { try { created(await window.gearmod.invoke('projects:create', { name: name.trim() || undefined, sourcePaths: sources.map((source) => source.localPath), excludePaths: excluded.filter((path) => sources.some((source) => source.repositories.some((repository) => repository.localPath === path))), profileIds: [], icon })) } catch (reason) { setError(plainError(reason)) } }
+  const submit = async (): Promise<void> => { try { created(await window.gearmod.invoke('projects:create', { name: name.trim() || undefined, sourcePaths: sources.map((source) => source.localPath), excludePaths: excluded.filter((path) => sources.some((source) => source.repositories.some((repository) => repository.localPath === path))), baseBranches: Object.fromEntries(sources.flatMap((source) => visibleRepos(source).map((repository) => [repository.localPath, baseOf(repository)]))), profileIds: [], icon })) } catch (reason) { setError(plainError(reason)) } }
   return <div className="overlay" role="dialog" aria-label={tp.newTitle}><div className="modal">
     <header><div><div className="eyebrow">{tp.newTitle}</div><h2>{tp.createTitle}</h2></div><button className="x" onClick={close} aria-label={t.common.close}>×</button></header>
     <div className="stack">
@@ -56,7 +60,7 @@ export function ProjectDialog({ close, created }: { close(): void; created(proje
       {sources.map((source) => <div className="srcbox" key={source.localPath}>
         <div className="srchead"><span className="t"><b>{source.name}</b><small>{source.localPath}</small></span><button type="button" className="mini secondary" onClick={() => setSources((current) => current.filter((item) => item.localPath !== source.localPath))}>{t.common.remove}</button></div>
         {source.repositories.length ? <><span className="sectitle">{tp.repoCount(visibleRepos(source).length)}</span>
-          <ul className="repolist">{visibleRepos(source).map((repository) => <li key={repository.localPath}><FolderGlyph /><span className="rn">{repository.name}</span><span className="ctxchip" data-tip={tp.branchTip(repository.currentBranch)}>{repository.currentBranch}</span><button type="button" className="repo-x" data-tip={tp.removeRepoTip(repository.name)} aria-label={tp.removeRepoTip(repository.name)} onClick={() => dropRepo(source, repository.localPath)}>×</button></li>)}</ul></>
+          <ul className="repolist">{visibleRepos(source).map((repository) => <li key={repository.localPath}><FolderGlyph /><span className="rn">{repository.name}</span><small className="repobase-k">{tp.baseShort}</small><Select className="repobase" label={tp.baseBranchOf(repository.name)} menuWidth={220} options={repository.branches.map((branch) => ({ value: branch, label: branch, sub: branch === repository.defaultBranch ? tp.remoteDefault : branch === repository.currentBranch ? tp.currentBranch : '' }))} value={baseOf(repository)} onChange={(branch) => setBases((current) => ({ ...current, [repository.localPath]: branch }))} /><button type="button" className="repo-x" data-tip={tp.removeRepoTip(repository.name)} aria-label={tp.removeRepoTip(repository.name)} onClick={() => dropRepo(source, repository.localPath)}>×</button></li>)}</ul><small className="hint">{tp.baseHint}</small></>
           : <small className="hint">{tp.noGit}</small>}
       </div>)}
       {!sources.length && <button className="sourcePick" type="button" disabled={choosing} style={dragging ? { borderColor: 'var(--accent)' } : undefined} onClick={() => void choose()} onDragEnter={(e) => { e.preventDefault(); setDragging(true) }} onDragOver={(e) => e.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={(e) => void drop(e)}>📁 {choosing ? tp.openingFolders : tp.pickFolder}<small>{tp.pickFolderHint}</small></button>}
@@ -177,7 +181,7 @@ export function ProjectConfigDialog({ project, profiles, saved, renamed, openCon
         <section className="cx-wfcard"><ProjectCodeIndex project={project} /></section>
         </div>
       {error && <p className="error" style={{ marginTop: 10 }}>{error}</p>}</>
-      : tab === 'git' ? <><GitPolicyPanel projectId={project.id} /><GitAccountsPanel projectId={project.id} openFirst={initialFocus === 'git-accounts'} /></>
+      : tab === 'git' ? <><GitAccountsPanel projectId={project.id} openFirst={initialFocus === 'git-accounts'} /><GitPolicyPanel projectId={project.id} /></>
       : tab === 'workflow' ? <WorkflowPanel projectId={project.id} />
       : tab === 'sdd' ? <SddSettings project={project} openConstitutionChat={openConstitutionChat} onOpenReference={() => void finish()} />
       : tab === 'tools' ? <ToolsPanel projectId={project.id} openedTerminal={() => void finish()} />

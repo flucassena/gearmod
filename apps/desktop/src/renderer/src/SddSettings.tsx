@@ -25,6 +25,10 @@ export function SddSettings({ project, openConstitutionChat, onOpenReference }: 
   useEffect(() => { void window.gearmod.invoke('sdd:config-get', { projectId: project.id }).then(setConfig).catch((e) => setMessage(plainError(e))) }, [project.id])
   useEffect(() => { void window.gearmod.invoke('projects:list', undefined).then((items) => { const current = items.find((item) => item.id === project.id); if (current) { setBranch(current.baseBranch); setFresh(current) } }).catch((e) => setMessage(plainError(e))) }, [project.id])
   useEffect(() => { if (!source) { setBranches([]); return }; void window.gearmod.invoke('projects:branches', { localPath: source.localPath }).then(setBranches).catch((e) => setMessage(plainError(e))) }, [source?.id, source?.localPath])
+  // The base branch must exist in the chosen repository (e.g. develop does not exist in a repo that only has master):
+  // when it does not, uses that repository's own base or current branch, otherwise saving would fail and nothing would be kept.
+  const branchFor = (repo: typeof source, names: string[]): string | null => [repo?.baseBranch, repo?.currentBranch, 'main', 'master', 'develop'].find((name): name is string => Boolean(name && names.includes(name))) ?? names[0] ?? null
+  useEffect(() => { if (branches.length && !branches.includes(branch)) { const next = branchFor(source, branches); if (next) setBranch(next) } }, [branches])
   // A Spec Kit start that just ended may have changed this configuration (repository and Constitution path): read it again.
   useEffect(() => {
     const again = (event: Event): void => {
@@ -40,9 +44,10 @@ export function SddSettings({ project, openConstitutionChat, onOpenReference }: 
     if (!config || !source) return
     setBusy(true); setMessage(''); setPreview(undefined)
     try {
-      // Validate the branch before persisting the location, so a typo cannot silently become the base.
-      await window.gearmod.invoke('projects:set-base-branch', { projectId: project.id, sourceId: source.id, branch })
+      // The location is saved first, so a branch problem never loses the repository choice; the branch is saved only when it exists there.
       setConfig(await window.gearmod.invoke('sdd:config-set', { projectId: project.id, config }))
+      if (branches.length && !branches.includes(branch)) throw new Error(t.branchMissingIn(branch, source.name))
+      await window.gearmod.invoke('projects:set-base-branch', { projectId: project.id, sourceId: source.id, branch })
       setSavedCount((count) => count + 1)
       setMessage(t.saved)
     } catch (e) { setMessage(plainError(e)) } finally { setBusy(false) }
@@ -94,7 +99,7 @@ export function SddSettings({ project, openConstitutionChat, onOpenReference }: 
   return <section className="cx-wfcard"><h4 className="cx-labelrow">{t.title}<button type="button" className="cx-tiny" disabled={busy} onClick={() => { setMessage(''); void window.gearmod.invoke('sdd:detect-constitutions', { projectId: project.id }).then(setPreview).catch((e) => setMessage(plainError(e))) }}>{t.detect}</button></h4>
     <p className="cx-note">{t.note}</p>
     {!sources.length ? <p className="error">{t.addGitRepo}</p> : <div className="stack">
-      <div className="f"><span>{t.repository}</span><Select label={t.sddRepository} value={config.sourceId ?? ''} options={[{ value: '', label: t.firstGitRepo }, ...sources.map((item) => ({ value: item.id, label: item.name }))]} onChange={(value) => set({ sourceId: value || null })} /></div>
+      <div className="f"><span>{t.repository}</span><Select label={t.sddRepository} value={config.sourceId ?? ''} options={[{ value: '', label: t.firstGitRepo }, ...sources.map((item) => ({ value: item.id, label: item.name }))]} onChange={(value) => { const next = sources.find((item) => item.id === value) ?? sources[0]; set({ sourceId: value || null }); if (next && next.id !== source?.id) setBranch(next.baseBranch ?? next.currentBranch ?? branch) }} /></div>
       <div className="f"><span>{t.projectBaseBranch}</span><Select label={t.projectBaseBranch} value={branch} options={[...(!branches.includes(branch) && branch ? [{ value: branch, label: t.notFound(branch) }] : []), ...branches.map((name) => ({ value: name, label: name }))]} onChange={setBranch} /></div>
       <div className="f"><span>{t.sddFolder}</span>{!editRoot ? <div className="cx-pathrow"><span className="cx-pathchip big"><b>{config.root ? t.chosenFolder : t.repoRoot}</b><code>{absolutePath(config.root)}</code><FolderIcon /></span><button type="button" className="mini secondary" onClick={() => setEditRoot(true)}>{common.edit}</button></div> : <div className="cx-add"><input value={config.root} onChange={(event) => set({ root: event.target.value })} placeholder={t.repoRoot} /><button type="button" className="mini secondary" onClick={() => void chooseFolder('root')}>{t.choose}</button><button type="button" className="mini" onClick={() => setEditRoot(false)}>{t.done}</button></div>}</div>
       <div className="f"><span className="cx-labelrow">{t.constitutionPath(config.method === 'native' ? t.methodNames.native : t.methodNames.speckit)}<button type="button" className="cx-tiny" disabled={busy} onClick={() => chooseConstitutionSource(config.method === 'native' ? 'speckit' : 'native')}>{config.method === 'native' ? t.useSpecKitPath : t.useGearModPath}</button></span>{!editConstitution ? <div className="cx-pathrow"><span className="cx-pathchip big"><b>{t.chosenFolder}</b><code>{absolutePath(constitutionFolder)}</code><FolderIcon /></span><button type="button" className="mini secondary" onClick={() => setEditConstitution(true)}>{common.edit}</button></div> : <div className="cx-add"><input value={constitutionFolder} onChange={(event) => set({ constitution: { ...config.constitution, [config.method]: [event.target.value, 'constitution.md'].filter(Boolean).join('/') } })} placeholder={config.method === 'native' ? '.gearmod' : '.specify/memory'} /><button type="button" className="mini secondary" onClick={() => void chooseFolder('constitution')}>{t.choose}</button><button type="button" className="mini" onClick={() => setEditConstitution(false)}>{t.done}</button></div>}</div>

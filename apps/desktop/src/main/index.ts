@@ -135,12 +135,12 @@ const agentContext = new AgentContextService(board, settings, existsSync(pluginD
   const repos = worktrees.repositories(cardId)
   const repositorios = sources.length > 1 ? sources.map((source) => {
     const member = repos.find((repo) => repo.repoPath.toLowerCase() === source.localPath.toLowerCase())
-    return { nome: source.name, noCard: card.repoIds ? card.repoIds.includes(source.id) : source.id === sources[0]?.id, ...(member ? { pasta: member.path, estado: member.status, ...(member.error ? { erro: member.error } : {}) } : {}) }
+    return { nome: source.name, noCard: card.repoIds ? card.repoIds.includes(source.id) : true, ...(member ? { pasta: member.path, estado: member.status, ...(member.error ? { erro: member.error } : {}) } : {}) }
   }) : undefined
   const playwrightCli = playwright.forCard(cardId)
   // The developer does not read the tester's checklist (that tool is the tester's): the failures of the last test pass travel in the context.
   const falhasDoTeste = failedChecklistItems(checklists.get(cardId).contentMd)
-  return { ...(repositorios ? { repositorios, regraRepositorios: 'Só os repositórios com noCard=true ganham worktree. Se precisar de outro, chame gearmod_set_repositories.' } : {}), ...(playwrightCli ? { playwrightCli } : {}), ...(falhasDoTeste.length ? { falhasDoTeste, regraFalhasDoTeste: 'Items the tester marked as failed in the last test pass. The developer fixes them when asked, following the documents; the tester verifies them again in the next pass.' } : {}) }
+  return { ...(repositorios ? { repositorios, regraRepositorios: 'A worktree do card começa com todos os repositórios. Assim que souber quais o card vai mudar, chame gearmod_set_repositories só com eles: os outros saem da worktree (um repositório com alterações ou commits próprios fica). Se depois precisar de outro, chame de novo incluindo-o.' } : {}), ...(playwrightCli ? { playwrightCli } : {}), ...(falhasDoTeste.length ? { falhasDoTeste, regraFalhasDoTeste: 'Items the tester marked as failed in the last test pass. The developer fixes them when asked, following the documents; the tester verifies them again in the next pass.' } : {}) }
 }, sddResolver)
 const agentConfigs = new AgentConfigRepository(database, board, profiles, (profileId) => listCodexModels(profiles.get(profileId)))
 const usageLedger = new UsageLedgerService(database)
@@ -151,7 +151,11 @@ const appIcon = join(app.isPackaged ? process.resourcesPath : app.getAppPath(), 
 const mcpServerScript = join(app.isPackaged ? process.resourcesPath : app.getAppPath(), app.isPackaged ? 'gearmod-mcp' : 'resources/gearmod-mcp', 'server.mjs')
 const collab = new CollaborationService(database, board, conversations, agentConfigs, (cardId) => BrowserWindow.getAllWindows().forEach((window) => window.webContents.send('runs:event-pushed', { runId: '', eventType: 'gearmod/card-updated', payload: { cardId, type: 'document' } })), checklists)
 // S05, behind the flag (default off until soak, Q-05): an immediate agent move becomes a pending approval request.
-const mcpBridge = new McpBridge({ board, context: agentContext, serverScript: mcpServerScript, collab, conversations, constitution, checklists, git: gitManager, history, approvals, policy, sddResolver, sddWriter, planReady: (cardId) => exportPlanArtifacts(history, board, cardId), prepareWorktree: (cardId) => worktrees.prepare(cardId), repositories: (cardId) => worktrees.repositories(cardId), agentMoveApproval: process.env.GEARMOD_AGENT_MOVE_APPROVAL === '1', codeIndex, codeRoots, codeEnabled })
+const mcpBridge = new McpBridge({ board, context: agentContext, serverScript: mcpServerScript, testCommand: { get: (projectId) => quality.testCommand(projectId).command, set: (projectId, command) => quality.setTestCommand(projectId, command).command, suggest: (cardId) => quality.detectCommand(cardId).command }, collab, conversations, constitution, checklists, git: gitManager, history, approvals, policy, sddResolver, sddWriter, planReady: (cardId) => exportPlanArtifacts(history, board, cardId), prepareWorktree: (cardId) => worktrees.prepare(cardId), trimWorktree: async (cardId, keep) => {
+  // The SDD repository never leaves: the card's documents live in it.
+  const card = board.card(cardId), sdd = await sddResolver.locate({ projectId: card.projectId, cardId }).then((location) => location.sourceId, () => null)
+  return worktrees.trim(cardId, sdd ? [...new Set([...keep, sdd])] : keep)
+}, repositories: (cardId) => worktrees.repositories(cardId), agentMoveApproval: process.env.GEARMOD_AGENT_MOVE_APPROVAL === '1', codeIndex, codeRoots, codeEnabled })
 const writeback = new AgentWriteback(board, mcpBridge)
 const shownNotifications = new Set<Notification>()
 const notifier = new Notifier({

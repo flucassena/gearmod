@@ -59,7 +59,7 @@ describe('Coordinated worktrees', () => {
     const { board, card, sources, worktrees, database } = await workspace()
     // Card with the three repositories chosen (without a choice, only the first gets a worktree right away).
     board.setRepos(card.id, [sources.frontend!.id, sources.backend!.id, sources.docs!.id])
-    database.db.prepare("UPDATE project_sources SET current_branch = 'nao-existe' WHERE id = ?").run(sources.backend!.id)
+    database.db.prepare("UPDATE project_sources SET current_branch = 'nao-existe', base_branch = 'nao-existe' WHERE id = ?").run(sources.backend!.id)
     const worktree = await worktrees.prepare(card.id)
     const repos = worktrees.repositories(card.id), backend = repos.find((repo) => repo.repoPath.endsWith('backend'))!
     expect(backend.status).toBe('failed'); expect(backend.error).toContain('backend')
@@ -68,7 +68,7 @@ describe('Coordinated worktrees', () => {
     database.db.prepare("INSERT INTO test_runs(id, card_id, command, status, summary, started_at) VALUES ('t1', ?, 'npm test', 'passed', '', ?)").run(card.id, new Date().toISOString())
     database.db.prepare("INSERT INTO reviews(id, card_id, provider, state, target_branch, source_branch, updated_at) VALUES ('r1', ?, 'local', 'approved', 'main', 'x', ?)").run(card.id, new Date().toISOString())
     expect(() => board.move(card.id, done.id, null)).toThrow(/falhou: backend/)
-    database.db.prepare("UPDATE project_sources SET current_branch = 'main' WHERE id = ?").run(sources.backend!.id)
+    database.db.prepare("UPDATE project_sources SET current_branch = 'main', base_branch = 'main' WHERE id = ?").run(sources.backend!.id)
     expect((await worktrees.prepare(card.id)).id).toBe(worktree.id)
     expect(worktrees.repositories(card.id).every((repo) => repo.status === 'active')).toBe(true)
     expect(board.move(card.id, done.id, null).columnId).toBe(done.id)

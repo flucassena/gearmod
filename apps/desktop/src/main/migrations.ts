@@ -758,6 +758,14 @@ export const migrations: readonly Migration[] = [
       // A remote MCP server can speak SSE (the older remote transport) instead of streamable HTTP.
       db.exec('ALTER TABLE mcp_servers ADD COLUMN sse INTEGER NOT NULL DEFAULT 0;')
     }
+  },
+  {
+    version: 47,
+    checksum: 'sha256:gearmod-source-base-branch-v47-2026-11-07',
+    up(db) {
+      // Each repository has its own base branch: new card worktrees start from its latest version. Empty follows the current branch, as before.
+      db.exec('ALTER TABLE project_sources ADD COLUMN base_branch TEXT;')
+    }
   }
 ]
 

@@ -43,7 +43,7 @@ export class GitService {
     } catch { return null }
   }
 
-  async inspect(localPath: string): Promise<{ localPath: string; name: string; repositories: Array<{ localPath: string; name: string; currentBranch: string; branches: string[] }> }> {
+  async inspect(localPath: string): Promise<{ localPath: string; name: string; repositories: Array<{ localPath: string; name: string; currentBranch: string; branches: string[]; defaultBranch?: string }> }> {
     const folder = await stat(localPath).catch(() => undefined)
     if (!folder?.isDirectory()) throw new Error(tm().projects.projectFolderMissing)
     const root = resolve(localPath)
@@ -54,7 +54,7 @@ export class GitService {
     return { localPath: root, name: basename(root), repositories }
   }
 
-  private async repository(localPath: string): Promise<{ localPath: string; name: string; currentBranch: string; branches: string[] } | null> {
+  private async repository(localPath: string): Promise<{ localPath: string; name: string; currentBranch: string; branches: string[]; defaultBranch?: string } | null> {
     try {
       const [{ stdout: rootOutput }, { stdout: branchOutput }] = await Promise.all([
         execFileAsync('git', ['-C', localPath, 'rev-parse', '--show-toplevel']),
@@ -63,7 +63,17 @@ export class GitService {
       const root = resolve(rootOutput.trim())
       const currentBranch = branchOutput.trim()
       if (!currentBranch) return null
-      return { localPath: root, name: basename(root), currentBranch, branches: await this.branches(root) }
+      const branches = await this.branches(root)
+      return { localPath: root, name: basename(root), currentBranch, branches, defaultBranch: await this.remoteDefault(root, branches) ?? currentBranch }
+    } catch { return null }
+  }
+
+  /** The remote's default branch (origin/HEAD, as GitHub/GitLab set it), when the repository knows it and has that branch. */
+  async remoteDefault(localPath: string, branches?: string[]): Promise<string | null> {
+    try {
+      const { stdout } = await execFileAsync('git', ['-C', localPath, 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'])
+      const name = stdout.trim().replace(/^origin\//, '')
+      return name && (!branches || branches.includes(name)) ? name : null
     } catch { return null }
   }
 
@@ -199,7 +209,7 @@ export class ProjectRepository {
       remote_provider AS remoteProvider, created_at AS createdAt, updated_at AS updatedAt FROM projects ORDER BY sort_order IS NULL, sort_order, updated_at DESC`).all() as Omit<Project, 'allowedProfileIds' | 'sources' | 'activity' | 'cardTypes' | 'customCardTypes'>[]
     const allowed = this.database.db.prepare('SELECT profile_id AS profileId FROM project_agent_profiles WHERE project_id = ? AND allowed = 1')
     const sources = this.database.db.prepare(`SELECT id, project_id AS projectId, name, local_path AS localPath,
-      is_git_repository AS isGitRepository, current_branch AS currentBranch, sort_order AS sortOrder FROM project_sources WHERE project_id = ? ORDER BY sort_order`)
+      is_git_repository AS isGitRepository, current_branch AS currentBranch, NULLIF(base_branch, '') AS baseBranch, sort_order AS sortOrder FROM project_sources WHERE project_id = ? ORDER BY sort_order`)
     // Sidebar: chats with an agent working (any step, including free chat and Constitution) and cards whose last run
     // (planning, implementation or test) finished after the last time the user opened the card.
     const running = this.database.db.prepare(`SELECT COUNT(DISTINCT r.chat_id) AS n FROM runs r JOIN chats c ON c.id = r.chat_id WHERE c.project_id = ? AND r.status IN ('queued', 'running')`)
@@ -227,12 +237,12 @@ export class ProjectRepository {
     return project
   }
 
-  async create(input: { name?: string; sourcePaths?: string[]; excludePaths?: string[]; profileIds?: string[]; localPath?: string; baseBranch?: string; icon?: string | null }): Promise<Project> {
+  async create(input: { name?: string; sourcePaths?: string[]; excludePaths?: string[]; baseBranches?: Record<string, string>; profileIds?: string[]; localPath?: string; baseBranch?: string; icon?: string | null }): Promise<Project> {
     const paths = input.sourcePaths ?? (input.localPath ? [input.localPath] : [])
     if (!paths.length) throw new Error(tm().projects.addAtLeastOneFolder)
     const inspections = await Promise.all(paths.map((path) => this.git.inspect(path)))
     const first = inspections[0]!
-    type DiscoveredSource = { localPath: string; name: string; currentBranch: string | null; branches: string[]; isGitRepository: boolean }
+    type DiscoveredSource = { localPath: string; name: string; currentBranch: string | null; branches: string[]; defaultBranch?: string; isGitRepository: boolean }
     const discovered: DiscoveredSource[] = inspections.flatMap<DiscoveredSource>((inspection) => inspection.repositories.length ? inspection.repositories.map((repository) => ({ ...repository, isGitRepository: true })) : [{ localPath: inspection.localPath, name: inspection.name, currentBranch: null, branches: [], isGitRepository: false }])
     // Repositories the user took out in the dialog: they are not registered and, being remembered, the project folder scan does not bring them back.
     const excludePaths = input.excludePaths ?? []
@@ -240,6 +250,11 @@ export class ProjectRepository {
     if (!unique.length) throw new Error(tm().projects.addAtLeastOneFolder)
     const name = input.name?.trim() || first.name
     const baseBranch = input.baseBranch || unique.find((source) => source.isGitRepository)?.currentBranch || ''
+    // Base branch of each repository: the one chosen in the dialog (when it exists there), else the remote's default branch, else the current one.
+    const chosenBase = (source: DiscoveredSource): string | null => {
+      const picked = Object.entries(input.baseBranches ?? {}).find(([path]) => samePath(path, source.localPath))?.[1]
+      return (picked && source.branches.includes(picked) ? picked : null) ?? source.defaultBranch ?? source.currentBranch
+    }
     const selectedProfiles = input.profileIds ?? []
     const now = new Date().toISOString(), id = randomUUID()
     const create = this.database.db.transaction(() => {
@@ -248,9 +263,9 @@ export class ProjectRepository {
       if (input.icon) this.database.db.prepare('UPDATE projects SET icon = ? WHERE id = ?').run(input.icon, id)
       // A new project goes to the top of the sidebar.
       this.database.db.prepare('UPDATE projects SET sort_order = (SELECT COALESCE(MIN(sort_order), 0) - 1 FROM projects WHERE id <> ?) WHERE id = ?').run(id, id)
-      const insertSource = this.database.db.prepare(`INSERT INTO project_sources(id, project_id, name, local_path, is_git_repository, current_branch, sort_order)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      unique.forEach((source, index) => insertSource.run(randomUUID(), id, source.name, source.localPath, source.isGitRepository ? 1 : 0, source.currentBranch, index))
+      const insertSource = this.database.db.prepare(`INSERT INTO project_sources(id, project_id, name, local_path, is_git_repository, current_branch, base_branch, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      unique.forEach((source, index) => insertSource.run(randomUUID(), id, source.name, source.localPath, source.isGitRepository ? 1 : 0, source.currentBranch, source.isGitRepository ? chosenBase(source) : null, index))
       for (const path of excludePaths) if (discovered.some((source) => samePath(source.localPath, path))) this.database.db.prepare('INSERT OR IGNORE INTO project_excluded_repos(project_id, local_path) VALUES (?, ?)').run(id, path)
       const insertColumn = this.database.db.prepare(`INSERT INTO board_columns(id, project_id, label, sort_order, semantic_state, is_default)
         VALUES (?, ?, ?, ?, ?, 1)`)
@@ -274,11 +289,11 @@ export class ProjectRepository {
     if (!fresh.length) throw new Error(tm().projects.repositoriesAlreadyInProject)
     this.database.db.transaction(() => {
       let order = (this.database.db.prepare('SELECT COALESCE(MAX(sort_order), -1) FROM project_sources WHERE project_id = ?').pluck().get(projectId) as number) + 1
-      const insert = this.database.db.prepare(`INSERT INTO project_sources(id, project_id, name, local_path, is_git_repository, current_branch, sort_order) VALUES (?, ?, ?, ?, 1, ?, ?)`)
+      const insert = this.database.db.prepare(`INSERT INTO project_sources(id, project_id, name, local_path, is_git_repository, current_branch, base_branch, sort_order) VALUES (?, ?, ?, ?, 1, ?, ?, ?)`)
       const lift = this.database.db.prepare('DELETE FROM project_excluded_repos WHERE project_id = ? AND local_path = ?')
       const excluded = this.database.db.prepare('SELECT local_path FROM project_excluded_repos WHERE project_id = ?').pluck().all(projectId) as string[]
       for (const repository of fresh) {
-        insert.run(randomUUID(), projectId, repository.name, repository.localPath, repository.currentBranch, order++)
+        insert.run(randomUUID(), projectId, repository.name, repository.localPath, repository.currentBranch, repository.defaultBranch, order++)
         for (const path of excluded) if (samePath(path, repository.localPath)) lift.run(projectId, path)
       }
       this.database.db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), projectId)
@@ -324,11 +339,23 @@ export class ProjectRepository {
     return this.get(input.projectId)
   }
 
+  /** Base branch of one repository: where new card worktrees start from (always its latest version). */
+  async setSourceBase(projectId: string, sourceId: string, branch: string): Promise<Project> {
+    const source = this.get(projectId).sources.find((item) => item.id === sourceId && item.isGitRepository)
+    if (!source) throw new Error(tm().projects.gitRepoNotInProject)
+    await this.git.validate(source.localPath, branch)
+    this.database.db.prepare('UPDATE project_sources SET base_branch = ? WHERE id = ?').run(branch, sourceId)
+    this.database.db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), projectId)
+    return this.get(projectId)
+  }
+
   async setBaseBranch(projectId: string, sourceId: string, branch: string): Promise<Project> {
     const source = this.get(projectId).sources.find((item) => item.id === sourceId && item.isGitRepository)
     if (!source) throw new Error(tm().projects.gitRepoNotInProject)
     await this.git.validate(source.localPath, branch)
     this.database.db.prepare('UPDATE projects SET base_branch = ?, updated_at = ? WHERE id = ?').run(branch, new Date().toISOString(), projectId)
+    // The SDD repository's base branch is also its base in the Git tab.
+    this.database.db.prepare('UPDATE project_sources SET base_branch = ? WHERE id = ?').run(branch, sourceId)
     return this.get(projectId)
   }
 

@@ -65,6 +65,7 @@ describe('repositories of a project', () => {
     const board = new BoardRepository(database, projects), column = board.get(project.id).columns[0]!
     const [first, second] = [...project.sources].sort((a, b) => a.name.localeCompare(b.name))
     const busy = board.create({ projectId: project.id, columnId: column.id, sourceId: first!.id, title: 'Busy', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
+    board.setRepos(busy.id, [first!.id])  // without a choice, the worktree would take every repository
     await new WorktreeService(database, join(root, 'data')).prepare(busy.id)
     expect(() => projects.removeRepository(project.id, first!.id)).toThrow(/Busy/)
     const other = board.create({ projectId: project.id, columnId: column.id, sourceId: second!.id, title: 'Other', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
