@@ -1,6 +1,6 @@
 import { machineInfo, recommendedConcurrency } from './capacity'
 import { homedir } from 'node:os'
-import { systemDocumentKinds, ipcContracts, type AppLanguage, type VoiceModel, type AppTheme, type AgentConfig, type AgentPurpose, type GitPolicy, type CardDocumentKind, type IpcChannel, type IpcOutput } from '@gearmod/contracts'
+import { systemDocumentKinds, ipcContracts, type AppSettings, type AgentConfig, type AgentPurpose, type GitPolicy, type CardDocumentKind, type IpcChannel, type IpcOutput } from '@gearmod/contracts'
 import type { PopoutTarget, WindowPlacement } from './windows'
 import type { TerminalService } from './terminals'
 import type { BackupService } from './backup'
@@ -325,7 +325,7 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
       return { restored: true as const }
     },
     'settings:get': () => services.settings.get(),
-    'settings:update': (input: { tema?: AppTheme; idioma?: AppLanguage; voz?: VoiceModel; execucoesSimultaneas?: number | null }) => { const updated = services.settings.update(input); setMainLocale(updated.idioma); services.orchestrator.refill(); return updated },
+    'settings:update': (input: Partial<AppSettings>) => { const updated = services.settings.update(input); setMainLocale(updated.idioma); services.orchestrator.refill(); return updated },
     'profiles:list': () => services.profiles.list(),
     'profiles:create': (input: { provider: 'codex' | 'claude' | 'gemini'; label: string; scope: string; color?: string }) => services.profiles.create(input),
     'profiles:update': (input: { profileId: string; label: string; scope: string; color?: string; billingMode?: 'subscription' | 'api' | 'credits' | 'unknown' }) => services.profiles.update(input),

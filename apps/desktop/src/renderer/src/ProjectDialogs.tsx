@@ -1,6 +1,6 @@
 import { providerLabels } from '@gearmod/contracts'
 import React, { useEffect, useState } from 'react'
-import type { AgentConfig, AgentProbe, AgentProfile, AppTheme, Project, ProjectInspection } from '@gearmod/contracts'
+import type { AgentConfig, AgentProbe, AgentProfile, ThemeRef, Project, ProjectInspection } from '@gearmod/contracts'
 import { AgentIcon } from './AgentIcon'
 import { GitMenu } from './BranchMenu'
 import { FolderGlyph } from './icons'
@@ -115,7 +115,9 @@ export function ProjectConfigDialog({ project, profiles, saved, renamed, openCon
     find(); return () => window.clearTimeout(timer)
   }, [initialFocus])
   const t = useT(), tp = t.settings.project
-  const [tab, setTab] = useState<'general' | 'git' | 'workflow' | 'sdd' | 'tests' | 'tools' | 'theme' | 'constitution' | 'skills' | 'mcp'>(initialTab ?? 'general'), [name, setName] = useState(project.name), [icon, setIcon] = useState(project.icon), [allowed, setAllowed] = useState(project.allowedProfileIds), [editingName, setEditingName] = useState(false), [saveState, setSaveState] = useState<'idle' | 'waiting' | 'saving' | 'saved'>('idle'), [error, setError] = useState(''), [ownTheme, setOwnTheme] = useState<AppTheme | null>(() => projectTheme(project.id)), [probes, setProbes] = useState<Record<string, AgentProbe>>({})
+  const [tab, setTab] = useState<'general' | 'git' | 'workflow' | 'sdd' | 'tests' | 'tools' | 'theme' | 'constitution' | 'skills' | 'mcp'>(initialTab ?? 'general'), [name, setName] = useState(project.name), [icon, setIcon] = useState(project.icon), [allowed, setAllowed] = useState(project.allowedProfileIds), [editingName, setEditingName] = useState(false), [saveState, setSaveState] = useState<'idle' | 'waiting' | 'saving' | 'saved'>('idle'), [error, setError] = useState(''), [ownTheme, setOwnTheme] = useState<ThemeRef | null>(null), [probes, setProbes] = useState<Record<string, AgentProbe>>({})
+  // The custom themes decide whether the project's `custom:<id>` still exists, so the saved choice is read once they are loaded.
+  useEffect(() => { void window.gearmod.invoke('settings:get', undefined).then((current) => setOwnTheme(projectTheme(project.id, current.temasPersonalizados))).catch(() => setOwnTheme(projectTheme(project.id))) }, [project.id])
   const toolsPending = useToolsPending(project.id)
   const savedIdentity = React.useRef({ name: project.name, icon: project.icon }), identity = React.useRef({ name, icon }), saveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null), saveQueue = React.useRef<Promise<void>>(Promise.resolve()), profileQueue = React.useRef<Promise<boolean>>(Promise.resolve(true)), saveVersion = React.useRef(0), profileVersion = React.useRef(0), closing = React.useRef(false)
   identity.current = { name, icon }

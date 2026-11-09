@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useFloatingMenu } from './useFloatingMenu'
 import { isOutdated, useLatestVersions } from './toolUpdates'
-import { agentColorPalette, defaultAgentColor, type AgentProbe, type AgentProfile, type AppLanguage, type AppSettings, type AppTheme, type VoiceModel } from '@gearmod/contracts'
+import { agentColorPalette, defaultAgentColor, type AgentProbe, type AgentProfile, type AppLanguage, type AppSettings, type AppTheme, type CustomTheme, type ThemeRef, type VoiceModel } from '@gearmod/contracts'
 import { AgentIcon, ProviderLogo } from './AgentIcon'
 import { NoticeDialog, plainError } from './NoticeDialog'
 import { SkillsPanel } from './SkillsPanel'
@@ -19,6 +19,8 @@ import { Select } from './Select'
 import { useEscape } from './useEscape'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Switch } from './Switch'
+import { ThemeCustomizerDialog } from './ThemeCustomizerDialog'
+import { applyThemeToRoot, customRef, deriveAccentVars, findCustomTheme, maxCustomThemes } from './customTheme'
 import { setGravatarEnabled } from './gravatarSetting'
 import { DefaultCardTypes } from './CardTypes'
 import { AgentLoginDialog } from './AgentLoginDialog'
@@ -44,17 +46,17 @@ export const themes: ReadonlyArray<{ value: AppTheme; mode: 'dark' | 'light'; sw
 ]
 const languages: ReadonlyArray<{ value: AppLanguage; label: string }> = [{ value: 'pt-BR', label: 'Português (Brasil)' }, { value: 'en', label: 'English' }]
 
-export function applyTheme(theme: AppTheme): void {
-  document.documentElement.dataset.accent = theme
-  const light = theme.startsWith('light-')
-  document.documentElement.dataset.theme = light ? 'light' : 'dark'
+export const settingsChangedEvent = 'gearmod:settings-changed'
+
+export function applyTheme(theme: ThemeRef, customThemes: readonly CustomTheme[] = []): void {
+  const light = applyThemeToRoot(document.documentElement, theme, customThemes)
   void window.gearmod.invoke('app:set-titlebar-theme', { light }).catch(() => undefined)
 }
 
 export function applySettings(settings: AppSettings): void {
-  applyTheme(settings.tema)
+  applyTheme(settings.tema, settings.temasPersonalizados)
   // The window, taskbar and tray icons follow the app theme (a project theme only changes the inside of the app).
-  const accent = themes.find((theme) => theme.value === settings.tema)?.swatches[0]
+  const accent = findCustomTheme(settings.tema, settings.temasPersonalizados)?.cor ?? themes.find((theme) => theme.value === settings.tema)?.swatches[0]
   if (accent) void window.gearmod.invoke('app:set-brand-color', { color: accent }).catch(() => undefined)
   setLocale(settings.idioma)
 }
@@ -171,11 +173,21 @@ const item = (provider: 'codex' | 'claude' | 'gemini'): string => (providerLabel
 // Gemini is hidden when creating an agent: the CLI's personal login was discontinued by Google. Gemini agents already created keep working.
 const newAgentProviders = ['claude', 'codex'] as const
 
-/** Project theme: shows only the chosen one; on click opens the list with each theme's colors. Applies immediately, for this project only. */
-export function ThemePicker({ value, onChange, project = false }: { value: AppTheme | null; onChange(value: AppTheme | null): void; project?: boolean }): React.JSX.Element {
-  const t = useT(), tp = t.settings.themePicker
+/**
+ * Theme picker: shows only the chosen one; on click opens the list with each theme's colors. "Customize theme…" is always the first option;
+ * custom themes (create, edit, delete) come before the presets. Applies immediately (for a project, only to that project).
+ */
+export function ThemePicker({ value, onChange, project = false }: { value: ThemeRef | null; onChange(value: ThemeRef | null): void; project?: boolean }): React.JSX.Element {
+  const t = useT(), tp = t.settings.themePicker, tc = t.settings.themeCustom
   const [open, setOpen] = useState(false), root = React.useRef<HTMLDivElement>(null), button = React.useRef<HTMLButtonElement>(null), list = React.useRef<HTMLDivElement>(null)
+  const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]), [editing, setEditing] = useState<CustomTheme | 'new'>(), [removing, setRemoving] = useState<CustomTheme>(), [error, setError] = useState('')
   const box = useFloatingMenu(open, button)
+  useEffect(() => {
+    void window.gearmod.invoke('settings:get', undefined).then((current) => setCustomThemes(current.temasPersonalizados)).catch(() => undefined)
+    const again = (event: Event): void => setCustomThemes((event as CustomEvent<AppSettings>).detail.temasPersonalizados)
+    window.addEventListener(settingsChangedEvent, again)
+    return () => window.removeEventListener(settingsChangedEvent, again)
+  }, [])
   useEffect(() => {
     if (!open) return
     const away = (event: MouseEvent): void => { if (!root.current?.contains(event.target as Node) && !list.current?.contains(event.target as Node)) setOpen(false) }
@@ -183,15 +195,42 @@ export function ThemePicker({ value, onChange, project = false }: { value: AppTh
     return () => document.removeEventListener('mousedown', away)
   }, [open])
   useEscape(() => setOpen(false), open)
-  const current = themes.find((theme) => theme.value === value)
+  const persist = async (next: CustomTheme[]): Promise<void> => {
+    const updated = await window.gearmod.invoke('settings:update', { temasPersonalizados: next })
+    setCustomThemes(updated.temasPersonalizados)
+    window.dispatchEvent(new CustomEvent(settingsChangedEvent, { detail: updated }))
+  }
+  const saveCustom = async (theme: CustomTheme): Promise<void> => {
+    await persist(customThemes.some((item) => item.id === theme.id) ? customThemes.map((item) => item.id === theme.id ? theme : item) : [...customThemes, theme])
+    onChange(customRef(theme.id))
+  }
+  const removeCustom = async (theme: CustomTheme): Promise<void> => {
+    setRemoving(undefined)
+    try {
+      setError('')
+      await persist(customThemes.filter((item) => item.id !== theme.id))
+      if (value === customRef(theme.id)) onChange(project ? null : 'green')
+    } catch (reason) { setError(plainError(reason)); toast.error(plainError(reason)) }
+  }
+  const currentCustom = findCustomTheme(value, customThemes), current = themes.find((theme) => theme.value === value)
+  const customSwatches = (theme: CustomTheme): string[] => { const vars = deriveAccentVars(theme.cor, theme.modo); return [vars['--accent'], vars['--accent-line'], vars['--accent-deep']] }
   const face = (label: string, swatches?: readonly string[]): React.JSX.Element => <><span className="sw3">{swatches ? swatches.map((color) => <i key={color} style={{ background: color }} />) : <i className="auto" />}</span><span className="tn">{label}</span></>
   return <div className="f themepick" ref={root}><span>{tp.title}</span>
-    <button ref={button} type="button" className="themetrigger" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)}>{face(current ? t.settings.themeNames[current.value] : tp.appDefault, current?.swatches)}<span className="chev">▾</span></button>
+    <button ref={button} type="button" className="themetrigger" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)}>{currentCustom ? face(currentCustom.nome, customSwatches(currentCustom)) : face(current ? t.settings.themeNames[current.value] : tp.appDefault, current?.swatches)}<span className="chev">▾</span></button>
     {open && box && createPortal(<div ref={list} className="themelist floating-select-list" role="listbox" style={box} onClick={(event) => event.stopPropagation()} aria-label={project ? tp.projectAria : tp.appAria}>
+      <button type="button" role="option" aria-selected={false} onClick={() => { setOpen(false); setEditing('new') }}>{face(tc.customize)}</button>
       {project && <button type="button" role="option" aria-selected={value === null} className={value === null ? 'on' : ''} onClick={() => { onChange(null); setOpen(false) }}>{face(tp.appDefault)}</button>}
+      {customThemes.map((theme) => <div className="customrow" key={theme.id}>
+        <button type="button" role="option" aria-selected={value === customRef(theme.id)} className={value === customRef(theme.id) ? 'on' : ''} onClick={() => { onChange(customRef(theme.id)); setOpen(false) }}>{face(theme.nome, customSwatches(theme))}</button>
+        <button type="button" className="ibtn" data-tip={tc.edit} aria-label={`${tc.edit}: ${theme.nome}`} onClick={() => { setOpen(false); setEditing(theme) }}>✎</button>
+        <button type="button" className="ibtn" data-tip={tc.remove} aria-label={`${tc.remove}: ${theme.nome}`} onClick={() => { setOpen(false); setRemoving(theme) }}>×</button>
+      </div>)}
       {themes.map((theme) => <button type="button" role="option" aria-selected={value === theme.value} key={theme.value} className={value === theme.value ? 'on' : ''} onClick={() => { onChange(theme.value); setOpen(false) }}>{face(t.settings.themeNames[theme.value], theme.swatches)}</button>)}
     </div>, document.body)}
     <small className="hint">{project ? tp.projectHint : tp.appHint}</small>
+    {error && <small className="error" role="alert">{error}</small>}
+    {editing && <ThemeCustomizerDialog theme={editing === 'new' ? undefined : editing} atLimit={customThemes.length >= maxCustomThemes} close={() => setEditing(undefined)} save={saveCustom} />}
+    {removing && <ConfirmDialog eyebrow={tc.eyebrow} title={tc.removeTitle(removing.nome)} text={tc.removeText} ok={tc.remove} danger cancel={() => setRemoving(undefined)} confirm={() => void removeCustom(removing)} />}
   </div>
 }
 

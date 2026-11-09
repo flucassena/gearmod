@@ -9,7 +9,7 @@ import { CollapseIcon, ExpandIcon, MinimizeIcon } from './icons'
 
 /** Small terminal showing a program run by the app (login, update); the user can type when the CLI asks something. */
 function MiniTerminal({ id, hidden, exited }: { id: string; hidden: boolean; exited(code: number): void }): React.JSX.Element {
-  const [background] = useState(() => terminalTheme().theme.background)
+  const [background, setBackground] = useState(() => terminalTheme().theme.background)
   const box = useRef<HTMLDivElement>(null), fit = useRef<FitAddon | null>(null), screen = useRef<Terminal | null>(null), ended = useRef(exited)
   ended.current = exited
   useEffect(() => {
@@ -20,6 +20,9 @@ function MiniTerminal({ id, hidden, exited }: { id: string; hidden: boolean; exi
     // Link printed by the CLI (if the browser did not open by itself): one click opens it.
     xterm.loadAddon(new WebLinksAddon((_event, uri) => { void window.gearmod.invoke('app:open-link', { url: uri }).catch(() => undefined) }))
     xterm.open(container); screen.current = xterm; fit.current = addon
+    // Theme change (preset, custom or light/dark): the terminal repaints, like the main terminal panel.
+    const repaint = (): void => { const next = terminalTheme(); xterm.options.theme = next.theme; setBackground(next.theme.background) }
+    const themes = new MutationObserver(repaint); themes.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style', 'class'] })
     let seq = 0, ready = false
     const queued: Array<{ data: string; seq: number }> = []
     const stop = window.gearmod.onRunEvent((event) => {
@@ -39,7 +42,7 @@ function MiniTerminal({ id, hidden, exited }: { id: string; hidden: boolean; exi
     const input = xterm.onData((data) => { void window.gearmod.invoke('terminal:write', { id, data }).catch(() => undefined) })
     const resize = (): void => { if (!container.clientWidth || !container.clientHeight) return; addon.fit(); void window.gearmod.invoke('terminal:resize', { id, cols: Math.max(2, xterm.cols), rows: Math.max(2, xterm.rows) }).catch(() => undefined) }
     const observer = new ResizeObserver(resize); observer.observe(container); resize()
-    return () => { observer.disconnect(); stop(); input.dispose(); xterm.dispose(); screen.current = null; fit.current = null }
+    return () => { themes.disconnect(); observer.disconnect(); stop(); input.dispose(); xterm.dispose(); screen.current = null; fit.current = null }
   }, [id])
   useEffect(() => { if (!hidden) window.setTimeout(() => { fit.current?.fit(); screen.current?.focus() }, 0) }, [hidden])
   return <div ref={box} className="agent-login-term" style={{ display: hidden ? 'none' : undefined, background }} />

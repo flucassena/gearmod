@@ -682,7 +682,7 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 
 /* ---- agent working: animated atom, verb, time and typing ---- */
 .thinking{display:flex;align-items:center;gap:9px;padding:4px 0;color:color-mix(in srgb, var(--accent) 8%, var(--g9b));font-size:13.5px}
-.brandmark{flex:none;display:block;background:var(--accent);-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.brandmark{flex:none;display:block;background:var(--accent);-webkit-mask:center/contain no-repeat;mask:center/contain no-repeat}
 .thinking .tverb{background:linear-gradient(90deg,color-mix(in srgb, var(--accent) 8%, var(--g79)) 0%,color-mix(in srgb, var(--accent) 8%, var(--gec)) 50%,color-mix(in srgb, var(--accent) 8%, var(--g79)) 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shimmer 2.2s linear infinite}
 @keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
 .thinking .tmeta{color:color-mix(in srgb, var(--accent) 8%, var(--g5e));font-variant-numeric:tabular-nums;font-size:12.5px}
@@ -3297,3 +3297,8 @@ body:has(.overlay) .viewdock.floating{display:none}
 .cxside-rows{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:12px;align-items:baseline}.cxside-rows span,.cxside-rows em{color:var(--muted)}
 .cxside-rows b.diff{color:var(--warn)}.cxside-rows b.ok{color:var(--cf-8fdcaa)}
 .cxside-more{justify-self:start;font-size:12px}
+.themecolor{display:flex;gap:8px;align-items:center}.themecolor input[type=color]{width:40px;height:34px;padding:2px;border-radius:8px;border:1px solid var(--border);background:transparent}.themecolor .in{width:120px}
+.themepreview{border-radius:10px;padding:12px}.themepreview-btn{display:inline-block;padding:4px 10px;border-radius:7px;font-size:12px;font-weight:600}
+.themelist{overflow-x:hidden}.themelist button{justify-content:flex-start}.themelist .customrow{display:flex;align-items:center;gap:4px;min-width:0}.themelist .customrow>button:first-child{flex:1;width:auto;min-width:0}.themelist .customrow .ibtn{flex:none;width:30px;height:30px;padding:0;justify-content:center}
+.themecustom-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}.themecustom-preview .themepreview{min-height:150px}
+@media (max-width:640px){.themecustom-body{grid-template-columns:1fr}}

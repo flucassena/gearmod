@@ -106,8 +106,12 @@ export const voiceModelSchema = z.enum(['small', 'large-v3-turbo', 'groq'])
 /** `idioma`: language of the interface and of what the agents write. */
 /** `execucoesSimultaneas`: how many agents run at the same time; `null` = not chosen yet, the hardware-computed recommendation applies. */
 export const concurrencyLimitSchema = z.number().int().min(1).max(16)
-export const appSettingsSchema = z.object({ tema: themeSchema, idioma: languageSchema, voz: voiceModelSchema, notificacoes: z.boolean(), retomarSozinho: z.boolean(), fotosGravatar: z.boolean(), execucoesSimultaneas: concurrencyLimitSchema.nullable() })
-export const updateAppSettingsInputSchema = z.object({ tema: themeSchema.optional(), idioma: languageSchema.optional(), voz: voiceModelSchema.optional(), notificacoes: z.boolean().optional(), retomarSozinho: z.boolean().optional(), fotosGravatar: z.boolean().optional(), execucoesSimultaneas: concurrencyLimitSchema.nullable().optional() }).strict()
+export const customThemeSchema = z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/), nome: z.string().trim().min(1).max(40), cor: z.string().regex(/^#[0-9a-fA-F]{6}$/), modo: z.enum(['light', 'dark']) }).strict()
+/** Reference to a theme: a built-in preset or `custom:<id>` of a user-made theme. */
+export const themeRefSchema = z.union([themeSchema, z.string().regex(/^custom:[A-Za-z0-9_-]{1,64}$/)])
+export const customThemesSchema = z.array(customThemeSchema).max(20)
+export const appSettingsSchema = z.object({ tema: themeRefSchema, temasPersonalizados: customThemesSchema, idioma: languageSchema, voz: voiceModelSchema, notificacoes: z.boolean(), retomarSozinho: z.boolean(), fotosGravatar: z.boolean(), execucoesSimultaneas: concurrencyLimitSchema.nullable() })
+export const updateAppSettingsInputSchema = z.object({ tema: themeRefSchema.optional(), temasPersonalizados: customThemesSchema.optional(), idioma: languageSchema.optional(), voz: voiceModelSchema.optional(), notificacoes: z.boolean().optional(), retomarSozinho: z.boolean().optional(), fotosGravatar: z.boolean().optional(), execucoesSimultaneas: concurrencyLimitSchema.nullable().optional() }).strict()
 export const runCapacitySchema = z.object({ active: z.number(), queued: z.number(), limit: z.number(), recommended: z.number(), cores: z.number(), memoryGb: z.number() })
 export const voiceStatusSchema = z.object({ model: voiceModelSchema, cloud: z.boolean(), modelInstalled: z.boolean(), engineInstalled: z.boolean(), canInstallEngine: z.boolean(), sizeMb: z.number(), downloading: z.object({ item: z.enum(['programa', 'modelo']), received: z.number(), total: z.number().nullable() }).nullable() })
 export type VoiceModel = z.infer<typeof voiceModelSchema>
@@ -761,6 +765,8 @@ export type GitCardRepo = z.output<typeof gitCardRepoSchema>
 export type Note = z.output<typeof noteSchema>
 export type BackupSummary = z.output<typeof backupSummarySchema>
 export type AppTheme = z.output<typeof themeSchema>
+export type CustomTheme = z.output<typeof customThemeSchema>
+export type ThemeRef = z.output<typeof themeRefSchema>
 export type AppLanguage = z.output<typeof languageSchema>
 export type AppSettings = z.output<typeof appSettingsSchema>
 export type AgentProfile = z.output<typeof agentProfileSchema>

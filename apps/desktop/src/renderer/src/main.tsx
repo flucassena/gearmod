@@ -7,7 +7,7 @@ import './prototype.css'
 import { installCloseOnScroll } from './closeOnScroll'
 import { Board } from './Board'
 import { ProjectAgentsDialog, ProjectConfigDialog, ProjectDialog } from './ProjectDialogs'
-import { AgentDialog, applySettings, applyTheme, SettingsDialog } from './SettingsDialog'
+import { AgentDialog, applySettings, applyTheme, SettingsDialog, settingsChangedEvent } from './SettingsDialog'
 import { markInviteSeen, readInviteSeen, shouldInviteAgent } from './agentLogin'
 import { RunLimitPrompt } from './RunLimitPrompt'
 import { projectTheme, projectThemeEvent } from './projectTheme'
@@ -36,7 +36,7 @@ import type { FileChange } from './changes'
 import { markPlatform } from './platform'
 import { hasAttachmentTarget, hasCommentTarget, queueContextFile, queueContextText } from './Attachments'
 
-const defaultSettings: AppSettings = { tema: 'green', idioma: 'pt-BR', voz: 'small', notificacoes: true, retomarSozinho: true, fotosGravatar: false, execucoesSimultaneas: null }
+const defaultSettings: AppSettings = { tema: 'green', temasPersonalizados: [], idioma: 'pt-BR', voz: 'small', notificacoes: true, retomarSozinho: true, fotosGravatar: false, execucoesSimultaneas: null }
 /** Last project opened in the main window (localStorage: just a local preference). */
 const lastProjectKey = 'gearmod.lastProject'
 
@@ -125,6 +125,7 @@ function App(): React.JSX.Element {
     window.addEventListener('gearmod:open-file', open); window.addEventListener('gearmod:open-changes', changes)
     return () => { window.removeEventListener('gearmod:open-file', open); window.removeEventListener('gearmod:open-changes', changes); window.removeEventListener('gearmod:open-project-config', config) }
   }, [])
+  useEffect(() => { const again = (event: Event): void => setSettings((event as CustomEvent<AppSettings>).detail); window.addEventListener(settingsChangedEvent, again); return () => window.removeEventListener(settingsChangedEvent, again) }, [])
   useEffect(() => { void window.gearmod.invoke('settings:get', undefined).then(setSettings).catch((e: unknown) => setError(plainError(e))) }, [])
   // First visit to a project with no agent: invites the user to add one (the new-project dialog already covers a just-created project).
   useEffect(() => {
@@ -135,7 +136,7 @@ function App(): React.JSX.Element {
   const [themeTick, setThemeTick] = useState(0)
   useEffect(() => { const again = (): void => setThemeTick((value) => value + 1); window.addEventListener(projectThemeEvent, again); return () => window.removeEventListener(projectThemeEvent, again) }, [])
   // Global theme in settings; each project can have its own (Configure project > General) and it applies while that project is open.
-  useEffect(() => { applySettings(settings); const own = projectTheme(selected); if (own) applyTheme(own) }, [settings, selected, themeTick])
+  useEffect(() => { applySettings(settings); const own = projectTheme(selected, settings.temasPersonalizados); if (own) applyTheme(own, settings.temasPersonalizados) }, [settings, selected, themeTick])
   useEffect(() => { void reloadProjects().catch((e: unknown) => setError(plainError(e))) }, [])
   // The main window remembers the last opened project: when reloading or reopening the app, it goes back to it (if it still exists).
   const restoredProject = useRef(false)
