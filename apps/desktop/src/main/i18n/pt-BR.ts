@@ -279,6 +279,8 @@ export const ptBR = {
     constitutionLocationChanged: 'A localização da Constitution mudou; solicite uma nova proposta',
     constitutionChanged: 'A Constitution mudou desde a proposta; negue e solicite uma nova revisão.',
     chooseSddMethodBeforeApproving: 'Escolha o método SDD do card antes de aprovar.',
+    workflowApprovedNotice: 'Fluxo aprovado. O agente continua o planejamento.',
+    workflowApprovedPrompt: (label: string) => `O usuário aprovou o fluxo ${label} no card. Continue o planejamento seguindo esse fluxo, sem pedir de novo.`,
     externalOpenUnavailable: 'Abertura externa indisponível',
     chatUnavailable: 'Chat indisponível',
     chooseFileToAttach: 'Escolha um arquivo para anexar',

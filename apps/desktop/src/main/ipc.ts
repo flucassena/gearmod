@@ -246,6 +246,13 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
           const method = approval.payload.method === 'native' || approval.payload.method === 'speckit' ? approval.payload.method : undefined
           if (workflow === 'sdd' && !method) throw new Error(tm().ipc.chooseSddMethodBeforeApproving)
           services.history.selectWorkflow(approval.cardId, workflow, { actor: 'user' }, typeof approval.payload.reason === 'string' ? approval.payload.reason : '', 'user', method)
+          // The agent stopped waiting for this decision: it continues on its own in the chat that asked (when that chat is idle).
+          const chatId = approval.runId ? services.database.db.prepare('SELECT chat_id FROM runs WHERE id = ?').pluck().get(approval.runId) as string | undefined : undefined
+          const idle = chatId && !services.database.db.prepare(`SELECT 1 FROM runs WHERE chat_id = ? AND status IN ('queued', 'running') LIMIT 1`).get(chatId)
+          if (chatId && idle) {
+            const label = workflow === 'sdd' ? `SDD (${method === 'speckit' ? 'GitHub Spec Kit' : 'GearMod'})` : workflow === 'spec' ? 'Spec' : 'curto'
+            try { services.orchestrator.start({ chatId, prompt: tm().ipc.workflowApprovedPrompt(label), planning: true, notice: tm().ipc.workflowApprovedNotice, automatic: true }) } catch { /* the user can still continue by writing in the chat */ }
+          }
         }
       }
       // S05: approving an agent move request applies the move now, still subject to the Done gate (skipGate stays false).

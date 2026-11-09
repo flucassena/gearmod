@@ -280,6 +280,8 @@ export const en: typeof ptBR = {
     constitutionLocationChanged: 'The Constitution location changed; request a new proposal',
     constitutionChanged: 'The Constitution changed since the proposal; deny it and request a new review.',
     chooseSddMethodBeforeApproving: 'Choose the card\'s SDD method before approving.',
+    workflowApprovedNotice: 'Workflow approved. The agent continues the planning.',
+    workflowApprovedPrompt: (label: string) => `The user approved the ${label} workflow on the card. Continue the planning following that workflow, without asking again.`,
     externalOpenUnavailable: 'External open unavailable',
     chatUnavailable: 'Chat unavailable',
     chooseFileToAttach: 'Choose a file to attach',
