@@ -384,6 +384,7 @@ export const chat: typeof source = {
   },
   chatsPage: {
     freeChat: 'Free chat',
+    conflict: 'Conflict',
     constitution: 'Constitution',
     now: 'now',
     minutesAgo: (n: number) => `${n} min ago`,

@@ -236,7 +236,7 @@ export const agentProbeSchema = z.object({
   error: z.string().nullable(), account: z.string().nullable()
 })
 /** `constitution`: project chat (no card) that writes the Constitution. */
-export const chatPurposeSchema = z.union([agentPurposeSchema, z.literal('free'), z.literal('constitution')])
+export const chatPurposeSchema = z.union([agentPurposeSchema, z.literal('free'), z.literal('constitution'), z.literal('conflict')])
 export const chatSchema = z.object({ id: uuid, projectId: uuid, cardId: uuid.nullable(), purpose: chatPurposeSchema, title: z.string().nullable(), busy: z.boolean(), provider: z.enum(['codex', 'claude', 'gemini']), profileId: uuid, providerSessionId: z.string().nullable(), skill: skillRefSchema.nullable(), createdAt: isoDate, updatedAt: isoDate })
 /** Project Constitution: principles that apply to every card. Optional; `version` 0 = does not exist yet. */
 export const constitutionSchema = z.object({ projectId: uuid, contentMd: z.string(), version: z.number().int().nonnegative(), updatedAt: isoDate.nullable(), updatedBy: z.enum(['user', 'agent', 'system']).nullable() })
@@ -608,6 +608,7 @@ export const ipcContracts = {
   , 'git-accounts:set': { input: z.object({ projectId: uuid, sourceId: uuid.optional(), provider: z.enum(['github', 'gitlab']), host: z.string().trim().min(1).max(253).regex(/^[a-z0-9.-]+(:[0-9]{1,5})?$/i), token: z.string().trim().min(1).max(500) }).strict(), output: gitAccountsStateSchema }
   , 'git-accounts:remove': { input: z.object({ projectId: uuid, sourceId: uuid.optional(), host: z.string().trim().min(1).max(253) }).strict(), output: gitAccountsStateSchema }
   , 'prs:list': { input: z.object({ sourceId: uuid }).strict(), output: pullRequestListSchema }
+  , 'prs:default-base': { input: z.object({ sourceId: uuid }).strict(), output: z.object({ branch: z.string().nullable() }) }
   , 'prs:view': { input: z.object({ sourceId: uuid, number: z.number().int().positive() }).strict(), output: pullRequestDetailSchema }
   , 'prs:comment': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), body: z.string().trim().min(1).max(20_000) }).strict(), output: z.object({}) }
   , 'prs:review': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), action: z.enum(['approve', 'request-changes', 'comment']), body: z.string().max(20_000) }).strict(), output: z.object({}) }
@@ -705,6 +706,7 @@ export const ipcContracts = {
   , 'git:stash-detail': { input: z.object({ ...gitTarget, ref: z.string().regex(/^stash@\{\d+\}$/), commit: z.string().regex(/^[0-9a-f]{40,64}$/) }).strict(), output: z.object({ files: z.array(gitCommitFileSchema) }) }
   , 'git:stash-rename': { input: z.object({ ...gitTarget, ref: z.string().regex(/^stash@\{\d+\}$/), commit: z.string().regex(/^[0-9a-f]{40,64}$/), message: z.string().trim().min(1).max(500) }).strict(), output: z.object({ ref: z.string(), commit: z.string() }) }
   , 'git:conflicts': { input: z.object({ sourceId: uuid, cardId: uuid.nullable().optional() }).strict(), output: z.object({ operation: z.enum(['merge', 'rebase', 'cherry-pick', 'revert']).nullable(), files: z.array(z.string()) }) }
+  , 'git:conflict-ai': { input: z.object({ sourceId: uuid, cardId: uuid.nullable().optional(), path: z.string().min(1).max(1000), profileId: uuid, model: z.string().trim().max(120).nullable().optional(), effort: effortSchema.nullable().optional() }).strict(), output: z.object({ chatId: uuid, runId: uuid }) }
   , 'git:conflict-file': { input: z.object({ sourceId: uuid, cardId: uuid.nullable().optional(), path: z.string().min(1).max(1000) }).strict(), output: z.string() }
   , 'git:conflict-save': { input: z.object({ sourceId: uuid, cardId: uuid.nullable().optional(), path: z.string().min(1).max(1000), content: z.string().max(2_000_000) }).strict(), output: z.object({ left: z.number().int() }) }
   , 'git:conflicts-all': { input: z.object({ projectId: uuid }).strict(), output: z.array(z.object({ sourceId: uuid, cardId: uuid.nullable(), repo: z.string(), cardTitle: z.string().nullable(), operation: z.enum(['merge', 'rebase', 'cherry-pick', 'revert']), files: z.array(z.string()) })) }

@@ -150,6 +150,7 @@ export const ptBR = {
     cannotDeleteCurrentBranch: 'Não dá para apagar a branch atual.',
     invalidName: 'Nome inválido.',
     fileNotInConflict: 'Este arquivo não está em conflito.',
+    conflictChatTitle: 'Conflito',
     conflictMarkersRemain: 'O arquivo ainda tem marcadores de conflito. Edite e salve antes de marcar como resolvido.',
     noOperationInProgress: 'Não há merge, rebase, cherry-pick ou revert em andamento.',
     invalidStash: 'Stash inválido',

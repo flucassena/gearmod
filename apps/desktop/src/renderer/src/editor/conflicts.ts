@@ -42,7 +42,7 @@ export function findConflicts(text: string): Conflict[] {
 /** Text of the chosen part (each side ends with the line break before the next marker). */
 export const conflictText = (text: string, range: { from: number; to: number }): string => text.slice(range.from, range.to)
 
-export interface ConflictOptions { oursLabel: string; theirsLabel: string; compare?(info: { ours: string; theirs: string; oursLabel: string; theirsLabel: string }): void }
+export interface ConflictOptions { oursLabel: string; theirsLabel: string; /** `false`: no accept/compare buttons above each block (the resolver screen has its own controls). */ actions?: boolean; compare?(info: { ours: string; theirs: string; oursLabel: string; theirsLabel: string }): void }
 type Choice = 'ours' | 'theirs' | 'both'
 
 const conflictField = StateField.define<Conflict[]>({ create: (state) => findConflicts(state.doc.toString()), update: (value, transaction) => transaction.docChanged ? findConflicts(transaction.newDoc.toString()) : value })
@@ -81,7 +81,7 @@ const line = (name: string): Decoration => Decoration.line({ class: name })
 function decorate(state: EditorState, options: ConflictOptions): DecorationSet {
   const ranges = []
   for (const conflict of conflictsIn(state)) {
-    ranges.push(Decoration.widget({ widget: new Actions(options, conflict.from, `${conflict.oursName}|${conflict.theirsName}`), block: true, side: -1 }).range(conflict.from))
+    if (options.actions !== false) ranges.push(Decoration.widget({ widget: new Actions(options, conflict.from, `${conflict.oursName}|${conflict.theirsName}`), block: true, side: -1 }).range(conflict.from))
     const paint = (range: { from: number; to: number }, name: string): void => { let at = range.from; while (at < range.to) { const row = state.doc.lineAt(at); ranges.push(line(name).range(row.from)); at = row.to + 1 } }
     paint(conflict.ours, 'cm-conflict-ours'); if (conflict.base) paint(conflict.base, 'cm-conflict-base'); paint(conflict.theirs, 'cm-conflict-theirs')
     for (const marker of conflict.markers) ranges.push(line('cm-conflict-marker').range(state.doc.lineAt(marker).from))

@@ -1073,6 +1073,13 @@ ${diff}`
   /** Folder where the conflict lives: the project repository or, with `cardId`, the card worktree in that repository. */
   private async conflictDir(sourceId: string, cardId?: string | null, write = true): Promise<string> { return (await (write ? this.busyTarget : this.target).call(this, this.source(sourceId), cardId ?? null)).dir }
 
+  /** Where an agent has to work to resolve a conflicted file: the folder of the repository (or of the card's worktree), plus what the prompt needs. */
+  async conflictAiTarget(sourceId: string, path: string, cardId?: string | null): Promise<{ projectId: string; dir: string; repo: string; operation: ConflictOperation | null }> {
+    const source = this.source(sourceId), dir = await this.conflictDir(sourceId, cardId, false), state = await this.conflictState(dir)
+    if (!state.files.includes(path)) throw new Error(tm().git.fileNotInConflict)
+    return { projectId: source.projectId, dir, repo: source.name, operation: state.operation }
+  }
+
   async conflicts(sourceId: string, cardId?: string | null): Promise<{ operation: ConflictOperation | null; files: string[] }> { return this.conflictState(await this.conflictDir(sourceId, cardId, false)) }
 
   /** Project repositories (and card worktrees) with a merge/rebase/cherry-pick/revert in progress, to mark the Git page list. */
@@ -1284,7 +1291,7 @@ ${diff}`
 
   /**
    * One PR (GitHub, via gh) or MR (GitLab, via glab) per card repository that has commits. Only runs when the user asks:
-   * publishes the branch and opens the PR as a draft by default. A failure in one repository does not stop the others; the result says what was missing.
+   * publishes the branch and opens the PR ready for review (draft only when asked), titled with the branch name unless a title is given. A failure in one repository does not stop the others; the result says what was missing.
    */
   async createPullRequests(cardId: string, input: { draft: boolean; title?: string; body?: string; sourceId?: string }): Promise<{ results: Array<{ repo: string; url: string | null; error: string | null }> }> {
     const card = this.database.db.prepare('SELECT project_id AS projectId, title FROM cards WHERE id = ?').get(cardId) as { projectId: string; title: string } | undefined
@@ -1293,7 +1300,6 @@ ${diff}`
     if (!members.length) throw new Error(tm().git.cardHasNoWorktreeYet)
     const names = members.map((member) => member.repoPath.split(/[\\/]/).pop() ?? member.repoPath)
     const summary = (this.database.db.prepare("SELECT content_md FROM card_documents WHERE card_id = ? AND kind = 'resumo'").pluck().get(cardId) as string | undefined)?.trim() ?? ''
-    const title = input.title?.trim() || card.title || 'Alterações do GearMod'
     const body = input.body ?? `${summary}${members.length > 1 ? `\n\nEste card altera ${members.length} repositórios (${names.join(', ')}); cada um tem o seu PR na mesma branch.` : ''}\n\n_Aberto pelo GearMod._`
     const results: Array<{ repo: string; url: string | null; error: string | null }> = []
     // With `sourceId`, only that repository; without it, all of the card's.
@@ -1309,10 +1315,10 @@ ${diff}`
         const remote = (await this.tryRun(member.path, ['remote', 'get-url', 'origin']))?.trim()
         if (!remote) throw new Error(tm().git.prNoOrigin)
         await this.run(member.path, ['push', '-u', 'origin', member.branch])
-        const target = member.baseRef.replace(/^origin\//, ''), gitlab = /gitlab/i.test(remote)
+        const target = member.baseRef.replace(/^origin\//, ''), gitlab = /gitlab/i.test(remote), prTitle = input.title?.trim() || member.branch
         const args = gitlab
-          ? ['mr', 'create', '--source-branch', member.branch, '--target-branch', target, '--title', title, '--description', body, '--yes', ...(input.draft ? ['--draft'] : [])]
-          : ['pr', 'create', '--head', member.branch, '--base', target, '--title', title, '--body', body, ...(input.draft ? ['--draft'] : [])]
+          ? ['mr', 'create', '--source-branch', member.branch, '--target-branch', target, '--title', prTitle, '--description', body, '--yes', ...(input.draft ? ['--draft'] : [])]
+          : ['pr', 'create', '--head', member.branch, '--base', target, '--title', prTitle, '--body', body, ...(input.draft ? ['--draft'] : [])]
         let output: string
         try { output = await this.cli.run(gitlab ? 'glab' : 'gh', args, member.path) }
         catch (error) {

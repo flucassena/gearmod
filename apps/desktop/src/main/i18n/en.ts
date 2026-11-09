@@ -151,6 +151,7 @@ export const en: typeof ptBR = {
     cannotDeleteCurrentBranch: 'Cannot delete the current branch.',
     invalidName: 'Invalid name.',
     fileNotInConflict: 'This file is not in conflict.',
+    conflictChatTitle: 'Conflict',
     conflictMarkersRemain: 'The file still has conflict markers. Edit and save before marking it as resolved.',
     noOperationInProgress: 'There is no merge, rebase, cherry-pick or revert in progress.',
     invalidStash: 'Invalid stash',

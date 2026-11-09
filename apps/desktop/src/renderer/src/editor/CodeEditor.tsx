@@ -12,11 +12,11 @@ export interface EditorViewState { anchor: number; head: number; scrollTop: numb
 const noExtensions: Extension[] = []
 
 /** Code editor on top of CodeMirror 6. The view is created once; value, language and options go in through compartments. */
-export function CodeEditor({ value, path, onChange, readOnly = false, options, extensions = noExtensions, onReady, initialSelection, initialScroll, onViewState, ariaLabel, className = '', conflictLabels, onCompareConflict, variant = 'code' }: {
+export function CodeEditor({ value, path, onChange, readOnly = false, options, extensions = noExtensions, onReady, initialSelection, initialScroll, onViewState, ariaLabel, className = '', conflictLabels, onCompareConflict, conflictActions = true, variant = 'code' }: {
   value: string; path: string; onChange?(value: string): void; readOnly?: boolean; options: EditorOptions; extensions?: Extension[]; onReady?(view: EditorView): void
   initialSelection?: { anchor: number; head: number }; initialScroll?: number; onViewState?(state: EditorViewState): void; ariaLabel: string; className?: string
   /** A file with conflict markers gets per-block accept buttons; these are the names of the sides (default: current / incoming). */
-  conflictLabels?: { ours: string; theirs: string }; onCompareConflict?: ConflictOptions['compare']
+  conflictLabels?: { ours: string; theirs: string }; onCompareConflict?: ConflictOptions['compare']; conflictActions?: boolean
   /** `prose`: running text (card documents, Constitution) without line numbers or folds, with the same line wrapping as a text field. */
   variant?: 'code' | 'prose'
 }): React.JSX.Element {
@@ -63,7 +63,7 @@ export function CodeEditor({ value, path, onChange, readOnly = false, options, e
     return () => { alive = false }
   }, [path])
   const marked = hasConflicts(value), ours = conflictLabels?.ours ?? t.files.editor.conflictOurs, theirs = conflictLabels?.theirs ?? t.files.editor.conflictTheirs
-  useEffect(() => { view.current?.dispatch({ effects: compartments.current.conflicts.reconfigure(marked ? conflictExtension({ oursLabel: ours, theirsLabel: theirs, ...(onCompareConflict ? { compare: (info: Parameters<NonNullable<ConflictOptions['compare']>>[0]) => callbacks.current.onCompareConflict?.(info) } : {}) }) : none) }) }, [marked, ours, theirs, Boolean(onCompareConflict)])
+  useEffect(() => { view.current?.dispatch({ effects: compartments.current.conflicts.reconfigure(marked ? conflictExtension({ oursLabel: ours, theirsLabel: theirs, actions: conflictActions, ...(onCompareConflict ? { compare: (info: Parameters<NonNullable<ConflictOptions['compare']>>[0]) => callbacks.current.onCompareConflict?.(info) } : {}) }) : none) }) }, [marked, ours, theirs, conflictActions, Boolean(onCompareConflict)])
   useEffect(() => { view.current?.dispatch({ effects: compartments.current.readOnly.reconfigure(readOnlyExtension(readOnly)) }) }, [readOnly])
   useEffect(() => { view.current?.dispatch({ effects: compartments.current.options.reconfigure(optionExtensions(options)) }) }, [options.wrap, options.tabSize, options.tabs, options.indentWithTab, options.whitespace, options.scrollPastEnd])
   useEffect(() => { view.current?.dispatch({ effects: compartments.current.extra.reconfigure(extensions) }) }, [extensions])

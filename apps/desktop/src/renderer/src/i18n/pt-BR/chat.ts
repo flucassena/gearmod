@@ -383,6 +383,7 @@ export const chat = {
   },
   chatsPage: {
     freeChat: 'Chat livre',
+    conflict: 'Conflito',
     constitution: 'Constituição',
     now: 'agora',
     minutesAgo: (n: number) => `há ${n} min`,

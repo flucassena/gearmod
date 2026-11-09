@@ -10,17 +10,17 @@ const keyOf = (sourceId: string, number: number): string => `${sourceId}#${numbe
 
 export interface PullRequestsState {
   lists: Record<string, PullRequestList>
-  /** PRs from other people with news you have not opened yet (new PR, updated, or with a review requested from you). */
+  /** PRs from other people with news (new PR, updated, or with a review requested from you). Opening one does not clear it: the alert stays until the PR is closed or merged. */
   unread(sourceId: string): PullRequestSummary[]
   total: number
   isUnread(sourceId: string, pr: PullRequestSummary): boolean
-  markSeen(sourceId: string, pr: PullRequestSummary): void
   refresh(sourceId?: string): Promise<void>
 }
 
 /**
  * Lists the open PRs of each repository in the project (via gh) every 2 minutes and when returning to the window, and says which have news.
  * The first time the project is read everything counts as seen (otherwise every old PR would light the dot), except what asks for your review.
+ * After that the alert is not cleared by opening the PR: it leaves only when the PR leaves the open list (closed or merged).
  */
 export function usePullRequests(projectId: string): PullRequestsState {
   const [lists, setLists] = useState<Record<string, PullRequestList>>({})
@@ -55,10 +55,6 @@ export function usePullRequests(projectId: string): PullRequestsState {
     return pr.author !== viewer && seen[keyOf(sourceId, pr.number)] !== pr.updatedAt
   }, [seen])
   const unread = useCallback((sourceId: string): PullRequestSummary[] => (lists[sourceId]?.prs ?? []).filter((pr) => isUnread(sourceId, pr)), [lists, isUnread])
-  const markSeen = useCallback((sourceId: string, pr: PullRequestSummary): void => {
-    const next = { ...seenRef.current, [keyOf(sourceId, pr.number)]: pr.updatedAt }
-    saveSeen(projectId, next); setSeen(next)
-  }, [projectId])
   const total = useMemo(() => Object.keys(lists).reduce((sum, sourceId) => sum + unread(sourceId).length, 0), [lists, unread])
-  return { lists, unread, total, isUnread, markSeen, refresh }
+  return { lists, unread, total, isUnread, refresh }
 }

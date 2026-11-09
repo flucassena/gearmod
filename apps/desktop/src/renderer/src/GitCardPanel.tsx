@@ -167,7 +167,7 @@ function RepoSection({ repo, cardId, branch, base, profiles, excluded, setExclud
   const canPr = repo.ahead > 0 && repo.state === 'active' && !repo.prUrl
   const openPr = async (): Promise<void> => {
     setConfirming(false); setOpening(true); setError('')
-    try { const out = await window.gearmod.invoke('git:create-prs', { cardId, draft: true, sourceId: repo.sourceId }); const failed = out.results.find((item) => item.error); if (failed?.error) setError(failed.error); await reload() } catch (reason) { setError(plainError(reason)) } finally { setOpening(false) }
+    try { const out = await window.gearmod.invoke('git:create-prs', { cardId, draft: false, sourceId: repo.sourceId }); const failed = out.results.find((item) => item.error); if (failed?.error) setError(failed.error); await reload() } catch (reason) { setError(plainError(reason)) } finally { setOpening(false) }
   }
   const openLink = (url: string): void => { void window.gearmod.invoke('git:open-pr', { cardId, url }).catch((reason) => setError(plainError(reason))) }
   return <section className={`cgrepo ${expanded ? 'open' : 'shut'}`}><header><button type="button" className="cgtoggle" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}><span className="cgchev" aria-hidden="true">▸</span>{gitIcons.repo}<span className="cgrname">{repo.name}</span></button><span className="cnts">{repo.ahead > 0 && <span className="pillg up">↑ {repo.ahead}</span>}{repo.behind > 0 && <span className="pillg down">↓ {repo.behind}</span>}{paths.length > 0 && <span className="pillg down">{t.uncommitted(paths.length)}</span>}{repo.published && <span className="pillg ok">{t.published}</span>}</span></header>

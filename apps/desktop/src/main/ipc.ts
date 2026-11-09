@@ -549,6 +549,7 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'git-accounts:set': (input: { projectId: string; sourceId?: string; provider: 'github' | 'gitlab'; host: string; token: string }) => services.gitAccounts.set(input),
     'git-accounts:remove': (input: { projectId: string; sourceId?: string; host: string }) => services.gitAccounts.remove(input),
     'prs:list': (input: { sourceId: string }) => services.pullRequests.list(input.sourceId),
+    'prs:default-base': (input: { sourceId: string }) => services.pullRequests.defaultBase(input.sourceId),
     'prs:view': (input: { sourceId: string; number: number }) => services.pullRequests.view(input.sourceId, input.number),
     'prs:comment': async (input: { sourceId: string; number: number; body: string }) => { await services.pullRequests.comment(input.sourceId, input.number, input.body); return {} },
     'prs:review': async (input: { sourceId: string; number: number; action: 'approve' | 'request-changes' | 'comment'; body: string }) => { await services.pullRequests.review(input.sourceId, input.number, input.action, input.body); return {} },
@@ -677,6 +678,18 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     , 'git:conflicts': (input: { sourceId: string; cardId?: string | null | undefined }) => services.gitManager.conflicts(input.sourceId, input.cardId)
     , 'git:conflicts-all': (input: { projectId: string }) => services.gitManager.conflictsAll(input.projectId)
     , 'git:file-versions': (input: { sourceId: string; cardId: string | null; path: string; mode: 'unstaged' | 'staged' | 'commit'; hash?: string | undefined }) => services.gitManager.fileVersions(input.sourceId, input.cardId, input.path, input.mode, input.hash)
+    , 'git:conflict-ai': async (input: { sourceId: string; cardId?: string | null | undefined; path: string; profileId: string; model?: string | null | undefined; effort?: Effort | null | undefined }) => {
+      // Hidden run: a chat of its own (type "conflict", named after the file, listed in Chats) working inside the conflicted folder. The screen reloads the file when it ends.
+      const target = await services.gitManager.conflictAiTarget(input.sourceId, input.path, input.cardId)
+      const chat = services.conversations.createChat({ projectId: target.projectId, cardId: null, purpose: 'conflict', profileId: input.profileId })
+      services.conversations.setTitleIfEmpty(chat.id, `${tm().git.conflictChatTitle}: ${input.path.split('/').pop() ?? input.path}`)
+      const prompt = [`Resolve the Git conflict in the file \`${input.path}\` (repository ${target.repo}, ${target.operation ?? 'merge'} in progress). Your working folder is that repository.`,
+        'Rules:', '- Open the file and replace every conflict block (<<<<<<<, =======, >>>>>>>) with the correct final code, keeping the intent of BOTH sides. When they truly contradict, prefer the side that is the "incoming" change being applied and say so.',
+        '- Edit ONLY this file. Do not run git commands (no add, rebase --continue, commit, checkout), do not touch other files.', '- The file must end with no conflict markers left and must stay syntactically valid.',
+        '- When done, answer in 2-4 short lines: what you kept from each side and anything the user should double-check.'].join('\n')
+      const run = services.orchestrator.start({ chatId: chat.id, prompt, planning: false, choice: { model: input.model ?? null, effort: input.effort ?? null, mode: 'accept_edits' }, cwd: target.dir })
+      return { chatId: chat.id, runId: run.id }
+    }
     , 'git:conflict-file': (input: { sourceId: string; cardId?: string | null | undefined; path: string }) => services.gitManager.conflictFile(input.sourceId, input.path, input.cardId)
     , 'git:conflict-save': (input: { sourceId: string; cardId?: string | null | undefined; path: string; content: string }) => services.gitManager.saveConflict(input.sourceId, input.path, input.content, input.cardId)
     , 'git:conflict-resolve': (input: { sourceId: string; cardId?: string | null | undefined; path: string; side: 'ours' | 'theirs' | 'marked' }) => services.gitManager.resolveConflict(input.sourceId, input.path, input.side, input.cardId)

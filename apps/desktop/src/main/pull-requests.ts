@@ -185,6 +185,11 @@ export class PullRequestService {
     await this.exec(provider, dir, ['pr', 'review', String(number), `--${action}`, ...(body.trim() ? ['--body', body] : [])])
   }
 
+  /** The remote's default branch (origin/HEAD, as GitHub/GitLab set it), or null when the repository does not know it. */
+  async defaultBase(sourceId: string): Promise<{ branch: string | null }> {
+    try { const { stdout } = await this.git.run(['-C', this.path(sourceId), 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']); return { branch: stdout.trim().replace(/^origin\//, '') || null } } catch { return { branch: null } }
+  }
+
   /** Publishes the branch and opens the PR/MR. The title and body come from the screen; nothing is sent unless the user asks. */
   async create(sourceId: string, input: { head: string; base: string; title: string; body: string; draft: boolean }): Promise<{ url: string }> {
     const dir = this.path(sourceId), provider = await this.provider(dir) ?? 'gitlab'

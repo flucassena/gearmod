@@ -24,7 +24,7 @@ export function attachmentNote(paths: string[]): string {
 }
 
 type AgentChoice = { model?: string | null; effort?: Effort | null; mode?: PermissionMode }
-type Job = { run: Run; chatId: string; prompt: string; planning: boolean; notice?: string; attachments?: string[]; automatic?: boolean; choice?: AgentChoice }
+type Job = { run: Run; chatId: string; prompt: string; planning: boolean; notice?: string; attachments?: string[]; automatic?: boolean; choice?: AgentChoice; cwd?: string }
 
 export class AgentOrchestrator {
   readonly permissions = new AgentPermissions()
@@ -56,7 +56,8 @@ export class AgentOrchestrator {
   setHarness(harness: RunHarness): void { this.harness = harness }
 
   /** `notice` replaces the prompt in the chat with a short notice (the app's internal instructions do not appear as a user message). */
-  start(input: { chatId: string; prompt: string; planning: boolean; notice?: string; attachments?: string[]; automatic?: boolean; choice?: AgentChoice }): Run {
+  /** `cwd`: run in that folder instead of the project's (conflict chats work inside the repository or card worktree that has the conflict). */
+  start(input: { chatId: string; prompt: string; planning: boolean; notice?: string; attachments?: string[]; automatic?: boolean; choice?: AgentChoice; cwd?: string }): Run {
     if (this.stopping) throw new Error(tm().orchestrator.appQuitting)
     const context = this.conversations.context(input.chatId)
     if (context.chat.purpose === 'planning' && isSpecKitImplementRequest(input.prompt, context.chat.skill)) {
@@ -71,11 +72,11 @@ export class AgentOrchestrator {
     if (input.attachments?.length && !attachments.length) throw new Error(tm().orchestrator.noAttachmentsFound)
     if (attachments.length) input = { ...input, attachments, prompt: `${input.prompt}\n\n${attachmentNote(attachments)}` }
     if (!context.profile.enabled) throw new Error(tm().orchestrator.agentRemoved(context.profile.label))
-    const projectChat = context.chat.purpose === 'free' || context.chat.purpose === 'constitution'
+    const projectChat = context.chat.purpose === 'free' || context.chat.purpose === 'constitution' || context.chat.purpose === 'conflict'
     if (input.planning && context.chat.purpose !== 'planning' && !projectChat) throw new Error(tm().orchestrator.usePlanningChat)
     // The Constitution never changes files (runs like planning, read-only). Free chat changes files when the chosen mode is not plan mode.
     if (context.chat.purpose === 'constitution') input = { ...input, planning: true }
-    if (context.chat.purpose !== 'free') input = { ...input, choice: undefined }
+    if (context.chat.purpose !== 'free' && context.chat.purpose !== 'conflict') input = { ...input, choice: undefined }
     this.conversations.addMessage(input.notice ? { chatId: input.chatId, role: 'system', body: input.notice, status: 'complete' } : { chatId: input.chatId, role: 'user', body: input.prompt, status: 'complete' })
     const run = this.conversations.createRun({ cardId: context.cardId, chatId: input.chatId, profileId: context.profile.id })
     const full = this.active >= this.limit()
@@ -152,7 +153,7 @@ export class AgentOrchestrator {
       }
     }
     try {
-      const free = context.chat.purpose === 'free', constitution = context.chat.purpose === 'constitution'
+      const free = context.chat.purpose === 'free' || context.chat.purpose === 'conflict', constitution = context.chat.purpose === 'constitution'
       // The card's planning already uses the same worktree that will be reused in the run.
       // Projects without Git can still be planned in read-only mode.
       let worktree = null
@@ -164,7 +165,7 @@ export class AgentOrchestrator {
         }
       }
       if (this.stopping) return
-      const cwd = worktree?.path ?? context.projectPath
+      const cwd = job.cwd ?? worktree?.path ?? context.projectPath
       if (worktree) this.conversations.attachWorktree(job.run.id, worktree.id)
       const failedRepos = worktree && context.cardId ? this.worktrees.repositories(context.cardId).filter((repo) => repo.status === 'failed') : []
       if (failedRepos.length) this.conversations.addMessage({ chatId: job.chatId, role: 'system', body: tm().orchestrator.reposFailed(failedRepos.length, failedRepos.map((repo) => `- ${repo.error}`).join('\n')), status: 'failed' })
@@ -179,7 +180,7 @@ export class AgentOrchestrator {
       const runCwd = sk?.cwd ?? impl?.cwd ?? cwd, adapterPlanning = job.planning && !sk
       this.conversations.updateRun(job.run.id, 'running', null)
       publish({ type: 'gearmod/run-started', payload: { cardId: context.cardId, chatId: job.chatId, planning: job.planning } })
-      if (free) this.conversations.setTitleIfEmpty(job.chatId, titleFromPrompt(job.prompt))
+      if (context.chat.purpose === 'free') this.conversations.setTitleIfEmpty(job.chatId, titleFromPrompt(job.prompt))
       if (constitution) this.conversations.setTitleIfEmpty(job.chatId, 'Constituição')
       const purpose = free || constitution ? null : context.chat.purpose as AgentPurpose
       const config = context.cardId && purpose ? this.configs?.resolve(context.cardId, context.profile.id, purpose) : undefined
@@ -209,10 +210,10 @@ export class AgentOrchestrator {
       if (result.status === 'failed' && !result.text && result.error) this.conversations.addMessage({ chatId: job.chatId, role: 'system', body: result.error, status: 'failed' })
       this.conversations.updateRun(job.run.id, result.status, result.error, result.turnId)
       publish({ type: 'gearmod/run-completed', payload: { chatId: job.chatId, status: result.status, error: result.error } })
-      if (after.cardId && after.chat.purpose !== 'free' && after.chat.purpose !== 'constitution' && this.harness) {
+      if (after.cardId && after.chat.purpose !== 'free' && after.chat.purpose !== 'constitution' && after.chat.purpose !== 'conflict' && this.harness) {
         try { (await this.harness.after({ cardId: after.cardId, runId: job.run.id, chatId: job.chatId, purpose: after.chat.purpose, status: result.status })).forEach((body) => this.conversations.addMessage({ chatId: job.chatId, role: 'system', body, status: 'failed' })) } catch { /* harness notice is best-effort */ }
       }
-      try { if (after.cardId && after.chat.purpose !== 'free' && after.chat.purpose !== 'constitution') this.collab?.afterRun({ cardId: after.cardId, chatId: job.chatId, purpose: after.chat.purpose, status: result.status }) } catch { /* chaining is best-effort; the chat shows the notice */ }
+      try { if (after.cardId && after.chat.purpose !== 'free' && after.chat.purpose !== 'constitution' && after.chat.purpose !== 'conflict') this.collab?.afterRun({ cardId: after.cardId, chatId: job.chatId, purpose: after.chat.purpose, status: result.status }) } catch { /* chaining is best-effort; the chat shows the notice */ }
       try { this.onFinished?.({ cardId: after.cardId, chatId: job.chatId, runId: job.run.id, purpose: after.chat.purpose, status: result.status, error: result.error ?? null }) } catch { /* notification is best-effort */ }
     } catch (error) {
       if (this.stopping) return
@@ -225,7 +226,7 @@ export class AgentOrchestrator {
       // A run that ends in error also closes the cycle: the harness checks what changed and chaining between steps continues.
       try {
         const after = this.conversations.context(job.chatId), status = aborted ? 'interrupted' as const : 'failed' as const
-        if (after.cardId && after.chat.purpose !== 'free' && after.chat.purpose !== 'constitution') {
+        if (after.cardId && after.chat.purpose !== 'free' && after.chat.purpose !== 'constitution' && after.chat.purpose !== 'conflict') {
           if (this.harness) try { (await this.harness.after({ cardId: after.cardId, runId: job.run.id, chatId: job.chatId, purpose: after.chat.purpose, status })).forEach((body) => this.conversations.addMessage({ chatId: job.chatId, role: 'system', body, status: 'failed' })) } catch { /* harness notice is best-effort */ }
           try { this.collab?.afterRun({ cardId: after.cardId, chatId: job.chatId, purpose: after.chat.purpose, status }) } catch { /* chaining is best-effort */ }
         }

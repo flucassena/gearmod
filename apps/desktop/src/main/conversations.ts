@@ -34,7 +34,7 @@ export class ConversationRepository {
   createChat(input: { projectId: string; cardId: string | null; purpose: ChatPurpose; profileId: string; skill?: { name: string; path: string } | null }): Chat {
     const allowed = this.database.db.prepare('SELECT ap.provider FROM project_agent_profiles pap JOIN agent_profiles ap ON ap.id = pap.profile_id WHERE pap.project_id = ? AND pap.profile_id = ? AND pap.allowed = 1 AND ap.enabled = 1').get(input.projectId, input.profileId) as { provider: 'codex' | 'claude' } | undefined
     if (!allowed) throw new Error(tm().conversations.profileNotAllowed)
-    const projectChat = input.purpose === 'free' || input.purpose === 'constitution'
+    const projectChat = input.purpose === 'free' || input.purpose === 'constitution' || input.purpose === 'conflict'
     if (projectChat ? input.cardId !== null : input.cardId === null) throw new Error(projectChat ? tm().conversations.projectChatHasNoCard : tm().conversations.chatNeedsCard)
     if (input.cardId && !this.database.db.prepare('SELECT 1 FROM cards WHERE id = ? AND project_id = ?').get(input.cardId, input.projectId)) throw new Error(tm().common.cardNotInProject)
     const id = randomUUID(), now = new Date().toISOString()
@@ -59,7 +59,7 @@ export class ConversationRepository {
 
   createRun(input: { cardId: string | null; chatId: string; profileId: string }): Run {
     const valid = input.cardId === null
-      ? this.database.db.prepare(`SELECT 1 FROM chats WHERE id = ? AND card_id IS NULL AND purpose IN ('free', 'constitution') AND profile_id = ?`).get(input.chatId, input.profileId)
+      ? this.database.db.prepare(`SELECT 1 FROM chats WHERE id = ? AND card_id IS NULL AND purpose IN ('free', 'constitution', 'conflict') AND profile_id = ?`).get(input.chatId, input.profileId)
       : this.database.db.prepare(`SELECT 1 FROM chats c JOIN cards k ON k.id = ? WHERE c.id = ? AND c.card_id = k.id AND c.profile_id = ?`).get(input.cardId, input.chatId, input.profileId)
     if (!valid) throw new Error(tm().conversations.runMismatch)
     const id = randomUUID(), startedAt = new Date().toISOString()
@@ -124,7 +124,7 @@ export class ConversationRepository {
       p.local_path AS projectPath, ap.label, ap.scope, ap.color, ap.config_dir AS configDir, ap.executable_path AS executablePath, ap.enabled, ap.billing_mode AS billingMode, ap.env_passthrough AS envPassthroughRaw
       FROM chats c JOIN projects p ON p.id = c.project_id JOIN agent_profiles ap ON ap.id = c.profile_id WHERE c.id = ?`).get(chatId) as (ChatRow & { projectPath: string; label: string; scope: string; color: string; configDir: string; executablePath: string | null; enabled: number; billingMode: AgentProfile['billingMode']; envPassthroughRaw: string }) | undefined
     if (!row) throw new Error(tm().common.chatNotFound)
-    if (!row.cardId && row.purpose !== 'free' && row.purpose !== 'constitution') throw new Error(tm().conversations.executionNeedsCard)
+    if (!row.cardId && row.purpose !== 'free' && row.purpose !== 'constitution' && row.purpose !== 'conflict') throw new Error(tm().conversations.executionNeedsCard)
     const { projectPath, label, scope, color, configDir, executablePath, enabled, billingMode, envPassthroughRaw, ...rest } = row
     const chat = toChat(rest)
     let envPassthrough: string[] = []
