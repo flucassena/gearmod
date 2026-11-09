@@ -3210,3 +3210,16 @@ body:has(.overlay) .viewdock.floating{display:none}
 /* Output lines that came from a side take that side's color. */
 .cm-pick-ours{background:color-mix(in srgb,#2b7a9b 30%,transparent)}
 .cm-pick-theirs{background:color-mix(in srgb,#a8841c 32%,transparent)}
+
+/* Waiting for the user (question, change or approval to decide, agent asking permission): glows like a finished card, in the warning color. */
+.card.wait{border-color:color-mix(in srgb,var(--warn) 70%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--warn) 35%,transparent),0 0 18px color-mix(in srgb,var(--warn) 22%,transparent);animation:glowwait 2s infinite}
+@keyframes glowwait{50%{box-shadow:0 0 0 1px color-mix(in srgb,var(--warn) 65%,transparent),0 0 24px color-mix(in srgb,var(--warn) 38%,transparent)}}
+.tile.wait{border-color:color-mix(in srgb,var(--warn) 60%,transparent);animation:glowwait 2s infinite}
+.proj.wait{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--warn) 55%,transparent)}
+.proj small.salerts{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.proj small .swait{color:var(--warn);font-weight:700}.proj small .sfin{color:var(--accent-strong);font-weight:700}.proj small .srun{color:var(--accent-strong)}.proj small .ssep{color:var(--muted)}
+.pdot.wait{background:var(--warn);box-shadow:0 0 0 4px color-mix(in srgb,var(--warn) 22%,transparent)}
+.projalerts{width:270px;max-height:320px;overflow-y:auto}
+.projalerts .palert{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px}
+.projalerts .palert .pa-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.projalerts .palert small{font-size:11px;color:var(--muted)}
+.projalerts .palert.waiting .dot,.projalerts .palert.waiting small{color:var(--warn)}.projalerts .palert.failed .dot{color:var(--warn)}.projalerts .palert.finished .dot{color:var(--accent)}
+@media (prefers-reduced-motion:reduce){.card.wait,.tile.wait{animation:none}}

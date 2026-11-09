@@ -162,11 +162,21 @@ export function UsageDialog({ current, close }: { current?: string; close(): voi
   return <UsageModal profiles={profiles} usage={usage} current={current ?? ''} close={close} only={Boolean(current)} />
 }
 
-export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onNew, onSettings, onAddAgent, onProjectSettings, onNewChat, onToggle, onReorder, onDelete }: { projects: Project[]; profiles: AgentProfile[]; selected?: string; collapsed: boolean; onSelect(id: string): void; onNew(): void; onAddAgent(): void; onSettings(): void; onProjectSettings(projectId: string): void; onNewChat(projectId: string): void; onToggle(): void; onReorder(projectIds: string[]): void; onDelete(project: Project): void }): React.JSX.Element {
+export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onOpenCard, onNew, onSettings, onAddAgent, onProjectSettings, onNewChat, onToggle, onReorder, onDelete }: { projects: Project[]; profiles: AgentProfile[]; selected?: string; collapsed: boolean; onSelect(id: string): void; onOpenCard(projectId: string, cardId: string): void; onNew(): void; onAddAgent(): void; onSettings(): void; onProjectSettings(projectId: string): void; onNewChat(projectId: string): void; onToggle(): void; onReorder(projectIds: string[]): void; onDelete(project: Project): void }): React.JSX.Element {
   const t = useT(), agentUpdates = useAgentUpdatesPending(profiles), appUpdate = useAppUpdate()?.available === true
   // Dragging: while dragging, the list shows the project already in the new position; on drop, saves the order.
   const [drag, setDrag] = useState<{ id: string; over: number }>(), [menu, setMenu] = useState<{ project: Project; x: number; y: number }>()
   const projectMenu = useRef<HTMLDivElement>(null)
+  // Hover menu of a project with its alerts card by card; a short delay lets the mouse move from the row into the menu.
+  const [peek, setPeek] = useState<{ project: Project; x: number; y: number }>(), peekTimer = useRef<number | undefined>(undefined)
+  const showPeek = (project: Project, row: HTMLElement): void => {
+    window.clearTimeout(peekTimer.current)
+    if (!project.activity.alerts?.length || drag) { setPeek(undefined); return }
+    const box = row.getBoundingClientRect()
+    peekTimer.current = window.setTimeout(() => setPeek({ project, x: box.right + 6, y: Math.min(box.top, window.innerHeight - 320) }), 220)
+  }
+  const hidePeek = (): void => { window.clearTimeout(peekTimer.current); peekTimer.current = window.setTimeout(() => setPeek(undefined), 180) }
+  useEffect(() => () => window.clearTimeout(peekTimer.current), [])
   const ordered = drag ? (() => { const rest = projects.filter((item) => item.id !== drag.id), moving = projects.find((item) => item.id === drag.id)!; rest.splice(drag.over, 0, moving); return rest })() : projects
   const drop = (): void => { if (drag && ordered.some((item, index) => item.id !== projects[index]?.id)) onReorder(ordered.map((item) => item.id)); setDrag(undefined) }
   useEffect(() => {
@@ -188,8 +198,10 @@ export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onN
     <aside>
       <button className="secondary newproj" onClick={onNew}>{t.shell.sidebar.newProject}</button>
       <nav className="projs" onDragOver={(e) => { if (drag) e.preventDefault() }} onDrop={(e) => { e.preventDefault(); drop() }}>{ordered.map((project, index) => {
-        const { running, finished } = project.activity, git = project.sources.filter((source) => source.isGitRepository).length
-        const sub = running ? <small className="srun">{t.shell.sidebar.running(running)}</small> : finished ? <small className="sfin">{t.shell.sidebar.finishedClickToSee}</small> : <small>{git ? t.shell.sidebar.repositories(git) : t.shell.sidebar.folderWithoutGit}</small>
+        const { running, finished } = project.activity, waiting = project.activity.waiting ?? 0, git = project.sources.filter((source) => source.isGitRepository).length
+        // Everything at once (it used to show only the first): who needs the user, what finished, what is running.
+        const parts = [waiting ? <span className="swait" key="w">{t.shell.sidebar.waitingCount(waiting)}</span> : null, finished ? <span className="sfin" key="f">{t.shell.sidebar.finishedCount(finished)}</span> : null, running ? <span className="srun" key="r">{t.shell.sidebar.running(running)}</span> : null].filter(Boolean)
+        const sub = parts.length ? <small className="salerts">{parts.flatMap((part, i) => i ? [<span key={`s${i}`} className="ssep"> · </span>, part] : [part])}</small> : <small>{git ? t.shell.sidebar.repositories(git) : t.shell.sidebar.folderWithoutGit}</small>
         return <div className={`projrow ${drag?.id === project.id ? 'dragging' : ''}`} key={project.id} draggable
           onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setMenu(undefined); setDrag({ id: project.id, over: index }) }}
           onDragOver={(e) => {
@@ -202,13 +214,19 @@ export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onN
             if (over !== drag.over) setDrag({ ...drag, over })
           }}
           onDragEnd={() => setDrag(undefined)}
-          onContextMenu={(e) => { e.preventDefault(); setMenu({ project, x: e.clientX, y: e.clientY }) }}>
-          <button type="button" className={`proj ${selected === project.id ? 'on' : ''} ${finished ? 'fin' : ''} ${running ? 'busy' : ''}`} onClick={() => onSelect(project.id)}><ProjectAvatar name={project.name} icon={project.icon} /><span title={project.name}>{project.name}{sub}</span>{running > 0 && <span className="spin sm" data-tip={t.shell.sidebar.runningTip} />}{finished > 0 && <b className="pdot" data-tip={t.shell.sidebar.finishedTip} />}</button>
+          onContextMenu={(e) => { e.preventDefault(); setPeek(undefined); setMenu({ project, x: e.clientX, y: e.clientY }) }}
+          onMouseEnter={(e) => showPeek(project, e.currentTarget)} onMouseLeave={hidePeek}>
+          <button type="button" className={`proj ${selected === project.id ? 'on' : ''} ${finished ? 'fin' : ''} ${running ? 'busy' : ''} ${waiting ? 'wait' : ''}`} onClick={() => onSelect(project.id)}><ProjectAvatar name={project.name} icon={project.icon} /><span title={project.name}>{project.name}{sub}</span>{running > 0 && <span className="spin sm" data-tip={t.shell.sidebar.runningTip} />}{waiting > 0 ? <b className="pdot wait" data-tip={t.shell.sidebar.waitingTip} /> : finished > 0 && <b className="pdot" data-tip={t.shell.sidebar.finishedTip} />}</button>
           <button type="button" className="projnew tip" data-tip={t.shell.sidebar.newFreeChatTip} aria-label={t.shell.sidebar.newFreeChatIn(project.name)} onClick={() => onNewChat(project.id)}><PlusIcon /></button></div>
       })}</nav>
       <VoiceInstallCard />
       <div className="side-foot"><button className="iconbtn gearwrap" data-tip={appUpdate ? t.shell.sidebar.settingsWithAppUpdate : agentUpdates ? t.shell.sidebar.settingsWithUpdate : t.common.settings} aria-label={appUpdate ? t.shell.sidebar.settingsWithAppUpdate : agentUpdates ? t.shell.sidebar.settingsLabelWithUpdate : t.common.settings} onClick={onSettings}>⚙{(agentUpdates || appUpdate) && <i className="gear-dot" aria-hidden="true" />}</button>{profiles.length ? <UsedAgents profiles={profiles} /> : <button type="button" className="mini secondary withicon side-addagent" onClick={onAddAgent}><PlusIcon />{t.shell.sidebar.addAgent}</button>}</div>
     </aside>
+    {peek && !menu && <div className="projmenu projalerts" role="menu" aria-label={t.shell.sidebar.alertsOf(peek.project.name)} style={{ left: peek.x, top: peek.y }} onMouseEnter={() => window.clearTimeout(peekTimer.current)} onMouseLeave={hidePeek}>
+      <div className="ctxtitle">{peek.project.name}</div>
+      {(peek.project.activity.alerts ?? []).map((alert) => <button type="button" role="menuitem" key={alert.cardId} className={`palert ${alert.kind}`} onClick={() => { setPeek(undefined); onOpenCard(peek.project.id, alert.cardId) }}>
+        {alert.kind === 'running' ? <span className="spin sm" /> : <span className={`dot ${alert.kind === 'failed' ? '' : 'pulse'}`} />}<span className="pa-title">{alert.title || t.shell.sidebar.untitledCard}</span><small>{t.shell.sidebar.alertKind[alert.kind]}</small></button>)}
+    </div>}
     {menu && <div ref={projectMenu} className="projmenu" role="menu" aria-label={t.shell.sidebar.projectActions(menu.project.name)} tabIndex={-1} style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
       <div className="ctxtitle">{menu.project.name}</div>
       <button type="button" role="menuitem" onClick={() => { setMenu(undefined); onNewChat(menu.project.id) }}><PlusIcon /><span>{t.shell.sidebar.newFreeChat}</span><kbd>N</kbd></button>

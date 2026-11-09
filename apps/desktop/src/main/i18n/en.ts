@@ -541,6 +541,7 @@ export const en: typeof ptBR = {
     testDone: 'Test finished',
     planReady: 'Plan ready',
     agentReplied: 'The agent replied',
+    needsYou: 'The agent needs you',
   },
   harness: {
     tokensExceeded: (spent: string, limit: string) => `The card has already used ${spent} tokens, above the project limit (${limit}). Raise the limit in Configure project > Workflow to continue.`,

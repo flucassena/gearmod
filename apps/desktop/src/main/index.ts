@@ -34,7 +34,7 @@ import { SkillService } from './skills'
 import { VoiceService } from './voice'
 import { UsageService } from './usage'
 import { CollaborationService } from './collaboration'
-import { BoardRepository, GitService, ProfileRepository, ProjectRepository } from './projects'
+import { BoardRepository, GitService, ProfileRepository, ProjectRepository, setLiveWaitingChats } from './projects'
 import { AgentProbeService } from './agents'
 import { finishNotice, Notifier } from './notifier'
 import { hiddenNotice, quitPrompt, trayTooltip } from './background'
@@ -149,7 +149,7 @@ board.setOnDone((cardId) => { void cardUsageExport.export(cardId).catch(() => co
 const usage = new UsageService(database, profiles, (profile) => probeClaudeLimits(profile), undefined, (profile) => readCodexQuota(profile), usageLedger)
 const appIcon = join(app.isPackaged ? process.resourcesPath : app.getAppPath(), app.isPackaged ? 'tray' : 'resources/tray', 'app.png')
 const mcpServerScript = join(app.isPackaged ? process.resourcesPath : app.getAppPath(), app.isPackaged ? 'gearmod-mcp' : 'resources/gearmod-mcp', 'server.mjs')
-const collab = new CollaborationService(database, board, conversations, agentConfigs, (cardId) => BrowserWindow.getAllWindows().forEach((window) => window.webContents.send('runs:event-pushed', { runId: '', eventType: 'gearmod/card-updated', payload: { cardId, type: 'document' } })), checklists)
+const collab = new CollaborationService(database, board, conversations, agentConfigs, (cardId) => { BrowserWindow.getAllWindows().forEach((window) => window.webContents.send('runs:event-pushed', { runId: '', eventType: 'gearmod/card-updated', payload: { cardId, type: 'document' } })); watchWaiting(cardId) }, checklists)
 // S05, behind the flag (default off until soak, Q-05): an immediate agent move becomes a pending approval request.
 const mcpBridge = new McpBridge({ board, context: agentContext, serverScript: mcpServerScript, testCommand: { get: (projectId) => quality.testCommand(projectId).command, set: (projectId, command) => quality.setTestCommand(projectId, command).command, suggest: (cardId) => quality.detectCommand(cardId).command }, collab, conversations, constitution, checklists, git: gitManager, history, approvals, policy, sddResolver, sddWriter, planReady: (cardId) => exportPlanArtifacts(history, board, cardId), prepareWorktree: (cardId) => worktrees.prepare(cardId), trimWorktree: async (cardId, keep) => {
   // The SDD repository never leaves: the card's documents live in it.
@@ -181,6 +181,7 @@ const mcpRegistry = new McpRegistry(database, join(dataDir, 'mcp', 'secrets'), s
 const speckit = new SpecKitRuntime({ history, board: Object.assign(Object.create(board), { documents: board.documents }) as typeof board, worktrees, approvals, root: (projectId) => resolvedSddRoot(history, board, projectId, 'speckit') })
 const orchestrator = new AgentOrchestrator(conversations, { codex: new CodexAppServerAdapter(), claude: new ClaudeCliAdapter(), gemini: new GeminiCliAdapter(nodeProcesses) }, (event) => {
   BrowserWindow.getAllWindows().forEach((window) => window.webContents.send('runs:event-pushed', event))
+  watchEvent(event.eventType, event.payload)
   // The count only drops after the run leaves the orchestrator queue, hence the small delay.
   if (event.eventType.startsWith('gearmod/run-')) setTimeout(updateTray, 100)
 }, worktrees, () => settings.get().execucoesSimultaneas ?? recommendedConcurrency(), agentContext, writeback, agentConfigs, usage, collab, (info) => {
@@ -195,7 +196,26 @@ const orchestrator = new AgentOrchestrator(conversations, { codex: new CodexAppS
   // Stopped by usage limit: schedules the resume for when the limit comes back.
   void autoResume.onFinished({ ...info, profileId: conversations.context(info.chatId).profile.id }).catch(() => undefined)
 }, usageLedger, profiles, speckit, mcpRegistry)
-const pushEvent = (eventType: string, payload: Record<string, unknown>): void => BrowserWindow.getAllWindows().forEach((window) => window.webContents.send('runs:event-pushed', { runId: '', eventType, payload }))
+const pushEvent = (eventType: string, payload: Record<string, unknown>): void => { BrowserWindow.getAllWindows().forEach((window) => window.webContents.send('runs:event-pushed', { runId: '', eventType, payload })); watchEvent(eventType, payload) }
+setLiveWaitingChats(() => orchestrator.permissions.chats())
+/**
+ * The agent needs the user (a question, a change or approval to decide, a permission prompt): a system notification when that
+ * appears on a card, once per new item (only with the app out of focus, like the others). The click opens the card.
+ */
+const waitingSeen = new Map<string, number>()
+function watchWaiting(cardId: string | null | undefined): void {
+  if (!cardId) return
+  let card: ReturnType<typeof board.card>
+  try { card = board.card(cardId) } catch { return }
+  const now = card.waiting ?? 0, before = waitingSeen.get(cardId) ?? 0
+  waitingSeen.set(cardId, now)
+  if (now > before) notifier.notify({ title: tm().notifier.needsYou, body: card.title.trim() || tm().notifier.newCard }, { projectId: card.projectId, cardId, chatId: null, purpose: null })
+}
+function watchEvent(eventType: string, payload: Record<string, unknown> | undefined): void {
+  if (eventType === 'gearmod/card-updated') { watchWaiting(typeof payload?.cardId === 'string' ? payload.cardId : null); return }
+  if (eventType !== 'gearmod/permission-requested' && eventType !== 'gearmod/permission-resolved') return
+  try { watchWaiting(conversations.context(String(payload?.chatId ?? '')).cardId) } catch { /* free chat or chat gone */ }
+}
 /** Build date of the packaged app: when its `app.asar` was written (null in development). */
 function aboutBuildDate(): string | null { try { return app.isPackaged ? statSync(join(process.resourcesPath, 'app.asar')).mtime.toISOString() : null } catch { return null } }
 

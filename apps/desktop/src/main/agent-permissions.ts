@@ -5,6 +5,8 @@ import type { AgentEvent } from './adapters'
 /** Callbacks exist only while their originating run is alive. Never replay approvals on resume. */
 export class AgentPermissions {
   private readonly pending = new Map<string, { request: AgentPermission; finish(allow: boolean): void }>()
+  /** Chats with a permission request waiting for the user right now. */
+  chats(): string[] { return [...new Set([...this.pending.values()].map(({ request }) => request.chatId))] }
   list(chatId: string): AgentPermission[] { return [...this.pending.values()].filter(({ request }) => request.chatId === chatId).map(({ request }) => request) }
   request(input: Omit<AgentPermission, 'id'>, signal: AbortSignal, publish: (event: AgentEvent) => void): Promise<boolean> {
     if (signal.aborted) return Promise.resolve(false)

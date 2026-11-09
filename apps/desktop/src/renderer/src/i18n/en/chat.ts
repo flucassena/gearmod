@@ -281,6 +281,7 @@ export const chat: typeof source = {
     openInNewWindow: 'Open in new window'
   },
   tile: {
+    needsYou: 'Needs you',
     inPlanning: 'In planning',
     running: 'Running',
     planning: 'Planning',

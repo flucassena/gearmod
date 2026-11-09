@@ -203,6 +203,20 @@ export function cardRunState(db: Database.Database, cardId: string): CardRunStat
   return { state: 'paused', ...base }
 }
 
+/** Chats whose agent is asking permission right now (kept in memory by the orchestrator, set at startup). */
+let liveWaitingChats: () => string[] = () => []
+export function setLiveWaitingChats(source: () => string[]): void { liveWaitingChats = source }
+
+/** What waits for the user on the card: questions for them, changes and approvals to decide, and agents asking permission right now. */
+export function cardWaiting(db: Database.Database, cardId: string): number {
+  const count = (sql: string, ...args: unknown[]): number => (db.prepare(sql).get(...args) as { n: number }).n
+  const live = liveWaitingChats()
+  return count("SELECT COUNT(*) AS n FROM card_questions WHERE card_id = ? AND status = 'user'", cardId)
+    + count("SELECT COUNT(*) AS n FROM card_changes WHERE card_id = ? AND status = 'pending'", cardId)
+    + count("SELECT COUNT(*) AS n FROM approval_records WHERE card_id = ? AND status = 'requested' AND (expires_at IS NULL OR expires_at > ?)", cardId, new Date().toISOString())
+    + (live.length ? count(`SELECT COUNT(*) AS n FROM chats WHERE card_id = ? AND id IN (${live.map(() => '?').join(',')})`, cardId, ...live) : 0)
+}
+
 export class ProjectRepository {
   constructor(private readonly database: AppDatabase, private readonly git: Pick<GitService, 'inspect' | 'validate'>) {}
 
@@ -218,9 +232,17 @@ export class ProjectRepository {
     const finished = this.database.db.prepare(`SELECT COUNT(*) AS n FROM cards k WHERE k.project_id = ? AND k.archived_at IS NULL AND EXISTS (
       SELECT 1 FROM runs r WHERE r.id = (SELECT id FROM runs WHERE card_id = k.id ORDER BY started_at DESC, rowid DESC LIMIT 1)
       AND r.status = 'completed' AND r.ended_at > COALESCE(k.viewed_at, ''))`)
-    return rows.map((row) => { const types = projectCardTypes(this.database.db, row.id); return { ...row,
+    const cards = this.database.db.prepare('SELECT id, title FROM cards WHERE project_id = ? AND archived_at IS NULL ORDER BY updated_at DESC')
+    const order = { waiting: 0, failed: 1, finished: 2, running: 3 } as const
+    // Card by card, what is there for the user (the project's hover menu); a card shows once, with what matters most.
+    const alerts = (projectId: string): Array<{ cardId: string; title: string; kind: keyof typeof order }> => (cards.all(projectId) as Array<{ id: string; title: string }>).flatMap((card) => {
+      const state = cardRunState(this.database.db, card.id).state
+      const kind = cardWaiting(this.database.db, card.id) > 0 ? 'waiting' as const : state === 'failed' ? 'failed' as const : state === 'finished' ? 'finished' as const : state === 'running' || state === 'planning' ? 'running' as const : null
+      return kind ? [{ cardId: card.id, title: card.title, kind }] : []
+    }).sort((a, b) => order[a.kind] - order[b.kind]).slice(0, 20)
+    return rows.map((row) => { const types = projectCardTypes(this.database.db, row.id), list = alerts(row.id); return { ...row,
       cardTypes: types.types, customCardTypes: types.custom,
-      activity: { running: (running.get(row.id) as { n: number }).n, finished: (finished.get(row.id) as { n: number }).n },
+      activity: { running: (running.get(row.id) as { n: number }).n, finished: (finished.get(row.id) as { n: number }).n, waiting: list.filter((item) => item.kind === 'waiting').length, alerts: list },
       allowedProfileIds: (allowed.all(row.id) as { profileId: string }[]).map((item) => item.profileId),
       sources: (sources.all(row.id) as Array<Omit<ProjectSource, 'isGitRepository'> & { isGitRepository: number }>).map((item) => ({ ...item, isGitRepository: Boolean(item.isGitRepository) }))
     } })
@@ -436,7 +458,7 @@ export class BoardRepository {
     const agentIds = this.database.db.prepare('SELECT profile_id FROM chats WHERE card_id = ? GROUP BY profile_id ORDER BY MIN(created_at)').pluck().all(cardId) as string[]
     // When the card uses another card's worktree, the screen shows whose it is (and offers to unlink).
     const sharedFrom = (this.database.db.prepare('SELECT o.title FROM cards c JOIN cards o ON o.id = c.worktree_card_id WHERE c.id = ?').pluck().get(cardId) as string | undefined) ?? null
-    return { ...row, acceptanceCriteria: criteria, tasks, run, hasPlan, planningOpen, workspace: workspace ? { ...workspace, sharedFrom } : null, pending: this.pendingCounts(cardId), ...this.execSettings(cardId), agentIds, complexity: complexitySummary(this.database.db, cardId), repoIds: this.repoIds(cardId), workflow: row.workflow ?? null, sddMethod: this.sddMethod(cardId, row.workflow) }
+    return { ...row, acceptanceCriteria: criteria, tasks, run, hasPlan, planningOpen, workspace: workspace ? { ...workspace, sharedFrom } : null, pending: this.pendingCounts(cardId), waiting: cardWaiting(this.database.db, cardId), ...this.execSettings(cardId), agentIds, complexity: complexitySummary(this.database.db, cardId), repoIds: this.repoIds(cardId), workflow: row.workflow ?? null, sddMethod: this.sddMethod(cardId, row.workflow) }
   }
 
   /** SDD method chosen along with the flow (last `workflow.selected`); only applies in the `sdd` flow. */

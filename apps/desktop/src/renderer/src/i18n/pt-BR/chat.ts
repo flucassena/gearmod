@@ -280,6 +280,7 @@ export const chat = {
     openInNewWindow: 'Abrir em nova janela'
   },
   tile: {
+    needsYou: 'Precisa de você',
     inPlanning: 'Em planejamento',
     running: 'Executando',
     planning: 'Planejando',

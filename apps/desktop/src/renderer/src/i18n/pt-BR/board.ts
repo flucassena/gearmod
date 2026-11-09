@@ -37,6 +37,8 @@ export const board = {
     failedTip: (error: string) => `${error ? `${error}\n\n` : ''}Clique para escolher o agente e tentar de novo.`,
     chooseAgent: 'Escolher agente e tentar de novo',
     finishedViewChat: 'Terminou · ver chat',
+    needsYou: 'Precisa de você',
+    needsYouTip: 'O agente está esperando uma resposta sua. Abra o chat do card.',
     testingTap: 'Testando · toque para ver',
     executionTap: 'Toque para ver execução',
     oneAgentOnly: 'um agente só',

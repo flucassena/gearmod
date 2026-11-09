@@ -55,13 +55,16 @@ function draftCard(board: ProjectBoard, columnId: string): Card {
 function CardTile({ card, types, state, agent, agents, dropLabel, dragProps, onPending, onSend, onSendFailures, onGit, onOpen, onChat, onPlan, onStart, onTest, onStop, onResume, onRetry, onArchive, onComplexity }: { card: Card; types: CardTypeDef[]; state: State; agent?: AgentProfile; agents: AgentProfile[]; dropLabel?: string; dragProps: React.HTMLAttributes<HTMLElement>; onPending(): void; onSend(): void; onSendFailures(): void; onGit(): void; onOpen(): void; onChat(): void; onPlan(): void; onStart(): void; onTest(): void; onStop(): void; onResume(): void; onRetry(): void; onArchive(): void; onComplexity(): void }): React.JSX.Element {
   const { board: t, common } = useT()
   const run = card.run.state, open = card.planningOpen, ready = run === 'idle' && card.hasPlan && (state === 'backlog' || state === 'todo')
+  // Something waits for the user (question, change or approval to decide, agent asking permission): the card glows like a finished one, in the warning color.
+  const waiting = card.waiting ?? 0, unlisted = waiting - card.pending.questions - card.pending.changes
   const { done, total } = card.tasks
   const button = (cls: string, tip: string, click: () => void, icon: React.ReactNode): React.JSX.Element => <button type="button" className={`ib ${cls} tip`} data-tip={tip} aria-label={tip} onClick={(e) => { e.stopPropagation(); click() }}>{icon}</button>
-  return <article className={`card ${run === 'finished' ? 'fin' : ''} ${run === 'paused' || run === 'failed' ? 'paused' : ''} ${open ? 'planopen' : ''} ${ready ? 'ready' : ''} ${dropLabel ? 'drop-before' : ''}`} data-plabel={dropLabel} onClick={onOpen} {...dragProps}>
+  return <article className={`card ${waiting > 0 ? 'wait' : run === 'finished' ? 'fin' : ''} ${run === 'paused' || run === 'failed' ? 'paused' : ''} ${open ? 'planopen' : ''} ${ready ? 'ready' : ''} ${dropLabel ? 'drop-before' : ''}`} data-plabel={dropLabel} onClick={onOpen} {...dragProps}>
     <div className="pills"><CardTypePill types={types} type={card.type} /><span className={`pill ${card.priority}`}>{t.priority[card.priority]}</span><ComplexityBadge complexity={card.complexity} onClick={onComplexity} /></div>
     <button type="button" className="cardchat tip" data-tip={t.tile.openChat} aria-label={t.tile.openChat} onClick={(e) => { e.stopPropagation(); onChat() }}><ChatIcon /></button>
     <h3 className="ctitle" data-tip={card.title || undefined}>{card.title || t.newCard}</h3>
     {card.description && <div className="desc">{plain(card.description)}</div>}
+    {unlisted > 0 && <button type="button" className="badge ask" data-tip={t.tile.needsYouTip} onClick={(e) => { e.stopPropagation(); onChat() }}><span className="dot pulse" />{t.tile.needsYou}</button>}
     {card.pending.changes > 0 && <button type="button" className="badge ask" onClick={(e) => { e.stopPropagation(); onPending() }}><span className="dot pulse" />{t.tile.changesWaiting(card.pending.changes)}</button>}
     {card.pending.toSend > 0 && <button type="button" className="badge ask" data-tip={t.tile.sendTip} onClick={(e) => { e.stopPropagation(); onSend() }}><span className="dot pulse" />{t.tile.changesToSend(card.pending.toSend)}</button>}
     {card.pending.testFailures > 0 && run !== 'running' && <button type="button" className="badge ask" data-tip={t.tile.failuresTip} onClick={(e) => { e.stopPropagation(); onSendFailures() }}><span className="dot pulse" />{t.tile.failuresToSend(card.pending.testFailures)}</button>}
@@ -267,7 +270,7 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
     if (!asked.current.has(key)) { asked.current.add(key); setForeign(info) }
   }), [])
   useEffect(() => window.gearmod.onRunEvent((event) => {
-    if (!['gearmod/card-updated', 'gearmod/run-started', 'gearmod/run-completed'].includes(event.eventType)) return
+    if (!['gearmod/card-updated', 'gearmod/run-started', 'gearmod/run-completed', 'gearmod/permission-requested', 'gearmod/permission-resolved'].includes(event.eventType)) return
     if (event.payload.type === 'moved') say(t.view.agentMovedCard(String(event.payload.column)), 'notify')
     void refresh()
   }), [refresh])

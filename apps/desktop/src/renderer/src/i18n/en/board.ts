@@ -36,6 +36,8 @@ export const board: typeof source = {
     failed: 'Could not run',
     failedTip: (error) => `${error ? `${error}\n\n` : ''}Click to choose the agent and try again.`,
     chooseAgent: 'Choose agent and try again',
+    needsYou: 'Needs you',
+    needsYouTip: 'The agent is waiting for your answer. Open the card chat.',
     finishedViewChat: 'Finished · view chat',
     testingTap: 'Testing · tap to view',
     executionTap: 'Tap to view execution',

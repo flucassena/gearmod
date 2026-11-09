@@ -540,6 +540,7 @@ export const ptBR = {
     testDone: 'Teste concluído',
     planReady: 'Plano pronto',
     agentReplied: 'O agente respondeu',
+    needsYou: 'O agente precisa de você',
   },
   harness: {
     tokensExceeded: (spent: string, limit: string) => `O card já gastou ${spent} tokens, acima do limite do projeto (${limit}). Aumente o limite em Configurar projeto > Workflow para continuar.`,

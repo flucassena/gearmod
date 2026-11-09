@@ -137,7 +137,11 @@ export const projectSchema = z.object({
   id: uuid, name: z.string(), icon: z.string().nullable(), localPath: z.string(), baseBranch: z.string(), remoteProvider: z.string().nullable(),
   allowedProfileIds: z.array(uuid), sources: z.array(projectSourceSchema),
   /** Card types in effect in the project: its own (`customCardTypes`) or the default list. */
-  cardTypes: z.array(cardTypeDefSchema), customCardTypes: z.boolean(), activity: z.object({ running: z.number().int().nonnegative(), finished: z.number().int().nonnegative() }), createdAt: isoDate, updatedAt: isoDate
+  cardTypes: z.array(cardTypeDefSchema), customCardTypes: z.boolean(), activity: z.object({ running: z.number().int().nonnegative(), finished: z.number().int().nonnegative(),
+    /** Cards waiting for the user (question, change or approval to decide, agent asking permission). */
+    waiting: z.number().int().nonnegative().optional(),
+    /** What the project has for the user, card by card (the hover menu of the project in the sidebar): waiting first, then failed, finished and running. */
+    alerts: z.array(z.object({ cardId: uuid, title: z.string(), kind: z.enum(['waiting', 'failed', 'finished', 'running']) })).optional() }), createdAt: isoDate, updatedAt: isoDate
 })
 export const projectInspectionSchema = z.object({
   localPath: z.string(), name: z.string(), repositories: z.array(z.object({ localPath: z.string(), name: z.string(), currentBranch: z.string(), branches: z.array(z.string()),
@@ -227,7 +231,9 @@ export const cardSchema = z.object({
   priority: cardPrioritySchema, orderKey: z.number(), createdAt: isoDate, updatedAt: isoDate,
   archivedAt: isoDate.nullable(), acceptanceCriteria: z.array(criterionSchema), tasks: taskCountSchema, run: cardRunStateSchema, hasPlan: z.boolean(), planningOpen: z.boolean(), workspace: z.object({ branch: z.string(), baseRef: z.string(), path: z.string(), sharedFrom: z.string().nullable().optional() }).nullable(), pending: z.object({ changes: z.number().int().nonnegative(), questions: z.number().int().nonnegative(), commits: z.number().int().nonnegative(), toSend: z.number().int().nonnegative(), testFailures: z.number().int().nonnegative() }), execProfileId: uuid.nullable(), execModel: z.string().nullable(), agentIds: z.array(uuid), complexity: cardComplexitySchema.nullable(), repoIds: z.array(uuid).nullable(),
   /** Chosen flow (`light` = short flow, a single agent) and, in SDD, the method. Null = not chosen yet. */
-  workflow: workflowKindSchema.nullable(), sddMethod: cardSddMethodSchema.nullable()
+  workflow: workflowKindSchema.nullable(), sddMethod: cardSddMethodSchema.nullable(),
+  /** How many things wait for the user on the card: questions, changes and approvals to decide, and agents asking permission right now. */
+  waiting: z.number().int().nonnegative().optional()
 })
 export const projectBoardSchema = z.object({ project: projectSchema, columns: z.array(boardColumnSchema), cards: z.array(cardSchema) })
 export const agentProbeSchema = z.object({
