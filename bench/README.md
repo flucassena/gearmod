@@ -84,6 +84,8 @@ uv run bench/analysis/power.py
 | `generalization.json` | O resultado vale para Codex e para um modelo menor? | 1.728 |
 | `ablation.json` | Qual parte do índice gera o ganho? | 1.080 |
 | `paraphrase.json` | O ganho depende da redação ou do idioma? | 432 |
+| `retest.json` | As melhorias de 2026-11-08 no índice ajudam nas perguntas de testes e vagas? (baseline rodado de novo junto) | 304 |
+| `retest2.json` | Segunda rodada após as correções na detecção de testes (só GearMod; compara com o baseline do `retest`) | 152 |
 | `edit.json` | Em tarefas de edição, com testes como juiz, o ganho se mantém? E o subagente explorador? | ~400 |
 
 ## Cuidados de validade (já tratados no código)

@@ -230,10 +230,55 @@ def main() -> None:
 
     # 6. ablation
     say("## 6. Ablation: what each part of the index contributes (ratio vs the full index; > 1 = turning it off costs more)\n")
-    abl = comp[(comp["a"] == args.ref) & (comp["b"].isin(ABLATIONS))].copy() if not comp.empty else pd.DataFrame()
+    # Only the ablation block's own runs, so the full index is measured in the same block (same time, same questions).
+    def block_wide(experiment: str, index: list[str]) -> pd.DataFrame:
+        b = ok[ok["experiment"] == experiment]
+        if b.empty:
+            return pd.DataFrame()
+        return b.groupby(index + ["config"])[args.metric].mean().unstack("config").reset_index()
+
+    def ratio_row(num: pd.Series, den: pd.Series, **extra) -> dict | None:
+        mask = (num > 0) & (den > 0)
+        num, den = num[mask].to_numpy(), den[mask].to_numpy()
+        if len(num) == 0:
+            return None
+        ratio, lo, hi = geo_ratio_ci(num / den)
+        diff = np.log(num) - np.log(den)
+        p = float(stats.wilcoxon(diff).pvalue) if len(diff) >= 6 and np.any(diff != 0) else float("nan")
+        return {**extra, "units": len(num), "ratio_geo": ratio, "ci_low": lo, "ci_high": hi, "p_wilcoxon": p}
+
+    abw = block_wide("ablation", ["unit", "agent"])
+    arows = []
+    for agent in sorted(abw["agent"].unique()) if not abw.empty else []:
+        sub = abw[abw["agent"] == agent]
+        for b in [c for c in ABLATIONS + ["gearmod-summary"] if c in sub and args.ref in sub]:
+            pair = sub[[b, args.ref]].dropna()
+            row = ratio_row(pair[b], pair[args.ref], agent=agent, variant=b)
+            if row:
+                arows.append(row)
+    abl = pd.DataFrame(arows)
     if not abl.empty:
-        abl = abl.assign(cost_of_removing=1 / abl["ratio_geo"])[["agent", "b", "units", "cost_of_removing", "ci_low", "ci_high", "p_holm"]]
+        abl["p_holm"] = holm(abl["p_wilcoxon"].tolist())
     table(abl, "ablation")
+    say("Ratio = variant / full index on the same question, ablation block only. gearmod-summary is a different output format, not a removed part.\n")
+
+    # 6b. paraphrase: does the gain depend on the wording / language?
+    say(f"## 6b. Paraphrase: gain by question language ({args.ref} / {args.base}, paraphrase block only)\n")
+    pw = block_wide("paraphrase", ["repo", "question", "lang", "agent"])
+    prows = []
+    if not pw.empty and args.ref in pw and args.base in pw:
+        for (agent, lang), sub in pw.groupby(["agent", "lang"]):
+            row = ratio_row(sub[args.ref], sub[args.base], agent=agent, lang=lang)
+            if row:
+                prows.append(row)
+        # interaction: per question, log ratio in pt minus log ratio in en
+        lr = pw.assign(lr=np.log(pw[args.ref]) - np.log(pw[args.base])).pivot_table(index=["repo", "question", "agent"], columns="lang", values="lr").dropna()
+        if {"pt", "en"} <= set(lr.columns) and len(lr) >= 6:
+            d = (lr["pt"] - lr["en"]).to_numpy()
+            ratio, lo, hi = geo_ratio_ci(np.exp(d))
+            prows.append({"agent": "all", "lang": "pt vs en (ratio of ratios)", "units": len(d), "ratio_geo": ratio, "ci_low": lo, "ci_high": hi,
+                          "p_wilcoxon": float(stats.wilcoxon(d).pvalue)})
+    table(pd.DataFrame(prows), "paraphrase")
     oracle_dir = ROOT / "results" / "_oracle"
     if oracle_dir.exists():
         orows = [json.loads(p.read_text()) for p in sorted(oracle_dir.glob("*.json"))]
