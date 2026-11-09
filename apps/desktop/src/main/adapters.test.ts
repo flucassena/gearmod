@@ -72,6 +72,23 @@ describe('real provider protocol adapters', () => {
     expect(result).toMatchObject({ status: 'completed', text: 'pronto' })
   })
 
+  it('waits for the turn Claude starts after a background task notification, even past the grace period', async () => {
+    let child: ChildProcessWithoutNullStreams
+    const factory: ProcessFactory = { start() { child = fakeProcess(); queueMicrotask(() => {
+      send(child, { type: 'system', subtype: 'task_started', task_id: 't1', session_id: 's' })
+      send(child, { type: 'result', session_id: 's', is_error: false, result: 'aviso quando terminar' })
+      setTimeout(() => {
+        send(child, { type: 'system', subtype: 'task_notification', task_id: 't1', status: 'completed', session_id: 's' })
+        send(child, { type: 'system', subtype: 'background_tasks_changed', session_id: 's' })
+        send(child, { type: 'system', subtype: 'init', session_id: 's' })
+        setTimeout(() => { send(child, { type: 'stream_event', session_id: 's', event: { delta: { type: 'text_delta', text: ' testes passaram' } } }); send(child, { type: 'result', session_id: 's', is_error: false }) }, 40)
+      }, 5)
+    }); return child } }
+    const result = await new ClaudeCliAdapter(factory, { graceMs: 10, pendingIdleMs: 500 }).run({ cwd: 'C:\repo', prompt: 'x', sessionId: null, planning: false, profile: profile('claude'), onEvent: () => undefined })
+    expect(result).toMatchObject({ status: 'completed' })
+    expect(result.text).toContain('testes passaram')
+  })
+
   it('passes the system skills to Codex as developerInstructions and to Claude as --plugin-dir', async () => {
     const started: Record<string, unknown>[] = []
     const codex: ProcessFactory = { start() { return fakeProcess((request, child) => {

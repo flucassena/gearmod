@@ -302,7 +302,7 @@ export class ClaudeCliAdapter implements AgentAdapter {
       // Background tasks (subagents and commands): the turn's `result` arrives while they are still running. The process can only exit when all of them
       // finish and Claude answers their notification (another `result`); if it does not answer, the last result counts after a grace period.
       const pending = new Set<string>(), { graceMs: grace, pendingIdleMs } = this.timing
-      let deferred: AgentRunResult | null = null, graceTimer: NodeJS.Timeout | undefined, idleTimer: NodeJS.Timeout | undefined
+      let answered = false, deferred: AgentRunResult | null = null, graceTimer: NodeJS.Timeout | undefined, idleTimer: NodeJS.Timeout | undefined
       const finish = (result: AgentRunResult): void => { if (graceTimer) clearTimeout(graceTimer); if (idleTimer) clearTimeout(idleTimer); resolve(result) }
       // Background task that never reports it finished (task_started without task_notification): with no activity for `pendingIdleMs`, the turn's result counts.
       const armIdle = (): void => { if (!deferred) return; if (idleTimer) clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (deferred) { const last = deferred; child.kill(); finish(last) } }, pendingIdleMs) }
@@ -327,6 +327,13 @@ export class ClaudeCliAdapter implements AgentAdapter {
           if (message.subtype === 'task_started') pending.add(message.task_id)
           else if (message.subtype === 'task_notification') { pending.delete(message.task_id); settle() }
         }
+        // Claude answering the notification starts a new turn: wait for its `result` instead of closing the run in the middle of it (the idle timer still applies).
+        const taskBookkeeping = message.type === 'system' && (typeof message.task_id === 'string' || message.subtype === 'background_tasks_changed')
+        if (graceTimer && message.type !== 'result' && !taskBookkeeping) { clearTimeout(graceTimer); graceTimer = undefined }
+        // Resuming a session whose background command died emits an empty `result` (0 turns) for that stale notification, before our prompt is
+        // read: closing the run on it killed the process and the user's message was never answered. Only a result after Claude started answering counts.
+        if (message.type === 'assistant' || message.type === 'stream_event') answered = true
+        if (message.type === 'result' && message.num_turns === 0 && !answered && !message.is_error) return
         if (message.type === 'result') {
           if (graceTimer) { clearTimeout(graceTimer); graceTimer = undefined }
           approvals.close()
