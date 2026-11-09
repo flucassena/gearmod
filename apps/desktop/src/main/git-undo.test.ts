@@ -438,6 +438,28 @@ describe('undo discard, stash and ignore', () => {
   })
 })
 
+describe('force push', () => {
+  it('when the remote changed after the last fetch, refuses with its own code, fetches the branch and the next force uses the fresh lease', async () => {
+    const { manager, repo, remote, root, sourceId } = await setup({ remote: true })
+    await writeFile(join(repo, 'a.txt'), 'a\n'); await git(repo, 'add', 'a.txt'); await git(repo, 'commit', '-m', 'um')
+    await manager.sync(sourceId, null, 'push')
+    const branch = await out(repo, 'branch', '--show-current')
+    // someone else rewrites the remote branch from another clone
+    const other = join(root, 'other'); await git(root, 'clone', remote, other)
+    await git(other, 'config', 'user.email', 'o@x'); await git(other, 'config', 'user.name', 'Outra Pessoa')
+    await git(other, 'commit', '--amend', '-m', 'reescrito por outra pessoa'); await git(other, 'push', '--force', 'origin', branch)
+    // here: amend, so the push needs force; the lease (origin/branch) is now stale
+    await git(repo, 'commit', '--amend', '-m', 'meu amend')
+    const error = await manager.sync(sourceId, null, 'push', 'ff-only', true).then(() => '', (reason: Error) => reason.message)
+    expect(error).toMatch(/^\[\[git-push-stale\]\]/)
+    expect(error).toContain('reescrito por outra pessoa')
+    expect(await out(remote, 'log', '-1', '--format=%s', branch)).toBe('reescrito por outra pessoa')
+    // after seeing it, forcing again overwrites exactly that version
+    await manager.sync(sourceId, null, 'push', 'ff-only', true)
+    expect(await out(remote, 'log', '-1', '--format=%s', branch)).toBe('meu amend')
+  })
+})
+
 describe('stack cleanup and gc protection', () => {
   it('push clears the stack; fetch does not', async () => {
     const { manager, repo, sourceId } = await setup({ remote: true })

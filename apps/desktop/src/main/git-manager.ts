@@ -6,7 +6,7 @@ import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, unlink, writeFil
 import { tmpdir } from 'node:os'
 import { scanForSecrets } from './secret-scan'
 import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path'
-import { defaultGitPolicy, withErrorCode, gitPolicySchema, type GitCard, type GitChange, type GitChanges, type GitCommitFile, type GitGraph, type GitPolicy, type GitRef, type GitRepo, type GitRequest, type GitRow, type GitRule, type GitWorktreeInfo } from '@gearmod/contracts'
+import { defaultGitPolicy, errorCodeOf, withErrorCode, gitPolicySchema, type GitCard, type GitChange, type GitChanges, type GitCommitFile, type GitGraph, type GitPolicy, type GitRef, type GitRepo, type GitRequest, type GitRow, type GitRule, type GitWorktreeInfo } from '@gearmod/contracts'
 import type { AppDatabase } from './database'
 import { nativeGit, type GitRunner } from './worktrees'
 import { ApprovalService } from './approvals'
@@ -66,6 +66,8 @@ export function friendlyError(error: unknown): string {
   if (/Please tell me who you are|unable to auto-detect email|empty ident/i.test(text)) return tm().git.gitIdentityMissing
   if (/nothing (added )?to commit|no changes added/i.test(text)) return tm().git.friendlyNothingStaged
   if (/Authentication failed|could not read Username|Permission denied \(publickey\)|terminal prompts disabled/i.test(text)) return tm().git.gitAuthFailed
+  // --force-with-lease refused: the remote changed after the last fetch. Not the same as "pull first", so it gets its own code.
+  if (/stale info/i.test(text)) return withErrorCode('git-push-stale', tm().git.pushStale(''))
   if (/non-fast-forward|\[rejected\]|fetch first|failed to push some refs/i.test(text)) return withErrorCode('git-push-rejected', tm().git.pushRejected)
   const busy = /'([^']+)' is already (?:used by worktree|checked out) at '([^']+)'/i.exec(text)
   if (busy) return tm().git.branchOpenElsewhere(busy[1]!, busy[2]!)
@@ -704,7 +706,16 @@ ${diff}`
     const branch = target.branch ?? (await this.run(target.dir, ['branch', '--show-current'])).trim()
     if (!branch) throw new Error(tm().git.detachedHeadBeforePublish)
     // Force uses --force-with-lease: it only overwrites if the remote is still as of the last fetch (it does not trample what arrived later).
-    const output = (await this.run(target.dir, ['push', '-u', ...(force ? ['--force-with-lease'] : []), 'origin', branch])).trim() || (force ? tm().git.branchForcePublished(branch) : tm().git.branchPublished(branch))
+    let output: string
+    try { output = (await this.run(target.dir, ['push', '-u', ...(force ? ['--force-with-lease'] : []), 'origin', branch])).trim() || (force ? tm().git.branchForcePublished(branch) : tm().git.branchPublished(branch)) }
+    catch (error) {
+      // The lease was stale: someone published on this branch after our last fetch. Fetches only that branch (reads, changes nothing local)
+      // and says what is there now; forcing again uses the fresh lease, so it only overwrites what the user has just seen.
+      if (!force || errorCodeOf(error instanceof Error ? error.message : '') !== 'git-push-stale') throw error
+      await this.tryRun(target.dir, ['fetch', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`])
+      const remote = (await this.tryRun(target.dir, ['log', '-1', '--format=%h · %an · %s', `refs/remotes/origin/${branch}`]))?.trim() ?? ''
+      throw new Error(withErrorCode('git-push-stale', tm().git.pushStale(remote)))
+    }
     await this.forget(this.keyOf(sourceId, cardId))
     return { output }
   }

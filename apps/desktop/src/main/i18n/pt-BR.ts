@@ -206,6 +206,7 @@ export const ptBR = {
     branchException: (pattern: string) => `exceção da branch ${pattern}`,
     gitIdentityMissing: 'O Git não sabe quem você é. Configure o nome e o e-mail (git config --global user.name "Seu nome" e user.email "voce@exemplo.com") e tente de novo.',
     pushRejected: 'O servidor recusou: a branch remota tem commits que esta ainda não tem. Faça Pull antes de publicar.',
+    pushStale: (remote: string) => `O push forçado foi recusado por segurança: a branch remota mudou desde o último fetch${remote ? ` e agora está em ${remote}` : ''}. Confira e escolha de novo: forçar agora substitui exatamente essa versão.`,
     friendlyNothingStaged: 'Não há nada preparado para commitar.',
     gitAuthFailed: 'O Git não conseguiu entrar no servidor (login ou chave). Entre uma vez pelo terminal ou pelo seu gerenciador de credenciais e tente de novo.',
     branchOpenElsewhere: (branch: string, path: string) => `A branch ${branch} já está aberta em outra pasta de trabalho (${path}), geralmente a worktree de um card. O Git não deixa a mesma branch aberta em dois lugares: use a worktree do card ou remova-a antes.`,

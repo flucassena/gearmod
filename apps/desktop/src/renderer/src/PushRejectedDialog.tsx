@@ -9,7 +9,8 @@ type Pull = 'ff' | 'rebase'
  * Push rejected because the remote branch has commits the local one does not (typical case: amend of an already published commit).
  * Instead of just showing the error, lets you choose: bring in the remote (Pull / Pull with rebase) or overwrite it (Force push).
  */
-export function PushRejectedDialog({ branch, cancel, pull, force }: { branch: string; cancel(): void; pull(mode: Pull): void; force(): void }): React.JSX.Element {
+/** `note`: shown when a force push was just refused because the remote changed (it says where the remote is now). */
+export function PushRejectedDialog({ branch, note, cancel, pull, force }: { branch: string; note?: string; cancel(): void; pull(mode: Pull): void; force(): void }): React.JSX.Element {
   const { common, git: { pushRejected: t } } = useT()
   const [confirmForce, setConfirmForce] = useState(false)
   useEscape(cancel, !confirmForce)
@@ -18,6 +19,7 @@ export function PushRejectedDialog({ branch, cancel, pull, force }: { branch: st
     <div className="modal pushrej">
       <header><div><div className="eyebrow">{t.eyebrow}</div><h2>{t.remoteAheadOf} {branch ? <code>{branch}</code> : t.thisBranch}</h2></div></header>
       <p className="pr-text">{t.text}</p>
+      {note && <p className="cx-note warn pr-text" role="status">{note}</p>}
       <div className="pr-options">
         <button type="button" className="pr-opt" onClick={() => pull('ff')}>
           <span className="pr-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 3v10m0 0-4-4m4 4 4-4M4 17h12" /></svg></span>

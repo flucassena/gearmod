@@ -154,7 +154,8 @@ export const git = {
     branchOwnedByCard: (branch: string, card: string) => `A branch ${branch} é do card "${card}" e está em uso pela worktree dele. Remova a worktree do card antes de apagar a branch.`,
     branchNotInHistory: 'Branch fora do histórico',
     branchNotInHistoryText: 'Esta branch não aparece no histórico carregado.',
-    switchedToWorktree: (branch: string) => `Essa branch está na worktree de um card: mudei para ela (${branch})`,
+    switchedToWorktree: (branch: string) => `A branch ${branch} está aberta na worktree de um card. Exibindo essa worktree.`,
+    switchedToMainFolder: (branch: string) => `A branch ${branch} está aberta na pasta principal do repositório. Exibindo a pasta principal.`,
     alreadyOn: (name: string) => `Você já está em ${name}`,
     // Barra de ferramentas e lista
     prsTip: 'Pull requests deste repositório',

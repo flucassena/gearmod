@@ -369,14 +369,18 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
     const meta = graph ? `${graph.repo.name}${graph.repo.head ? ` · ${graph.repo.head}` : ''}` : undefined
     if (ok === 'warn') toast.warning(warnTitle ?? name, text, { meta }); else if (ok) toast.success(t.opDone(name), text, { meta }); else toast.error(t.opFailed(name), text, { meta })
   }
-  const [pushRejected, setPushRejected] = useState(false)
+  // false = closed; a string = open (with a note when a force push was refused because the remote changed).
+  const [pushRejected, setPushRejected] = useState<false | string>(false)
   const sync = async (action: 'fetch' | 'pull' | 'push' | 'stash' | 'pop', pull?: 'ff' | 'ff-only' | 'rebase', force?: boolean): Promise<void> => {
     if (!graph) return
     setBusy(action); setNotice('')
     try { const out = await window.gearmod.invoke('git:sync', { sourceId: graph.repo.sourceId, cardId: worktree, action, pull, force }); if (out.conflicts) report(action, 'warn', out.output, t.stashConflictTitle); else report(action, true, out.output.split(/\r?\n/).filter(Boolean).slice(-1)[0] ?? t.done); await load() } catch (reason) {
       const text = plainError(reason)
       // Push rejected (e.g. after an amend): instead of just showing the error, offers Pull or Force push.
-      if (action === 'push' && !force && errorCodeOf(text) === 'git-push-rejected') setPushRejected(true); else report(action, false, withoutErrorCode(text))
+      if (action === 'push' && !force && errorCodeOf(text) === 'git-push-rejected') setPushRejected('')
+      // Force refused (stale lease): the main process already fetched the branch; the dialog reopens saying where the remote is now.
+      else if (action === 'push' && force && errorCodeOf(text) === 'git-push-stale') { setPushRejected(withoutErrorCode(text)); void load() }
+      else report(action, false, withoutErrorCode(text))
     } finally { setBusy('') }
   }
   const [picked, setPicked] = useState<string>(), [menu, setMenu] = useState<{ x: number; y: number; kind: 'local' | 'remote' | 'commit' | 'stash'; name: string }>(), [extMenu, setExtMenu] = useState<{ x: number; y: number; path: string; name: string }>(), [wtMenu, setWtMenu] = useState<{ x: number; y: number; cardId: string; branch: string }>(), [wtDelete, setWtDelete] = useState<{ cardId: string; sourceId?: string }>(), [folderMenu, setFolderMenu] = useState<{ x: number; y: number; folder: string; names: string[] }>(), [allConflicts, setAllConflicts] = useState<Array<ConflictTarget & { operation: keyof typeof operationLabel; files: string[] }>>([]), [resolveTarget, setResolveTarget] = useState<ConflictTarget>(), [ask, setAsk] = useState<{ kind: 'create' | 'rename' | 'delete' | 'delete-folder' | 'delete-remote' | 'commit-branch' | 'commit-tag' | 'reset-hard'; name: string; names?: string[] }>(), [newName, setNewName] = useState(''), [createError, setCreateError] = useState(''), [creating, setCreating] = useState(false)
@@ -530,14 +534,21 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
   if (repos && !repos.length) return <div className="gwrap"><GitEmpty projectId={projectId} done={(items) => { setRepos(items); setRepoId(items[0]?.sourceId) }} /></div>
   const labels = rows.map((row) => agoLabel(row.date))
   const goWorktree = (id: string | null): void => { if (id !== worktree) setGraph(undefined); setWorktree(id); setFocus(null); setSel(null); setOpen(false); setViewer(undefined) }
-  // Branch already open in a card's worktree: Git does not allow opening it again, so double click takes you to that worktree.
+  // Git does not open the same branch in two folders. Branch already open in a card's worktree: double click takes you to that worktree;
+  // branch open in the main folder (e.g. develop) while you are in a worktree: takes you back to the main folder.
   const openLocalBranch = (name: string): void => {
     const owner = graph?.worktrees.find((wt) => wt.branch === name)
     if (owner && owner.cardId !== worktree) { goWorktree(owner.cardId); toast.info(t.switchedToWorktree(name)); return }
+    // Asks Git for the main folder's branch now (the repository list can be cached and out of date).
+    if (!owner && worktree && graph) {
+      const sourceId = graph.repo.sourceId
+      void window.gearmod.invoke('git:upstream', { sourceId, cardId: null }).then(({ branch }) => { if (branch === name) { goWorktree(null); toast.info(t.switchedToMainFolder(name)) } else void branchAction('checkout', name) }, () => void branchAction('checkout', name))
+      return
+    }
     void branchAction('checkout', name)
   }
   const side = <GitSide graph={graph} worktree={worktree} selectWorktree={goWorktree} title={title} icons={gitIcons} picked={picked} onPick={pickBranch} onPickStash={(ref) => { const row = rows.find((item) => item.stash?.ref === ref); if (!row) return; setPicked(`stash:${ref}`); setSel(row.hash); setOpen(true); window.requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-hash="${row.hash}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })) }} onOpen={(kind, name, current) => { if (current) toast.info(t.alreadyOn(name)); else openLocalBranch(name) }} onMenu={(kind, name, event) => { event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, kind, name }) }} onFolderMenu={(_kind, folder, names, event) => setFolderMenu({ x: event.clientX, y: event.clientY, folder, names })} onWorktreeMenu={(cardId, branch, event) => setWtMenu({ x: event.clientX, y: event.clientY, cardId, branch })} onExternalMenu={(path, name, event) => setExtMenu({ x: event.clientX, y: event.clientY, path, name })} prs={repoId ? { list: prs.lists[repoId], isUnread: (pr) => prs.isUnread(repoId, pr), open: (pr) => { setPrFocus(pr ? { number: pr.number, at: Date.now() } : undefined); setPrOpen(true) } } : undefined} />
-  const tool = (icon: React.JSX.Element, label: string, action: 'push' | 'stash' | 'pop', remote = true): React.JSX.Element => <button type="button" className="gtool" disabled={Boolean(busy) || (remote && !graph?.repo.hasRemote)} data-tip={remote && !graph?.repo.hasRemote ? T.git.view.noRemote : undefined} onClick={() => { if (action === 'push' && (graph?.branches.local.find((item) => item.head)?.behind ?? 0) > 0) setPushRejected(true); else void sync(action) }}>{icon}{busy === action ? '…' : label}</button>
+  const tool = (icon: React.JSX.Element, label: string, action: 'push' | 'stash' | 'pop', remote = true): React.JSX.Element => <button type="button" className="gtool" disabled={Boolean(busy) || (remote && !graph?.repo.hasRemote)} data-tip={remote && !graph?.repo.hasRemote ? T.git.view.noRemote : undefined} onClick={() => { if (action === 'push' && (graph?.branches.local.find((item) => item.head)?.behind ?? 0) > 0) setPushRejected(''); else void sync(action) }}>{icon}{busy === action ? '…' : label}</button>
   // The outer button runs the default; each menu option runs its own right away (without changing the default).
   const pullNow = (mode: PullMode = pullMode): void => {
     if (mode === 'fetch-all') { void sync('fetch'); return }
@@ -597,7 +608,7 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
       : menu.kind === 'stash' ? <GitMenu x={menu.x} y={menu.y} title={menu.name} label={t.stashActions(menu.name)} items={[...stashItems(), { key: 'rename' as const, label: t.renameStash }]} run={(action) => { const ref = menu.name; setMenu(undefined); if (action === 'rename') beginRenameStash(ref); else void stashAction(action, ref) }} close={() => setMenu(undefined)} />
       : <GitMenu x={menu.x} y={menu.y} title={menu.name} label={t.branchActions(menu.name)} items={branchItems(menu.kind, menu.kind === 'local' && graph?.branches.local.find((item) => item.name === menu.name)?.head === true, graph?.repo.head ?? null)} run={runMenu} close={() => setMenu(undefined)} />)}
     {ask?.kind === 'reset-hard' && <ConfirmDialog eyebrow={t.resetHardEyebrow} title={t.resetHardTitle(ask.name.slice(0, 7))} text={`${t.resetHardText} ${t.undoHint}`} ok={t.resetHardOk} danger cancel={() => setAsk(undefined)} confirm={() => { const hash = ask.name; setAsk(undefined); void commitAction('reset-hard', hash) }} />}
-    {pushRejected && graph && <PushRejectedDialog branch={graph.repo.head ?? ''} cancel={() => setPushRejected(false)} pull={(mode) => { setPushRejected(false); void sync('pull', mode) }} force={() => { setPushRejected(false); void sync('push', undefined, true) }} />}
+    {pushRejected !== false && graph && <PushRejectedDialog branch={graph.repo.head ?? ''} note={pushRejected || undefined} cancel={() => setPushRejected(false)} pull={(mode) => { setPushRejected(false); void sync('pull', mode) }} force={() => { setPushRejected(false); void sync('push', undefined, true) }} />}
     {renameStash && <ConfirmDialog eyebrow={t.stashEyebrow} title={t.renameStashTitle} text={t.renameStashText} extra={<label className="f"><span>{common.name}</span><input className="in" autoFocus maxLength={500} value={renameStash.message} onChange={(event) => setRenameStash({ ...renameStash, message: event.target.value })} /></label>} ok={t.saveName} okDisabled={!renameStash.message.trim()} cancel={() => setRenameStash(undefined)} confirm={() => void saveStashName()} />}
     {renameCommit && (renameCommit.confirm ? <ConfirmDialog eyebrow={t.changeCommit} title={t.updateMessageTitle} text={t.updateMessageText} ok={t.updateMessageOk} danger cancel={() => setRenameCommit({ ...renameCommit, confirm: false })} confirm={() => void saveCommitName()} /> : <ConfirmDialog eyebrow={t.changeCommit} title={t.editMessageTitle} text={t.editMessageText} extra={<label className="f"><span>{t.summary}</span><input className="in" autoFocus maxLength={2000} value={renameCommit.message} onChange={(event) => setRenameCommit({ ...renameCommit, message: event.target.value })} /></label>} ok={common.continue} okDisabled={!renameCommit.message.trim()} cancel={() => setRenameCommit(undefined)} confirm={() => setRenameCommit({ ...renameCommit, confirm: true })} />)}
     {upstreamAsk && graph && <UpstreamDialog sourceId={graph.repo.sourceId} cardId={worktree} branch={upstreamAsk.branch} remotes={upstreamAsk.remotes} close={() => setUpstreamAsk(undefined)} done={() => { const mode = upstreamAsk.mode; setUpstreamAsk(undefined); void sync('pull', mode) }} />}
