@@ -3199,7 +3199,7 @@ body:has(.overlay) .viewdock.floating{display:none}
 .cp-row.on:hover .cp-ok{display:none}
 .cp-row.on:hover .cp-minus{display:block;color:#ef6b6b}
 .cp-row:focus-visible{outline:1px solid var(--accent-line);outline-offset:-1px}
-.cp-pane>header .cp-all{margin:0;flex:none}
+.cp-pane>header .cp-all{display:inline-flex;flex:none}
 .cp-head{cursor:default}
 /* Output lines that came from a side take that side's color. */
 .cm-pick-ours{background:color-mix(in srgb,#2b7a9b 30%,transparent)}

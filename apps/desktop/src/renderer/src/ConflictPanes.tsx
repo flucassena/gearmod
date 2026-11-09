@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { isResolved, sideFullyPicked, type PickBlock, type PickModel, type Picks } from './editor/conflictPicks'
 import { useT } from './i18n'
+import { Checkbox } from './Checkbox'
 
 const CONTEXT = 3
 type Side = 'ours' | 'theirs'
@@ -38,7 +39,7 @@ function Pane({ side, model, picks, change, changeAll, label, name, active, refs
   })
   const last = (model.gaps[model.blocks.length] ?? '').match(/[^\n]*\n|[^\n]+$/g) ?? []
   body.push(...context(last, number, 'start', t.hiddenLines))
-  return <div className={`cp-pane ${side}`}><header><input type="checkbox" className="cp-all" checked={sideFullyPicked(model, picks, side)} onChange={() => changeAll(side)} data-tip={t.pickAll} aria-label={t.pickAll} /><b className="cp-tag">{side === 'ours' ? 'A' : 'B'}</b><span className="cp-title">{label}</span>{name && <small data-tip={name}>{name}</small>}</header><div className="cp-body">{body}</div></div>
+  return <div className={`cp-pane ${side}`}><header><span className="cp-all" data-tip={t.pickAll}><Checkbox checked={sideFullyPicked(model, picks, side)} onChange={() => changeAll(side)} label={t.pickAll} /></span><b className="cp-tag">{side === 'ours' ? 'A' : 'B'}</b><span className="cp-title">{label}</span>{name && <small data-tip={name}>{name}</small>}</header><div className="cp-body">{body}</div></div>
 }
 
 /** Both sides of the file, line by line: pick what goes to the output (side A first, then B). The header checkbox picks the whole side. */
