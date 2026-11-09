@@ -53,12 +53,14 @@ p{color:var(--muted);margin:0}
 .usedbtn:hover{border-color:color-mix(in srgb, var(--accent) 6%, var(--g4c));filter:none}
 .usedbtn.tip::after{right:auto;left:0}
 .uchev{font-size:13px;line-height:1;transition:transform .15s}.uchev.open{transform:rotate(180deg)}
-.upop{position:absolute;left:0;bottom:calc(100% + 10px);background:color-mix(in srgb, var(--accent) 6%, var(--g17));border:1px solid color-mix(in srgb, var(--accent) 6%, var(--g37));border-radius:12px;padding:10px;display:grid;gap:6px;box-shadow:0 14px 40px var(--cs-000000aa);z-index:40;width:206px}
-.urow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;text-align:left;background:transparent;color:var(--text);padding:8px;border-radius:9px;font-weight:500}
+.upop{position:absolute;left:0;bottom:calc(100% + 10px);background:color-mix(in srgb, var(--accent) 6%, var(--g17));border:1px solid color-mix(in srgb, var(--accent) 6%, var(--g37));border-radius:12px;padding:10px;display:grid;gap:6px;box-shadow:0 14px 40px var(--cs-000000aa);z-index:40;width:236px}
+.urow{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;text-align:left;background:transparent;color:var(--text);padding:8px;border-radius:9px;font-weight:500}
 .urow:hover{background:color-mix(in srgb, var(--accent) 6%, var(--g26));filter:none}
 .urow .un{display:grid;gap:3px;min-width:0}.urow b{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .urow small{font-size:11px;color:color-mix(in srgb, var(--accent) 8%, var(--g90));white-space:nowrap}
-.urow small.rs span{display:block;font-size:12px;font-weight:600;color:color-mix(in srgb, var(--accent) 8%, var(--gd3))}
+.urow small.rs{font-size:10.5px}.urow small.rs span{font-weight:600;color:color-mix(in srgb, var(--accent) 8%, var(--gd3))}
+.urow .ulim{display:grid;grid-template-columns:38px minmax(0,1fr) 30px;align-items:center;gap:6px}.urow .ulim small{font-size:10px}.urow .ulim .ubar{margin:0}
+.urow .ulim em{font-style:normal;font-size:11px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;color:color-mix(in srgb, var(--accent) 8%, var(--gd3))}
 .urow .up{font-size:12px;font-weight:700;color:color-mix(in srgb, var(--accent) 8%, var(--gd3))}
 .ubar{height:5px;background:color-mix(in srgb, var(--accent) 6%, var(--g26));border-radius:3px;overflow:hidden}
 .ubar i{display:block;height:100%;border-radius:3px}

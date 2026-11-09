@@ -72,10 +72,17 @@ function UsedAgents({ profiles }: { profiles: AgentProfile[] }): React.JSX.Eleme
   }, [open])
   useEscape(() => setOpen(false), open)
   const shown = profiles.slice(0, 4), extra = profiles.length - shown.length
-  const session = (profileId: string) => usage.find((item) => item.profileId === profileId)?.windows.find((window) => window.id === 'five_hour')
+  const windowOf = (profileId: string, id: 'five_hour' | 'seven_day') => usage.find((item) => item.profileId === profileId)?.windows.find((window) => window.id === id)
   return <div className="used" ref={root}>
     <button type="button" className="usedbtn tip" data-tip={t.shell.sidebar.usedTip} aria-expanded={open} aria-label={t.shell.sidebar.usedTip} onClick={() => setOpen(!open)}><span className="avstack">{shown.map((profile) => <span key={profile.id} className={`av ptl ${profile.provider}`} style={{ color: profile.color, background: `color-mix(in srgb, ${profile.color} 22%, var(--surface-2))` }}><ProviderLogo provider={profile.provider} /></span>)}{extra > 0 && <span className="av ptl more">+{extra}</span>}</span><svg className={`uchev ${open ? 'open' : ''}`} viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg></button>
-    {open && <div className="upop"><div className="sectitle">{t.shell.sidebar.sessionUsage}{refreshing && <span className="refreshing">{t.shell.sidebar.updating}</span>}</div>{profiles.length === 0 && <p className="hint">{t.shell.sidebar.noAgents}</p>}{profiles.map((profile) => { const window = session(profile.id); return <button type="button" className="urow" key={profile.id} onClick={() => { setDetail(profile.id); setOpen(false) }}><AgentIcon profile={profile} tip={false} /><span className="un"><b>{profile.label}</b><small className="rs">{window ? <>{t.shell.sidebar.resetsIn}<span>{left(window.resetsAt)}</span></> : t.shell.sidebar.noDataYet}</small>{window && <Bar percent={window.usedPercent} />}</span><span className="up">{window ? `${window.usedPercent}%` : ''}</span></button> })}</div>}
+    {open && <div className="upop"><div className="sectitle">{t.shell.sidebar.sessionUsage}{refreshing && <span className="refreshing">{t.shell.sidebar.updating}</span>}</div>{profiles.length === 0 && <p className="hint">{t.shell.sidebar.noAgents}</p>}{profiles.map((profile) => {
+      // Session (5 h) and week, one labeled bar each; the reset time of the session stays on one line under the name.
+      const window = windowOf(profile.id, 'five_hour'), week = windowOf(profile.id, 'seven_day')
+      return <button type="button" className="urow" key={profile.id} onClick={() => { setDetail(profile.id); setOpen(false) }}><AgentIcon profile={profile} tip={false} /><span className="un"><b>{profile.label}</b>
+        <small className="rs">{window ? <>{t.shell.sidebar.resetsIn} <span>{left(window.resetsAt)}</span></> : t.shell.sidebar.noDataYet}</small>
+        {window && <span className="ulim" data-tip={t.shell.sidebar.resetsAt(left(window.resetsAt), at(window.resetsAt))}><small>{t.shell.sidebar.sessionShort}</small><Bar percent={window.usedPercent} /><em>{window.usedPercent}%</em></span>}
+        {week && <span className="ulim" data-tip={t.shell.sidebar.resetsAt(left(week.resetsAt), at(week.resetsAt))}><small>{t.shell.sidebar.weekShort}</small><Bar percent={week.usedPercent} /><em>{week.usedPercent}%</em></span>}</span></button>
+    })}</div>}
     {detail && <UsageModal profiles={profiles} usage={usage} current={detail} close={() => setDetail(undefined)} />}
   </div>
 }
