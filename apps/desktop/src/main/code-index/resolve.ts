@@ -9,7 +9,7 @@ import { ablated, ablationTag } from './ablation'
  * unlike extraction. It can redo only the files affected by a change.
  */
 // bump the number when the rule changes: folders are relinked even with no changed file (the ablation tag is empty in the app)
-export const LINKER_VERSION = `6${ablationTag() ? `-${ablationTag()}` : ''}`
+export const LINKER_VERSION = `7${ablationTag() ? `-${ablationTag()}` : ''}`
 
 const CLASSY = new Set(['class', 'interface', 'struct', 'trait', 'enum', 'type', 'module'])
 const SELF = new Set(['this', 'self', 'cls', 'Self', '$this'])
@@ -74,6 +74,13 @@ function objectMembers(text: string): Map<string, string> {
     if (match?.[1] && match[2]) out.set(match[1], match[2].trim())
   }
   return out
+}
+
+/** `function setup(): Promise<{ db: Db; manager: GitManager }>` → Map(db → 'Db', manager → 'GitManager'). Tolerates a cut signature. */
+function returnObject(fn: Sym): Map<string, string> | null {
+  if (fn.family !== 'js') return null
+  const match = (fn.signature ?? '').match(/\)\s*:\s*(?:Promise\s*<\s*)?\{([\s\S]*)$/)
+  return match ? objectMembers(`{${match[1]!.replace(/\}\s*>?\s*(=>|\{)?\s*$/, '')}}`) : null
 }
 
 function returnType(fn: Sym): string | null {
@@ -241,7 +248,8 @@ function loadContext(db: Db, root: string): RootContext {
   const nsMembers = new Map<string, Map<string, Sym[]>>()
   const addMember = (map: Map<string, Map<string, Sym[]>>, owner: string, symbol: Sym): void => { let inner = map.get(owner); if (!inner) { inner = new Map(); map.set(owner, inner) } push(inner, symbol.name, symbol) }
   for (const symbol of rows) {
-    if (symbol.kind === 'file') continue
+    // test cases (describe/it) are sources of edges, never targets
+    if (symbol.kind === 'file' || symbol.kind === 'test') continue
     push(byName, symbol.name, symbol)
     const parent = syms.get(symbol.sha)?.[symbol.parent]
     const owner = symbol.owner ?? (parent && (CLASSY.has(parent.kind) || parent.kind === 'const') ? parent.name : null)
@@ -403,6 +411,22 @@ function linker(ctx: RootContext, refsOf: (sha: string) => RefRow[]): { linkFile
     if (depth > 5) return null
     if (bind.kind === 'expr') return chainType(fc, bind.type.split('.'), srcIdx, depth + 1)
     if (bind.type.trim().startsWith('{')) return { obj: objectMembers(bind.type), fc }
+    // const { board } = await setup(): the `board` variable inside setup (returned as `{ board }`), or the field of its return type
+    if (bind.kind === 'destrcall') {
+      const fn = resolveCallee(fc, bind.type, srcIdx, depth + 1)
+      if (!fn || CLASSY.has(fn.kind)) return null
+      const inner = (ctx.binds.get(fn.sha) ?? []).find((row) => row.scope === fn.idx && row.name === bind.name && row.kind !== 'field')
+      if (inner) return typeFromBind(fileCtx(fn.path), inner, fn.idx, depth + 1)
+      const member = returnObject(fn)?.get(bind.name)
+      if (member) {
+        if (member.trim().startsWith('{')) return { obj: objectMembers(member), fc: fileCtx(fn.path) }
+        const type = resolveTypeName(fileCtx(fn.path), normType(member), depth + 1)
+        return type ? { type } : null
+      }
+      const result = returnType(fn)
+      const type = result ? resolveTypeName(fileCtx(fn.path), result, depth + 1) : null
+      return type ? fieldType(type, bind.name, depth + 1) : null
+    }
     if (bind.kind === 'call') {
       const fn = resolveCallee(fc, bind.type, srcIdx, depth + 1)
       if (!fn) return null
@@ -429,6 +453,7 @@ function linker(ctx: RootContext, refsOf: (sha: string) => RefRow[]): { linkFile
   function headType(fc: FileCtx, head: string, srcIdx: number | null, depth = 0): TypeRef | null {
     if (depth > 6) return null
     if (SELF.has(head)) { const cls = srcIdx !== null ? classOf(fc, srcIdx) : null; return cls ? { type: cls } : null }
+    if (head.startsWith('new ')) { const type = resolveTypeName(fc, head.slice(4), depth + 1); return type ? { type } : null }
     if (head === 'super') { const cls = srcIdx !== null ? classOf(fc, srcIdx) : null; const parent = cls ? parentsOf(cls)[0] : undefined; return parent ? { type: parent } : null }
     if (srcIdx !== null) {
       const binds = ctx.binds.get(fc.sha) ?? []
@@ -457,6 +482,14 @@ function linker(ctx: RootContext, refsOf: (sha: string) => RefRow[]): { linkFile
     if (local && CLASSY.has(local.kind)) return { type: local, static: true }
     if (local && local.kind === 'const' && ctx.members.get(local.name)?.size) return { type: local }
     if (/^[A-Z]/.test(head)) { const type = resolveTypeName(fc, head, depth + 1); if (type) return { type, static: true } }
+    // untyped parameter typed by context (`steps: Record<string, Step>` with `type Step = (ctx: UndoCtx) => …`):
+    // when every typed declaration with this name in the file agrees on one type, use it
+    if (srcIdx !== null && !ablated('types')) {
+      const typed = (ctx.binds.get(fc.sha) ?? []).filter((row) => row.name === head && row.kind === 'var').map((row) => normType(row.type))
+      const types = new Set(typed)
+      const only = types.size === 1 ? [...types][0] : null
+      if (only) { const type = resolveTypeName(fc, only, depth + 1); if (type) return { type } }
+    }
     return null
   }
   function stepType(current: TypeRef, part: string, depth = 0): TypeRef | null {
@@ -486,7 +519,7 @@ function linker(ctx: RootContext, refsOf: (sha: string) => RefRow[]): { linkFile
   function bareLookup(fc: FileCtx, name: string, srcIdx: number | null, kind: string): Hit[] {
     const wantType = kind === 'type'
     // `new X()` can only be a class (in JS, also a constructor function)
-    const ok = (symbol: Sym | undefined): symbol is Sym => !!symbol && symbol.idx > 0 && (wantType ? CLASSY.has(symbol.kind) : kind === 'new' ? CLASSY.has(symbol.kind) || (fc.family === 'js' && symbol.kind === 'function') : true)
+    const ok = (symbol: Sym | undefined): symbol is Sym => !!symbol && symbol.idx > 0 && symbol.kind !== 'test' && (wantType ? CLASSY.has(symbol.kind) : kind === 'new' ? CLASSY.has(symbol.kind) || (fc.family === 'js' && symbol.kind === 'function') : true)
     const chain = srcIdx !== null ? chainOf(fc, srcIdx) : fc.syms[0] ? [fc.syms[0]] : []
     const chainIdx = new Set(chain.map((symbol) => symbol.idx))
     const implicitMembers = fc.family === 'java' || fc.family === 'csharp' || fc.family === 'php' || fc.family === 'ruby' || fc.family === 'c'

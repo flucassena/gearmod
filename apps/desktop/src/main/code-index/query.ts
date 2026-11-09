@@ -22,6 +22,8 @@ const STOPWORDS = new Set('a o os as de do da dos das e em no na nos nas um uma 
 const linesOf = (edge: { line: number; lines: string | null }): string => edge.lines || String(edge.line)
 const by = <T>(score: (item: T) => number) => (a: T, b: T): number => score(a) - score(b)
 const testFirst = (path: string): number => (isTest(path) ? 1 : 0)
+/** Test code: a test file, or tests inside a source file (Rust `mod tests`, Python/Go `test_*` functions). */
+const testSymbol = (symbol: SymbolRow): boolean => isTest(symbol.path) || symbol.kind === 'test' || /(^|\.)tests?\./.test(symbol.qname) || /^test_/.test(symbol.name)
 const likely = (conf: number): string => (conf < 0.8 ? ' (likely)' : '')
 const kindTag = (kind: string): string => (kind !== 'calls' ? ` [${kind}]` : '')
 
@@ -93,6 +95,41 @@ export class Queries {
   private members(symbol: SymbolRow): SymbolRow[] { return (this.st.inFile.all(this.root, symbol.path) as SymbolRow[]).filter((member) => member.sha === symbol.sha && member.parent === symbol.idx) }
   private withMembers(symbol: SymbolRow): number[] { return CLASSY.has(symbol.kind) ? [symbol.id, ...this.members(symbol).map((member) => member.id)] : [symbol.id] }
 
+  /** One line per call path; the location shows once per symbol, and as `:line` when the file repeats. */
+  private flowTree(paths: number[][]): string {
+    const shown = new Set<number>()
+    return paths.map((path) => {
+      let lastFile = ''
+      return path.map((id) => {
+        const item = this.sym(id)
+        if (!item) return '?'
+        if (shown.has(id)) { lastFile = item.path; return item.qname }
+        shown.add(id)
+        const where = item.path === lastFile ? `:${item.line}` : this.where(item)
+        lastFile = item.path
+        return `${item.qname} (${where})`
+      }).join(' → ')
+    }).join('\n') + '\n'
+  }
+
+  /** Test cases (describe/it, test functions) that call these symbols, directly or through a helper in the test file. */
+  private testCases(ids: number[]): Array<{ s: SymbolRow; used: string[] }> {
+    const found = new Map<number, { s: SymbolRow; used: Set<string> }>()
+    // a case: describe/it, a test-named function, or a function in a test file that nothing calls (an entry point of the runner)
+    const isCase = (symbol: SymbolRow): boolean => symbol.kind === 'test' || (testSymbol(symbol) && (/^(test|Test|Should|should)|_test$/.test(symbol.name) || (symbol.kind !== 'class' && !this.incoming(symbol.id).length)))
+    for (const id of ids) {
+      const target = this.sym(id)
+      if (!target) continue
+      for (const edge of this.incoming(id)) {
+        const caller = this.sym(edge.src)
+        if (!caller || !testSymbol(caller)) continue
+        const callers = isCase(caller) ? [caller] : this.incoming(caller.id).map((up) => this.sym(up.src)).filter((up): up is SymbolRow => !!up && isCase(up))
+        for (const item of callers) { const entry = found.get(item.id) ?? { s: item, used: new Set<string>() }; entry.used.add(target.name); found.set(item.id, entry) }
+      }
+    }
+    return [...found.values()].sort((a, b) => b.used.size - a.used.size || a.s.path.localeCompare(b.s.path) || a.s.line - b.s.line).map(({ s, used }) => ({ s, used: [...used] }))
+  }
+
   private testsFor(ids: number[], hops = 3): { direct: string[]; via: string[] } {
     const direct = new Set<string>(), via = new Set<string>(), seen = new Set(ids)
     let frontier = [...ids]
@@ -103,7 +140,7 @@ export class Queries {
         seen.add(edge.src)
         const caller = this.sym(edge.src)
         if (!caller) continue
-        if (isTest(caller.path)) (hop === 1 ? direct : via).add(caller.path)
+        if (testSymbol(caller)) (hop === 1 ? direct : via).add(caller.path)
         else next.push(edge.src)
       }
       frontier = next
@@ -391,6 +428,8 @@ export class Queries {
       let weight = value
       if (isGenerated(symbol.path)) weight *= 0.3
       if (isTest(symbol.path) && !wantsTests) weight *= 0.25
+      // test cases are listed in their own section; here they would crowd out the code under test
+      if (symbol.kind === 'test') weight *= wantsTests ? 0.3 : 0.1
       score.set(symbol.id, (score.get(symbol.id) ?? 0) + weight)
       this.symCache.set(symbol.id, symbol)
     }
@@ -406,6 +445,10 @@ export class Queries {
       // code identifier (camelCase, snake_case, PascalCase) weighs a lot; a common word weighs little
       const identifier = /[A-Z_]|\d/.test(term.slice(1)) || /^[A-Z]/.test(term) || term.includes('.')
       const hits = identifier ? this.find(term) : this.st.byName.all(this.root, term) as SymbolRow[]
+      // an identifier may also name a file (blockLexer → comments/blockLexer.ts, sort_utils → sort_utils.rs, next to `mod sort_utils;`)
+      const named = identifier && !ablated('mentions') ? this.resolvePath(term) : null
+      const file = named && named.slice(named.lastIndexOf('/') + 1).replace(/\.\w+$/, '') === term ? named : null
+      if (file) for (const item of (this.st.inFile.all(this.root, file) as SymbolRow[]).filter((symbol) => symbol.parent === 0 && symbol.kind !== 'test').slice(0, 8)) { add(item, item.exported ? 5 : 3); exact.add(item.id) }
       if (!hits.length) continue
       const each = identifier ? Math.max(4, 16 / Math.sqrt(hits.length)) : 2.5 / Math.sqrt(hits.length)
       for (const item of this.rank(hits).slice(0, 8)) { add(item, each); if (identifier) exact.add(item.id) }
@@ -424,7 +467,8 @@ export class Queries {
     const ranked = [...score].sort((a, b) => b[1] - a[1]).map(([id]) => id)
 
     // flow: call paths between the mentioned symbols (with no mention, between the strongest)
-    const strong = exact.size >= 2 ? ranked.filter((id) => exact.has(id)).slice(0, 10) : ranked.slice(0, 8)
+    const seed = ranked.filter((id) => this.sym(id)?.kind !== 'test')
+    const strong = exact.size >= 2 ? seed.filter((id) => exact.has(id)).slice(0, 10) : seed.slice(0, 8)
     const strongSet = new Set(strong)
     const flows: number[][] = []
     for (const from of strong) {
@@ -477,8 +521,28 @@ export class Queries {
     const fileOrder = [...new Set(picked.map((item) => item.path))].sort((a, b) => fileScore(b) - fileScore(a))
 
     let out = ''
-    if (kept.length) out += `**Flow (call path between the symbols found)**\n\n${kept.slice(0, 4).map((flow) => flow.map((id, i) => { const item = this.sym(id)!; return `${i + 1}. ${item.qname} (${this.where(item)})` }).join('\n   ↓\n')).join('\n\n')}\n\n`
+    if (kept.length) out += `**Flow (call path between the symbols found; → calls)**\n\n${this.flowTree(kept.slice(0, 6))}\n`
     out += `**Explore: ${query}**\n\n${picked.length} symbols in ${fileOrder.length} files.\n\n`
+
+    // test cases (describe/it) that call the symbols found: what a question about tests needs first
+    if (wantsTests) {
+      const cases = this.testCases(picked.filter((item) => !isTest(item.path)).slice(0, 10).flatMap((item) => this.withMembers(item)))
+      if (cases.length) {
+        // grouped by file and suite (first describe): a suite with 30 cases is one line, with a few examples
+        const groups = new Map<string, typeof cases>()
+        // suite: the first describe, or the module/class holding the test functions (Rust `mod tests`, a C# test class)
+        const suiteOf = (item: SymbolRow): string => item.kind === 'test' ? item.qname.split(' > ')[0]! : item.qname.includes('.') ? item.qname.slice(0, item.qname.lastIndexOf('.')) : item.qname
+        for (const item of cases) { const key = `${item.s.path}\0${suiteOf(item.s)}`; groups.set(key, [...(groups.get(key) ?? []), item]) }
+        const lines = [...groups.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 10).map(([key, list]) => {
+          const [path, suite] = key.split('\0') as [string, string]
+          const used = [...new Set(list.flatMap((item) => item.used))].slice(0, 4).join(', ')
+          if (list.length === 1) return `- ${path}:${list[0]!.s.line} — ${list[0]!.s.qname} (uses ${used})`
+          const sample = list.slice(0, 3).map((item) => `"${(item.s.kind === 'test' && item.s.qname.split(' > ').slice(1).join(' > ')) || item.s.name}" :${item.s.line}`).join('; ')
+          return `- ${path} — ${suite}: ${list.length} cases using ${used} (lines ${Math.min(...list.map((item) => item.s.line))}-${Math.max(...list.map((item) => item.s.line))}); e.g. ${sample}`
+        })
+        out += `**Test cases that exercise these**\n\n${lines.join('\n')}${groups.size > 10 ? `\n- … +${groups.size - 10} suites` : ''}\n\n`
+      }
+    }
 
     // who depends on it (check before editing)
     const callable = ['function', 'method', 'class', 'interface', 'struct', 'trait']
@@ -501,6 +565,8 @@ export class Queries {
     for (const item of picked) for (const edge of this.outgoing(item.id)) {
       const target = this.sym(edge.dst)
       if (!target || (!pickedIds.has(target.id) && edge.kind === 'references')) continue
+      // one- or two-line helpers outside the selection (take, peek, done) only add noise
+      if (!pickedIds.has(target.id) && target.end_line - target.line < 2 && !CLASSY.has(target.kind)) continue
       ;(relations[edge.kind] ??= []).push(`${item.name} → ${target.name}${pickedIds.has(target.id) ? '' : ` (${this.where(target)})`}`)
     }
     if (Object.keys(relations).length) out += `**Relations**\n\n${Object.entries(relations).map(([kind, list]) => { const unique = [...new Set(list)]; return `${kind}: ${unique.slice(0, 12).join(' · ')}${unique.length > 12 ? ` · … +${unique.length - 12}` : ''}` }).join('\n')}\n\n`
@@ -548,9 +614,11 @@ export class Queries {
       if (isTest(path) && !wantsTests) continue
       out += `\`${path}\`\n${picked.filter((item) => item.path === path).sort((a, b) => a.line - b.line).map((item) => `  ${item.line}-${item.end_line} ${item.kind} ${item.qname}${item.kind === 'const' ? '' : ` — ${item.signature.slice(0, 120)}`}${item.doc ? `\n      ${item.doc.slice(0, 110)}` : ''}`).join('\n')}\n`
     }
-    // whole snippets: those of the flow and the highest scored, short ones and not whole classes
+    // whole snippets: those of the flow and the highest scored, short ones and not whole classes;
+    // inner helpers (a function inside a function) come after the top-level ones
+    const nested = (item: SymbolRow): boolean => item.kind === 'function' && item.qname.includes('.')
     const snippets = picked.filter((item) => !CLASSY.has(item.kind) && item.end_line - item.line < 45 && (!isTest(item.path) || wantsTests))
-      .sort((a, b) => Number(inFlow.has(b.id)) - Number(inFlow.has(a.id)) || (score.get(b.id) ?? 0) - (score.get(a.id) ?? 0)).slice(0, 4)
+      .sort((a, b) => Number(inFlow.has(b.id)) - Number(inFlow.has(a.id)) || Number(nested(a)) - Number(nested(b)) || (score.get(b.id) ?? 0) - (score.get(a.id) ?? 0)).slice(0, 4)
       .sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line)
     let used = 0
     const blocks: string[] = []

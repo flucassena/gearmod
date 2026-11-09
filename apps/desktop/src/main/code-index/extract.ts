@@ -5,7 +5,7 @@ import type { Node, Language as TsLanguage, Parser as TsParser, Query as TsQuery
 import { LANGUAGES, kids, queriesOf, type ImportRecord, type LanguageConfig } from './languages'
 
 /** Bump when the extraction changes: the analysis stored in the database is discarded and redone. */
-export const EXTRACTOR_VERSION = 12
+export const EXTRACTOR_VERSION = 14
 
 export interface ExtractedSymbol { name: string; qname: string; kind: string; parent: number; line: number; end: number; signature: string; doc: string | null; exported: boolean; owner: string | null }
 export interface ExtractedRef { src: number; name: string; receiver: string | null; kind: 'call' | 'new' | 'render' | 'type' | 'ref'; line: number }
@@ -16,10 +16,10 @@ export interface Extraction { lines: number; symbols: ExtractedSymbol[]; imports
 type TreeSitter = { Parser: typeof TsParser; Language: typeof TsLanguage; Query: typeof TsQuery }
 interface Compiled { parser: TsParser; query: TsQuery; config: LanguageConfig }
 
-const KIND_PRIORITY = ['function', 'method', 'class', 'interface', 'struct', 'trait', 'enum', 'module', 'type', 'property', 'const']
+const KIND_PRIORITY = ['function', 'method', 'class', 'interface', 'struct', 'trait', 'enum', 'module', 'type', 'property', 'const', 'test']
 const BIND_PRIORITY = ['var', 'field', 'call', 'expr', 'destrcall']
 const CLASSY = new Set(['class', 'interface', 'struct', 'trait', 'enum', 'module'])
-const SCOPE_KINDS = new Set(['function', 'method', 'class', 'interface', 'struct', 'trait', 'enum', 'module'])
+const SCOPE_KINDS = new Set(['test', 'function', 'method', 'class', 'interface', 'struct', 'trait', 'enum', 'module'])
 const HOLDERS = new Set(['variable_declarator', 'lexical_declaration', 'variable_declaration', 'export_statement', 'decorated_definition'])
 const JS_EXTRA = '\n(export_statement !source (export_clause (export_specifier name: (identifier) @export.local)))\n'
 
@@ -101,6 +101,13 @@ function docOf(holder: Node, def: Node, lang: string): string | null {
 
 function cleanReceiver(node: Node | undefined): string | null {
   if (!node) return null
+  // new X(...).run() / (await new X()).run(): the receiver is an instance of X
+  let inner: Node | null = node
+  while (inner && (inner.type === 'parenthesized_expression' || inner.type === 'await_expression')) inner = kids(inner)[0] ?? null
+  if (inner && (inner.type === 'new_expression' || inner.type === 'object_creation_expression')) {
+    const ctor = (inner.childForFieldName('constructor') ?? inner.childForFieldName('type'))?.text.replace(/<[\s\S]*$/, '').replace(/\s+/g, '')
+    if (ctor && /^[A-Za-z_$][\w$]*$/.test(ctor)) return `new ${ctor}`
+  }
   const text = node.text.replace(/\s+/g, '').replace(/\?\./g, '.').replace(/!\./g, '.').replace(/->/g, '.').replace(/::/g, '.')
   if (text.length > 80 || /[()[\]{}"'`]/.test(text)) return text.includes('(') ? '(expr)' : null
   return text
@@ -144,6 +151,11 @@ export async function extract(lang: string, src: string): Promise<Extraction> {
       const site = caps.call ?? caps.new ?? caps.jsx
       if (site) {
         const callee = caps.callee
+        // Rust macro arguments are raw tokens: keep `f(…)` only, not `x.f(…)`, `T::f(…)` or `vec![…]`
+        if (callee && site.startIndex === callee.startIndex && callee.parent?.type === 'token_tree') {
+          const before = src.slice(Math.max(0, callee.startIndex - 2), callee.startIndex).trimEnd()
+          if (before.endsWith('.') || before.endsWith(':') || src[callee.endIndex] !== '(') continue
+        }
         if (callee) refs.push({ pos: callee.startIndex, name: callee.text, receiver: cleanReceiver(caps.receiver), kind: caps.call ? 'call' : caps.new ? 'new' : 'render', line: site.startPosition.row + 1 })
         continue
       }
@@ -192,8 +204,9 @@ export async function extract(lang: string, src: string): Promise<Extraction> {
       if (kind === 'function' && CLASSY.has(parent.kind) && parent.kind !== 'module') kind = 'method'
       let owner = def.owner
       if (!owner && parent.kind === 'file') { const container = containerOf(sb); if (container) { owner = container.owner; if (kind === 'function') kind = 'method' } }
-      const name = def.nameNode.text
-      const qname = owner ? `${owner}.${name}` : parent.kind === 'file' ? name : `${parent.qname}.${name}`
+      // describe/it/test('name', …): the name is the string, nested cases read "suite > case"
+      const name = kind === 'test' ? def.nameNode.text.replace(/^['"`]|['"`]$/g, '').replace(/\s+/g, ' ').slice(0, 160) : def.nameNode.text
+      const qname = owner ? `${owner}.${name}` : parent.kind === 'file' ? name : kind === 'test' && parent.kind === 'test' ? `${parent.qname} > ${name}` : `${parent.qname}.${name}`
       // the documentation comment sits before the whole declaration (export const x = …), not the declarator
       let holder = def.node
       while (holder.parent && HOLDERS.has(holder.parent.type)) {
@@ -209,7 +222,7 @@ export async function extract(lang: string, src: string): Promise<Extraction> {
       else if (config.family === 'rust') exported = kids(def.node).some((child) => child.type === 'visibility_modifier')
       else exported = !/\bprivate\b/.test(src.slice(sb, sigEnd))
       const idx = symbols.length
-      symbols.push({ name, qname, kind, parent: parentIdx, line: def.node.startPosition.row + 1, end: def.eb === src.length ? lines : def.node.endPosition.row + 1, sb, eb: def.eb, signature: squash(src.slice(sb, sigEnd), 240), doc: docOf(holder, def.node, lang), exported, owner })
+      symbols.push({ name, qname, kind, parent: parentIdx, line: def.node.startPosition.row + 1, end: def.eb === src.length ? lines : def.node.endPosition.row + 1, sb, eb: def.eb, signature: kind === 'test' ? squash(src.slice(sb, def.nameNode.endIndex) + ')', 240) : squash(src.slice(sb, sigEnd), 240), doc: docOf(holder, def.node, lang), exported, owner })
       if (SCOPE_KINDS.has(kind) || kind === 'const') stack.push({ eb: def.eb, idx })
     }
     for (const name of exportNames) for (const symbol of symbols) if (symbol.name === name && symbol.parent === 0) symbol.exported = true

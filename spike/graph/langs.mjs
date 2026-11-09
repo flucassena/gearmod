@@ -27,6 +27,7 @@ const JS_COMMON = `
 (lexical_declaration (variable_declarator name: (identifier) @name value: (call_expression function: (_) @_hook (#match? @_hook "(^|\\.)(useCallback|useMemo|memo|forwardRef|useEffectEvent|debounce|throttle|once)$") arguments: (arguments . [(arrow_function) (function_expression)]))) @def.function)
 (lexical_declaration (variable_declarator name: (identifier) @name) @def.const)
 (variable_declaration (variable_declarator name: (identifier) @name) @def.const)
+(call_expression function: (identifier) @_t (#match? @_t "^(describe|it|test)$") arguments: (arguments . [(string) (template_string)] @name)) @def.test
 (variable_declarator value: (object (pair key: (property_identifier) @name value: [(arrow_function) (function_expression)]) @def.method))
 (field_definition property: (property_identifier) @name value: [(arrow_function) (function_expression)]) @def.method
 (public_field_definition name: (property_identifier) @name value: [(arrow_function) (function_expression)]) @def.method
@@ -371,6 +372,7 @@ export const LANGUAGES = {
 (call_expression function: (generic_function function: (identifier) @callee)) @call
 (call_expression function: (generic_function function: (scoped_identifier path: (_) @receiver name: (identifier) @callee))) @call
 (macro_invocation macro: (identifier) @callee) @call
+(token_tree (identifier) @callee @call . (token_tree))
 (struct_expression name: (type_identifier) @callee) @new
 (struct_expression name: (scoped_type_identifier path: (_) @receiver name: (type_identifier) @callee)) @new
 (type_identifier) @type
