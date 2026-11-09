@@ -70,13 +70,18 @@ export function AgentDialog({ profile, close, changed }: { profile?: AgentProfil
   const [envPassthrough, setEnvPassthrough] = useState<string[]>(profile?.envPassthrough ?? []), [envVarDraft, setEnvVarDraft] = useState('')
   const [installed, setInstalled] = useState(Boolean(profile)), [pending, setPending] = useState<AgentProfile | undefined>(undefined), [status, setStatus] = useState<AgentProbe>(), [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [createdHere, setCreatedHere] = useState(false), [removing, setRemoving] = useState(false)
   const [step, setStep] = useState<'type' | 'details'>(profile ? 'details' : 'type'), [loginFor, setLoginFor] = useState<AgentProfile>()
+  // `checked`: the automatic check finished (until then the dialog says it is checking, not that the CLI is missing).
+  const [installing, setInstalling] = useState<'codex' | 'claude' | 'gemini'>(), [checked, setChecked] = useState(false)
   const run = async (action: () => Promise<void>): Promise<void> => { setBusy(true); setMessage(''); try { await action() } catch (error) { setMessage(plainError(error)) } finally { setBusy(false) } }
-  const checkInstall = async (which = provider): Promise<void> => {
-    const result = await window.gearmod.invoke('profiles:detect-provider', { provider: which })
-    setInstalled(result.installed)
-    setMessage(result.installed ? ta.installFound(result.version || which) : ta.notFound(result.error ?? ''))
+  // Not found: only asks to install (the technical detail stays out); after an install that still is not found, says so plainly.
+  const checkInstall = async (which = provider, afterInstall = false): Promise<void> => {
+    try {
+      const result = await window.gearmod.invoke('profiles:detect-provider', { provider: which })
+      setInstalled(result.installed)
+      setMessage(result.installed ? ta.installFound(result.version || which) : afterInstall ? ta.stillNotFound(item(which)) : '')
+    } finally { setChecked(true) }
   }
-  useEffect(() => { if (!profile && step === 'details') void run(() => checkInstall(provider)) }, [provider, step])
+  useEffect(() => { if (!profile && step === 'details') { setChecked(false); void run(() => checkInstall(provider)) } }, [provider, step])
   useEffect(() => { if (!profile) setColor(defaultAgentColor(provider)) }, [provider, profile])
   useEscape(() => { void cancel() })
   const cancel = async (): Promise<void> => { if (pending && createdHere) await window.gearmod.invoke('profiles:delete', { profileId: pending.id }).catch(() => undefined); close() }
@@ -113,7 +118,8 @@ export function AgentDialog({ profile, close, changed }: { profile?: AgentProfil
     <header><div><div className="eyebrow">{t.common.agent}</div><h2>{profile ? ta.edit : ta.new}</h2></div><button className="x" onClick={() => void cancel()} aria-label={t.common.close}>×</button></header>
     <div className="stack">
       {!profile && !pending && step === 'type' && <div className="f"><span>{ta.pickType}</span><div className="provcards two">{newAgentProviders.map((item) => <button type="button" key={item} onClick={() => { setProvider(item); setStep('details') }}><i className={`av lg ${item}`} style={{ color: defaultAgentColor(item) }}><ProviderLogo provider={item} /></i><span><b>{item === 'claude' ? 'Claude' : 'Codex'}</b><small>{item === 'claude' ? 'Anthropic' : 'OpenAI'}</small></span></button>)}</div></div>}
-      {!profile && !pending && step === 'details' && !installed && <div className="convbox"><p>{ta.notInstalledHere(item(provider))}</p><div className="actions" style={{ margin: 0 }}><button type="button" className="secondary" disabled={busy} onClick={() => void run(() => checkInstall())}>{ta.checkInstall}</button><button type="button" disabled={busy} onClick={() => void run(async () => { await window.gearmod.invoke('profiles:install-provider', { provider }); setMessage(ta.installOpened) })}>{ta.install(item(provider))}</button></div></div>}
+      {!profile && !pending && step === 'details' && !installed && !checked && <p role="status" className="hint">{ta.checkingInstall(item(provider))}</p>}
+      {!profile && !pending && step === 'details' && !installed && checked && <div className="convbox"><p>{ta.askInstall(item(provider))}</p><div className="actions" style={{ margin: 0 }}><button type="button" className="secondary" disabled={busy} onClick={() => { setMessage(''); setStep('type') }}>{ta.notNow}</button><button type="button" disabled={busy} onClick={() => setInstalling(provider)}>{ta.install(item(provider))}</button></div></div>}
       {(profile || installed) && !pending && step === 'details' && <>
         <label className="f">{t.common.name}<div className="aename"><AgentIcon profile={preview} size="lg" tip={false} /><input className="in" value={label} placeholder={provider === 'claude' ? ta.labelPlaceholderClaude : provider === 'gemini' ? ta.labelPlaceholderGemini : ta.labelPlaceholderCodex} onChange={(e) => setLabel(e.target.value)} /></div></label>
         <label className="f">{ta.usage}<input className="in" value={scope} onChange={(e) => setScope(e.target.value)} /></label>
@@ -136,6 +142,7 @@ export function AgentDialog({ profile, close, changed }: { profile?: AgentProfil
     </div>
     <div className="actions">{profile && <button type="button" className="danger" style={{ marginRight: 'auto' }} disabled={busy} onClick={() => setRemoving(true)}>{t.common.remove}</button>}<button type="button" className="secondary" onClick={() => void cancel()}>{pending ? ta.cancelRegistration : t.common.cancel}</button>{!profile && !pending && step === 'details' && <button type="button" className="secondary" disabled={busy} onClick={() => { setStep('type'); setMessage('') }}>{ta.back}</button>}{!pending && step === 'details' && (profile || installed) && <button type="button" disabled={busy} onClick={() => void run(save)}>{profile ? t.common.save : ta.continueToAccount}</button>}</div>
     {loginFor && <AgentLoginDialog profile={loginFor} close={() => void loginCanceled()} connected={() => void loggedIn(loginFor)} />}
+    {installing && <AgentUpdateDialog job="install" provider={installing} close={() => setInstalling(undefined)} done={() => void run(() => checkInstall(installing, true))} />}
     {removing && profile && <ConfirmDialog eyebrow={t.common.agent} title={ta.removeTitle(profile.label)} text={ta.removeText} ok={t.common.remove} danger cancel={() => setRemoving(false)} confirm={() => { setRemoving(false); void run(remove) }} />}
     {notice && <NoticeDialog eyebrow={t.common.agent} title={notice.title} text={notice.text} close={() => { const after = notice.after; setNotice(undefined); if (after) close() }} />}
   </div></div>

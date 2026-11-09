@@ -485,6 +485,7 @@ export const ipcContracts = {
   , 'mcp:set-project-enabled': { input: z.object({ projectId: uuid, id: uuid, enabled: z.boolean() }).strict(), output: z.object({ ok: z.literal(true) }) }
   , 'tools:cached': { input: z.undefined(), output: toolVersionsSchema }
   , 'tools:latest': { input: z.object({ force: z.boolean() }).strict(), output: toolVersionsSchema }
+  , 'profiles:install-terminal': { input: z.object({ provider: z.enum(['codex', 'claude', 'gemini']) }).strict(), output: z.object({ id: z.string().min(1).max(80) }) }
   , 'profiles:install-provider': { input: z.object({ provider: z.enum(['codex', 'claude', 'gemini']) }).strict(), output: z.object({ started: z.literal(true) }) }
   , 'profiles:install': { input: z.object({ profileId: uuid }).strict(), output: z.object({ started: z.literal(true) }) }
   , 'profiles:login': { input: z.object({ profileId: uuid }).strict(), output: z.object({ started: z.literal(true) }) }

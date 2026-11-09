@@ -96,6 +96,8 @@ describe('AgentProbeService', () => {
     const text = (plan: { file: string; args: string[] | string }): string => `${plan.file} ${typeof plan.args === 'string' ? plan.args : plan.args.join(' ')}`
     expect(text(service.updatePlan('codex'))).toContain('npm install -g @openai/codex@latest')
     expect(text(service.updatePlan('claude'))).toMatch(/claude.*update/i)
+    expect(text(service.installPlan('claude'))).toContain('npm install -g @anthropic-ai/claude-code@latest')
+    expect(text(service.installPlan('codex'))).toContain('npm install -g @openai/codex@latest')
     database.close()
   })
 })

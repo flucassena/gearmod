@@ -16,8 +16,9 @@ export interface CommandRunner { run(command: string, args: string[], env: NodeJ
 const systemRunner: CommandRunner = { async run(command, args, env) {
   const executable = resolveCommand(command, env)
   if (process.platform === 'win32' && ['.cmd', '.bat'].includes(extname(executable).toLowerCase())) {
+    // Verbatim: without it Node escapes the quotes as `\"`, which cmd.exe does not understand ("'\"C:\...\claude.cmd\"' is not recognized").
     const commandLine = [executable, ...args].map(quoteCmdArgument).join(' ')
-    return exec(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', commandLine], { env, timeout: 10_000, windowsHide: true })
+    return exec(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${commandLine}"`], { env, timeout: 10_000, windowsHide: true, windowsVerbatimArguments: true })
   }
   return exec(executable, args, { env, timeout: 10_000, windowsHide: true })
 } }
@@ -94,6 +95,14 @@ export class AgentProbeService {
     return { file: npm[0]!, args: npm.slice(1), env, cwd: homedir(), title }
   }
 
+  /** Install command of the agent CLI (its npm package) to run in the in-app terminal, like `updatePlan`. */
+  installPlan(provider: 'codex' | 'claude' | 'gemini'): CliPlan {
+    const env = { ...process.env }, title = providerInstallTitle(provider)
+    const npm = ['npm', 'install', '-g', provider === 'codex' ? '@openai/codex@latest' : provider === 'gemini' ? '@google/gemini-cli@latest' : '@anthropic-ai/claude-code@latest']
+    if (process.platform === 'win32') return { file: env.ComSpec || 'cmd.exe', args: `/d /s /c "${npm.join(' ')}"`, env, cwd: homedir(), title }
+    return { file: npm[0]!, args: npm.slice(1), env, cwd: homedir(), title }
+  }
+
   install(profileId: string): { started: true } {
     const profile = this.profiles.get(profileId)
     return this.installProvider(profile.provider)
@@ -150,6 +159,7 @@ const loginArgs = (profile: AgentProfile): string[] => profile.provider === 'cod
 
 /** The variable that points the CLI to the profile's own folder (each profile has its own account). */
 const providerUpdateTitle = (provider: 'codex' | 'claude' | 'gemini'): string => provider === 'claude' ? 'claude update' : 'npm install -g'
+const providerInstallTitle = (provider: 'codex' | 'claude' | 'gemini'): string => `npm install -g ${provider === 'codex' ? '@openai/codex' : provider === 'gemini' ? '@google/gemini-cli' : '@anthropic-ai/claude-code'}`
 
 function profileHome(profile: AgentProfile): NodeJS.ProcessEnv {
   return profile.provider === 'codex' ? { CODEX_HOME: profile.configDir } : profile.provider === 'gemini' ? { GEMINI_CLI_HOME: profile.configDir } : { CLAUDE_CONFIG_DIR: profile.configDir }

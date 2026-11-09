@@ -331,6 +331,7 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'tools:run-terminal': (input: Parameters<SpecToolsService['terminalPlan']>[0]) => ({ id: services.terminals.run(services.specTools.terminalPlan(input)) }),
     'tools:cached': () => services.toolUpdates.cached(),
     'tools:latest': (input: { force: boolean }) => services.toolUpdates.latest(input.force),
+    'profiles:install-terminal': (input: { provider: 'codex' | 'claude' | 'gemini' }) => ({ id: services.terminals.run(services.agentProbes.installPlan(input.provider)) }),
     'profiles:install-provider': (input: { provider: 'codex' | 'claude' }) => services.agentProbes.installProvider(input.provider),
     'profiles:install': (input: { profileId: string }) => services.agentProbes.install(input.profileId),
     'profiles:login': (input: { profileId: string }) => services.agentProbes.login(input.profileId),

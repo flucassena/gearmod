@@ -32,7 +32,8 @@ export const nodeProcesses: ProcessFactory = { start(command, args, options) {
   const executable = safeExecutable(command)
   if (process.platform === 'win32' && ['.cmd', '.bat'].includes(extname(executable).toLowerCase())) {
     const commandLine = [executable, ...args].map((value) => `"${value.replace(/"/g, '""')}"`).join(' ')
-    return spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', commandLine], { ...options, windowsHide: true, shell: false })
+    // Verbatim: without it Node escapes the quotes as `\"` and cmd.exe cannot find the program.
+    return spawn(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${commandLine}"`], { ...options, windowsHide: true, shell: false, windowsVerbatimArguments: true })
   }
   return spawn(executable, args, { ...options, windowsHide: true, shell: false })
 } }

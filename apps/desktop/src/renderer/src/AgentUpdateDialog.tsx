@@ -5,19 +5,20 @@ import { useEscape } from './useEscape'
 import { plainError } from './NoticeDialog'
 import { useTasks } from './backgroundTasks'
 import { TerminalBox } from './TerminalBox'
-import { startAgentUpdate, type RunningUpdate, type UpdatableProvider } from './agentUpdates'
+import { startAgentUpdate, type AgentCliJob, type RunningUpdate, type UpdatableProvider } from './agentUpdates'
 
 /**
- * Updates the agent CLI inside the app: progress bar and a minimized mini terminal with the command. While it runs,
+ * Updates (or installs, `job: 'install'`) the agent CLI inside the app: progress bar and a minimized mini terminal with the command. While it runs,
  * "Leave in the background" closes the dialog and the update goes on in the process list (title bar).
  */
-export function AgentUpdateDialog({ provider, close }: { provider: UpdatableProvider; close(): void }): React.JSX.Element {
-  const t = useT(), tu = t.settings.agentUpdate, name = providerLabels[provider]
+export function AgentUpdateDialog({ provider, close, job = 'update', done }: { provider: UpdatableProvider; close(): void; job?: AgentCliJob; done?(): void }): React.JSX.Element {
+  const t = useT(), tu = job === 'install' ? t.settings.agentInstall : t.settings.agentUpdate, name = providerLabels[provider]
   const [update, setUpdate] = useState<RunningUpdate>(), [error, setError] = useState(''), [minimized, setMinimized] = useState(true), [expanded, setExpanded] = useState(false)
   const task = useTasks().find((item) => item.id === update?.taskId), state = error ? 'failed' : task?.state ?? 'running'
-  useEffect(() => { let alive = true; void startAgentUpdate(provider, name).then((value) => { if (alive) setUpdate(value) }).catch((reason) => { if (alive) setError(plainError(reason)) }); return () => { alive = false } }, [provider])
+  useEffect(() => { let alive = true; void startAgentUpdate(provider, name, job).then((value) => { if (alive) setUpdate(value) }).catch((reason) => { if (alive) setError(plainError(reason)) }); return () => { alive = false } }, [provider, job])
   // Failed: shows the terminal, where the CLI explains what went wrong.
-  useEffect(() => { if (state === 'failed') setMinimized(false) }, [state])
+  // Done: lets the caller react (the new-agent dialog checks the installation again and moves on).
+  useEffect(() => { if (state === 'failed') setMinimized(false); if (state === 'done') done?.() }, [state])
   useEscape(close)
   return <div className="overlay top" role="dialog" aria-label={tu.title(name)}><div className="modal" style={{ width: expanded ? 'min(860px,100%)' : 'min(560px,100%)' }}>
     <header><div><div className="eyebrow">{t.common.agent}</div><h2>{state === 'done' ? tu.doneTitle(name) : tu.title(name)}</h2></div><button className="x" onClick={close} aria-label={t.common.close}>×</button></header>

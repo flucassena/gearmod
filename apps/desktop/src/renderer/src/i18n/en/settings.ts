@@ -199,6 +199,10 @@ export const settings: typeof source = {
     removedText: (label) => `${label} was removed from your list and can no longer be used. Since it already worked on cards and chats, the history was kept: there it appears as disabled, for reference only.`,
     removeFailed: 'Could not remove the agent',
     notInstalledHere: (name) => `${name} is not installed on this computer yet.`,
+    checkingInstall: (name) => `Checking whether ${name} is installed…`,
+    askInstall: (name) => `${name} is not installed on this computer. Do you want GearMod to install it now?`,
+    stillNotFound: (name) => `The installation finished, but ${name} was not found. Close GearMod, open it again and try once more.`,
+    notNow: 'Not now',
     checkInstall: 'Check installation',
     install: (name) => `Install ${name}`,
     installOpened: 'Installation opened in the terminal. When it finishes, click Check installation here.',
@@ -261,6 +265,18 @@ export const settings: typeof source = {
     terminal: 'Update terminal',
     background: 'Leave in the background',
     taskTitle: (name: string) => `Update ${name}`
+  },
+
+  agentInstall: {
+    title: (name: string) => `Installing ${name}…`,
+    doneTitle: (name: string) => `${name} installed`,
+    running: 'We are installing it. You can leave it in the background: it goes on in Processes, in the title bar.',
+    done: (name: string) => `${name} is installed. Continue to connect your account.`,
+    failed: 'The installation did not finish. Check the message in the terminal below.',
+    exitCode: (code: number) => `The command ended with code ${code}. Check the installation terminal.`,
+    terminal: 'Installation terminal',
+    background: 'Leave in the background',
+    taskTitle: (name: string) => `Install ${name}`
   },
 
   agentInvite: {

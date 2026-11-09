@@ -198,6 +198,10 @@ export const settings = {
     removedText: (label: string) => `${label} saiu da sua lista e não pode mais ser usado. Como ele já trabalhou em cards e chats, o histórico foi mantido: nesses lugares ele aparece como desativado, só para consulta.`,
     removeFailed: 'Não foi possível remover o agente',
     notInstalledHere: (name: string) => `${name} ainda não está instalado neste computador.`,
+    checkingInstall: (name: string) => `Verificando se o ${name} está instalado…`,
+    askInstall: (name: string) => `O ${name} não está instalado neste computador. Quer que o GearMod instale agora?`,
+    stillNotFound: (name: string) => `A instalação terminou, mas o ${name} não foi encontrado. Feche o GearMod, abra de novo e tente outra vez.`,
+    notNow: 'Agora não',
     checkInstall: 'Verificar instalação',
     install: (name: string) => `Instalar ${name}`,
     installOpened: 'Instalação aberta no terminal. Quando terminar, clique em Verificar instalação aqui.',
@@ -260,6 +264,18 @@ export const settings = {
     terminal: 'Terminal da atualização',
     background: 'Deixar em segundo plano',
     taskTitle: (name: string) => `Atualizar ${name}`
+  },
+
+  agentInstall: {
+    title: (name: string) => `Instalando o ${name}…`,
+    doneTitle: (name: string) => `${name} instalado`,
+    running: 'Estamos instalando. Pode deixar em segundo plano: a instalação continua em Processos, na barra de título.',
+    done: (name: string) => `O ${name} foi instalado. Continue para conectar sua conta.`,
+    failed: 'A instalação não terminou. Veja a mensagem no terminal abaixo.',
+    exitCode: (code: number) => `O comando terminou com o código ${code}. Veja o terminal da instalação.`,
+    terminal: 'Terminal da instalação',
+    background: 'Deixar em segundo plano',
+    taskTitle: (name: string) => `Instalar ${name}`
   },
 
   agentInvite: {
