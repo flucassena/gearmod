@@ -8,6 +8,7 @@ import { PopMenu } from './PopMenu'
 import { ChatSearch, useChatSearchShortcut } from './ChatSearch'
 import { ChatMoreMenu, useDockSize } from './CardChat'
 import { CheckIcon, CloseIcon, CollapseIcon, ExpandIcon, MicIcon, SendIcon, StopIcon } from './icons'
+import { PlanHero } from './PlanHero'
 import { Select } from './Select'
 import { ConfirmDialog } from './ConfirmDialog'
 import { AgentIcon } from './AgentIcon'
@@ -44,10 +45,10 @@ const readSaved = (projectId: string): Saved | null => { try { return JSON.parse
  * card (gearmod_create_card) and this same chat becomes its planning chat; then `onConverted` opens the card.
  * With `mode="constitution"` it is the project's Constitution chat; `prompt` sends the first request right on open.
  */
-export function FreeChat({ project, profiles, chat: start, close, onConverted, changed, mode = 'free', prompt: firstPrompt }: { project: Project; profiles: AgentProfile[]; chat?: Chat; close(): void; onConverted(cardId: string): void; changed(): void; mode?: 'free' | 'constitution'; prompt?: string }): React.JSX.Element {
+export function FreeChat({ project, profiles, chat: start, close, onConverted, changed, mode = 'free', prompt: firstPrompt, docked = false }: { project: Project; profiles: AgentProfile[]; chat?: Chat; close(): void; onConverted(cardId: string): void; changed(): void; mode?: 'free' | 'constitution'; prompt?: string; docked?: boolean }): React.JSX.Element {
   const t = useT(), d = t.chat.dock, f = t.chat.freeChat
   const text = f.modes[mode]
-  const { expanded, setExpanded, width, setWidth, dragging, startResize, resetWidth } = useDockSize()
+  const { expanded, setExpanded, width, setWidth, dragging, startResize, resetWidth } = useDockSize(docked)
   const chatSearch = useChatSearchShortcut(expanded)
   useEffect(() => { const navigate = (): void => { if (expanded) close() }; window.addEventListener('gearmod:select-view', navigate); return () => window.removeEventListener('gearmod:select-view', navigate) }, [expanded, close])
   const [chat, setChat] = useState<Chat | undefined>(start), [messages, setMessages] = useState<ChatMessage[]>([]), [input, setInput] = useState(''), [live, setLive] = useState(''), [error, setError] = useState('')
@@ -159,7 +160,7 @@ export function FreeChat({ project, profiles, chat: start, close, onConverted, c
       <div className="dock-head" draggable={Boolean(chat?.id) && !pop} onDoubleClick={(event) => { if (!(event.target as HTMLElement).closest('button,input,textarea,.dock-tools')) setExpanded(!expanded) }} onDragStart={(event) => { if ((event.target as HTMLElement).closest('button,input,textarea,.dock-tools')) { event.preventDefault(); return }; event.preventDefault(); void detachChat({ x: Math.round(event.screenX), y: Math.round(event.screenY) }) }}><div className="top"><div><div className="headrow"><div className="eyebrow">{text.eyebrow}</div></div><h2>{mode === 'constitution' ? text.title : chat?.title || text.title}</h2><div className="ctxline"><span className="ctxchip">{text.chip}</span></div></div>
         <div className="dock-tools"><div className="dock-tools-wide"><ChatSearch messages={messages} log={log} request={chatSearch.request} />{chat?.id && <PopMenu target={{ kind: 'chat', projectId: project.id, chatId: chat.id }} />}<button type="button" className="ibtn tip" data-tip={expanded ? d.backToCorner : d.expandFull} aria-label={expanded ? d.backToCorner : d.expandFull} onClick={() => setExpanded(!expanded)}>{expanded ? <CollapseIcon /> : <ExpandIcon />}</button><button className="x" aria-label={d.closeChat} onClick={close}><CloseIcon /></button></div><div className="dock-tools-compact"><ChatMoreMenu searchRequest={chatSearch.request} messages={messages} log={log} projectId={project.id} chatId={chat?.id} expand={() => setExpanded(true)} close={close} /><button className="x" aria-label={d.closeChat} onClick={close}><CloseIcon /></button></div></div></div></div>
       <div className="chatlog" ref={log}>
-        {!messages.length && !live && <div className="msg sys">{text.empty}</div>}
+        {!messages.length && !live && !busy && (mode === 'free' ? <PlanHero projectName={project.name} talk pick={(prompt) => { setInput(prompt); window.requestAnimationFrame(() => { const area = mention.ref.current; if (area) { area.focus(); area.setSelectionRange(prompt.length, prompt.length) } }) }} /> : <div className="msg sys">{text.empty}</div>)}
         <ChatMessageList messages={messages} busy={busy} />
         <AgentPermissions chatId={chat?.id} />
         {live && <div className="msg agent"><div className="md chatmd"><AgentMessage source={typed} live /><span className="caret" /></div></div>}

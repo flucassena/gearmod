@@ -287,7 +287,10 @@ export const chat: typeof source = {
     planReady: 'Plan ready',
     finished: 'Finished',
     paused: 'Paused',
-    newCard: 'New card'
+    failed: 'Did not run',
+    newCard: 'New card',
+    openCard: 'Card',
+    openCardTip: 'Open the card'
   },
   activity: {
     quickView: 'Quick view',
@@ -371,6 +374,28 @@ export const chat: typeof source = {
     switchAndRestart: 'Switch and restart'
   },
   freeChat: {
+    hero: {
+      eyebrow: 'Planning',
+      title: (project: string) => `What are we planning today for ${project}?`,
+      text: 'Share the idea, the problem or the next step. I read the project, help you think it through and turn it into cards on the board when it makes sense.',
+      ideas: [
+        { label: 'Plan a new feature', prompt: 'I want to plan a new feature: ' },
+        { label: 'What to prioritize now?', prompt: 'Look at the cards on the board and tell me what I should prioritize now and why.' },
+        { label: 'Break an idea into cards', prompt: 'I have an idea and want to break it into cards: ' },
+        { label: 'Investigate a bug', prompt: 'I want to investigate a bug: ' }
+      ]
+    },
+    talk: {
+      eyebrow: 'Free chat',
+      title: 'What are we talking about today?',
+      text: 'Ask about the project, request a change or explore an idea. I read the code and answer right here.',
+      ideas: [
+        { label: 'Explain part of the code', prompt: 'Explain to me how this works: ' },
+        { label: 'Make a quick change', prompt: 'I want to make a quick change: ' },
+        { label: 'Review what changed', prompt: 'Review the recent changes in the project and tell me if anything needs attention.' },
+        { label: 'Investigate a bug', prompt: 'I want to investigate a bug: ' }
+      ]
+    },
     modes: {
       free: { eyebrow: 'Free chat', title: 'Free conversation', chip: 'No card · straight on the project', empty: 'Talk about the project or ask for a change. The agent may ask whether you prefer to create a card to document it or do it right in the chat.', placeholder: 'Chat or ask for a change…', badge: '✎ Can change files', badgeTip: 'Changes project files when you ask, according to the chosen mode' },
       constitution: { eyebrow: 'Constitution', title: 'Project Constitution', chip: 'Project-wide · does not change files', empty: 'Constitution chat: the principles every card in the project follows. Ask me to create, review or change a principle; I read the project, propose, and only save with your agreement.', placeholder: 'E.g.: create the Constitution from the project…', badge: '§ Constitution', badgeTip: 'Only writes the Constitution; does not change files or cards' }

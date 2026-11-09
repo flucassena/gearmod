@@ -286,7 +286,10 @@ export const chat = {
     planReady: 'Plano pronto',
     finished: 'Terminou',
     paused: 'Pausado',
-    newCard: 'Novo card'
+    failed: 'Não executou',
+    newCard: 'Novo card',
+    openCard: 'Card',
+    openCardTip: 'Abrir o card'
   },
   activity: {
     quickView: 'Visão rápida',
@@ -370,6 +373,28 @@ export const chat = {
     switchAndRestart: 'Trocar e reiniciar'
   },
   freeChat: {
+    hero: {
+      eyebrow: 'Planejamento',
+      title: (project: string) => `O que vamos planejar hoje para o ${project}?`,
+      text: 'Conte a ideia, o problema ou o próximo passo. Eu leio o projeto, ajudo a pensar e transformo em cards no quadro quando fizer sentido.',
+      ideas: [
+        { label: 'Planejar uma nova feature', prompt: 'Quero planejar uma nova feature: ' },
+        { label: 'O que priorizar agora?', prompt: 'Olhe os cards do quadro e me diga o que devo priorizar agora e por quê.' },
+        { label: 'Quebrar uma ideia em cards', prompt: 'Tenho uma ideia e quero quebrá-la em cards: ' },
+        { label: 'Investigar um bug', prompt: 'Quero investigar um bug: ' }
+      ]
+    },
+    talk: {
+      eyebrow: 'Chat livre',
+      title: 'Sobre o que vamos falar hoje?',
+      text: 'Pergunte sobre o projeto, peça uma alteração ou explore uma ideia. Eu leio o código e respondo por aqui.',
+      ideas: [
+        { label: 'Explicar uma parte do código', prompt: 'Me explique como funciona ' },
+        { label: 'Fazer uma alteração rápida', prompt: 'Quero fazer uma alteração rápida: ' },
+        { label: 'Revisar o que mudou', prompt: 'Revise as mudanças recentes do projeto e me diga se algo merece atenção.' },
+        { label: 'Investigar um bug', prompt: 'Quero investigar um bug: ' }
+      ]
+    },
     modes: {
       free: { eyebrow: 'Chat livre', title: 'Conversa livre', chip: 'Sem card · direto no projeto', empty: 'Converse sobre o projeto ou peça uma alteração. O agente pode perguntar se você prefere criar um card para documentá-la ou fazer direto no chat.', placeholder: 'Converse ou peça uma alteração…', badge: '✎ Pode alterar arquivos', badgeTip: 'Altera arquivos do projeto quando você pedir, conforme o modo escolhido' },
       constitution: { eyebrow: 'Constituição', title: 'Constituição do projeto', chip: 'Do projeto · não altera arquivos', empty: 'Chat da Constituição: os princípios que todo card do projeto respeita. Peça para criar, revisar ou mudar um princípio; eu leio o projeto, proponho e só gravo com o seu acordo.', placeholder: 'Ex.: crie a Constituição a partir do projeto…', badge: '§ Constituição', badgeTip: 'Só escreve a Constituição; não altera arquivos nem cards' }
