@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { BackgroundTask } from '@gearmod/contracts'
 import { useT } from './i18n'
 const elapsed = (from: string, to: string | null, now: number): string => {
@@ -9,7 +10,7 @@ const elapsed = (from: string, to: string | null, now: number): string => {
 /** Subagents and background commands of the chat, read from the events the agent already emits. Disappears when the chat never used the background. */
 export function AgentBackground({ chatId }: { chatId?: string }): React.JSX.Element | null {
   const t = useT().chat.background
-  const [tasks, setTasks] = useState<BackgroundTask[]>([]), [open, setOpen] = useState(false), [now, setNow] = useState(Date.now()), [expanded, setExpanded] = useState<string[]>([]), box = useRef<HTMLSpanElement>(null)
+  const [tasks, setTasks] = useState<BackgroundTask[]>([]), [open, setOpen] = useState(false), [now, setNow] = useState(Date.now()), [expanded, setExpanded] = useState<string[]>([]), box = useRef<HTMLSpanElement>(null), menu = useRef<HTMLDivElement>(null), [pos, setPos] = useState<React.CSSProperties | null>(null)
   useEffect(() => {
     setTasks([]); setOpen(false)
     if (!chatId) return
@@ -24,11 +25,22 @@ export function AgentBackground({ chatId }: { chatId?: string }): React.JSX.Elem
   }, [chatId])
   const running = tasks.filter((task) => task.status === 'running').length
   useEffect(() => { if (!running) return; const id = window.setInterval(() => setNow(Date.now()), 5000); return () => window.clearInterval(id) }, [running])
-  useEffect(() => { if (!open) return; const out = (event: MouseEvent): void => { if (!box.current?.contains(event.target as Node)) setOpen(false) }; document.addEventListener('mousedown', out); return () => document.removeEventListener('mousedown', out) }, [open])
+  useEffect(() => { if (!open) return; const out = (event: MouseEvent): void => { const target = event.target as Node; if (!box.current?.contains(target) && !menu.current?.contains(target)) setOpen(false) }; document.addEventListener('mousedown', out); return () => document.removeEventListener('mousedown', out) }, [open])
+  // The menu is portaled to <body> with fixed position so no container clips it; it opens above the chip and stays inside the window.
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return }
+    const place = (): void => {
+      const chip = box.current?.getBoundingClientRect(); if (!chip) return
+      const width = Math.min(420, window.innerWidth * 0.86, window.innerWidth - 16)
+      setPos({ left: Math.max(8, Math.min(chip.left, window.innerWidth - width - 8)), bottom: window.innerHeight - chip.top + 8, width })
+    }
+    place(); window.addEventListener('resize', place); window.addEventListener('scroll', place, true)
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
+  }, [open])
   if (!tasks.length) return null
   return <span className="modewrap bgtasks" ref={box}>
     <button type="button" className={`modechip ${open ? 'on' : ''}`} aria-haspopup="dialog" aria-expanded={open} onClick={() => { setNow(Date.now()); setOpen(!open) }} data-tip={t.tip}>{running > 0 && <i className="bgdot" />}{running > 0 ? t.runningCount(running) : t.title}</button>
-    {open && <div className="modemenu bgmenu" role="dialog" aria-label={t.tasks}><div className="mm-title">{t.title}</div>
+    {open && pos && createPortal(<div ref={menu} className="modemenu bgmenu" style={pos} role="dialog" aria-label={t.tasks}><div className="mm-title">{t.title}</div>
       <div className="bglist">{tasks.map((task) => { const shown = expanded.includes(task.id), detail = task.status === 'running' ? task.activity : task.summary
         return <div className={`bgtask ${task.status} ${shown ? 'open' : ''}`} key={task.id}>
           <button type="button" className="bghead" aria-expanded={shown} onClick={() => setExpanded(shown ? expanded.filter((id) => id !== task.id) : [...expanded, task.id])}>
@@ -37,6 +49,6 @@ export function AgentBackground({ chatId }: { chatId?: string }): React.JSX.Elem
           </button>
           {shown && <div className="bgfull"><pre>{task.title || t.noDescription}</pre>{detail && detail !== task.title && <pre className="bgdetail">{detail}</pre>}</div>}
         </div> })}</div>
-    </div>}
+    </div>, document.body)}
   </span>
 }

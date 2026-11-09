@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client'
 import type { AgentProfile, AppSettings, Project, ProjectBoard } from '@gearmod/contracts'
 import './theme-tokens.css'
 import './prototype.css'
+import { installCloseOnScroll } from './closeOnScroll'
 import { Board } from './Board'
 import { ProjectAgentsDialog, ProjectConfigDialog, ProjectDialog } from './ProjectDialogs'
 import { AgentDialog, applySettings, applyTheme, SettingsDialog } from './SettingsDialog'
@@ -205,4 +206,5 @@ function App(): React.JSX.Element {
 
 applyMessageSpacing()
 markPlatform(document.documentElement)
+installCloseOnScroll()
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>)
