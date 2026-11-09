@@ -117,7 +117,8 @@ export const settings = {
       node: 'Node portátil',
       voiceModel: (file: string) => `Modelo de voz ${file}`,
       voiceEngine: 'Programa de voz',
-      backup: (name: string) => `Backup ${name}`,
+      backup: (date: string) => `Backup de ${date}`,
+      backupTitle: 'Backup',
       updateDownload: (name: string) => `Instalador ${name}`,
       worktrees: 'Worktrees dos cards',
       attachments: 'Anexos',
@@ -141,7 +142,12 @@ export const settings = {
     } as Record<string, string>,
     keep: 'necessário',
     keepTip: 'O GearMod precisa disto para funcionar: não há botão para apagar.',
-    shareTip: (percent: number, group: string) => `${percent}% de ${group}`
+    shareTip: (percent: number, group: string) => `${percent}% de ${group}`,
+    removing: (name: string) => `Removendo ${name}…`,
+    clearBackups: 'Limpar backups',
+    clearBackupsTitle: (count: number) => count === 1 ? 'Apagar o backup?' : `Apagar os ${count} backups?`,
+    clearBackupsText: (count: number, size: string) => `${count === 1 ? 'O backup é apagado' : `Os ${count} backups são apagados`} (${size}) e não há como recuperá-los. Seus cards, chats e anexos atuais não são afetados.`,
+    backupsCleared: (count: number, size: string) => `${count === 1 ? '1 backup removido' : `${count} backups removidos`} · ${size} liberados`
   },
   about: {
     version: (value: string) => `Versão ${value}`,

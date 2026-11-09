@@ -118,7 +118,8 @@ export const settings: typeof source = {
       node: 'Portable Node',
       voiceModel: (file) => `Voice model ${file}`,
       voiceEngine: 'Voice program',
-      backup: (name) => `Backup ${name}`,
+      backup: (date) => `Backup from ${date}`,
+      backupTitle: 'Backup',
       updateDownload: (name) => `Installer ${name}`,
       worktrees: 'Card worktrees',
       attachments: 'Attachments',
@@ -142,7 +143,12 @@ export const settings: typeof source = {
     } as Record<string, string>,
     keep: 'required',
     keepTip: 'GearMod needs this to work: there is no delete button.',
-    shareTip: (percent, group) => `${percent}% of ${group}`
+    shareTip: (percent, group) => `${percent}% of ${group}`,
+    removing: (name) => `Removing ${name}…`,
+    clearBackups: 'Clear backups',
+    clearBackupsTitle: (count) => count === 1 ? 'Delete the backup?' : `Delete the ${count} backups?`,
+    clearBackupsText: (count, size) => `${count === 1 ? 'The backup is deleted' : `The ${count} backups are deleted`} (${size}) and cannot be recovered. Your current cards, chats and attachments are not affected.`,
+    backupsCleared: (count, size) => `${count === 1 ? '1 backup removed' : `${count} backups removed`} · ${size} freed`
   },
   about: {
     version: (value: string) => `Version ${value}`,

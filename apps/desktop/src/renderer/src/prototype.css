@@ -3046,12 +3046,14 @@ body:has(.overlay) .viewdock.floating{display:none}
 .mcp-detected{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 12px;padding:10px 14px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--accent) 8%,transparent)}.mcp-detected p{margin:2px 0 4px;font-size:13px}.mcp-detected .hint{margin:0}
 .mcp-json{font-family:var(--mono);font-size:12.5px;resize:vertical;min-height:200px}
 
-.storage-total{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2,transparent)}.storage-total b{font-size:20px}
-.storage-group h4 small{font-weight:400}.storage-group>p{margin:2px 0 8px;font-size:12.5px}
+.storage-total{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2,transparent)}.storage-total b{font-size:20px}
+.storage-group h4 small{font-weight:400}.storage-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.storage-head .danger-text{color:var(--danger)}
+.storage-date{margin-left:8px;font-weight:400;font-size:12px;color:var(--muted)}.storage-group>p{margin:2px 0 8px;font-size:12.5px}
 .storage-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .storage-list li{display:flex;align-items:center;gap:12px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,transparent)}
 .storage-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.storage-main b{font-size:13px}.storage-main small{color:var(--muted);font:11px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .storage-bar{display:block;height:4px;border-radius:2px;background:color-mix(in srgb,var(--accent) 14%,transparent);margin-top:3px;overflow:hidden}.storage-bar span{display:block;height:100%;border-radius:2px;background:var(--accent)}
+.storage-bar.removing{background:color-mix(in srgb,var(--danger) 18%,transparent)}.storage-bar.removing span{width:40%;background:var(--danger);animation:slide 1.1s ease-in-out infinite}
 .storage-size{flex:none;min-width:74px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
 .storage-list .trashbtn{flex:none;width:30px;height:30px}.storage-keep{flex:none;min-width:30px;font-size:11px;color:var(--muted);text-align:center}
 
