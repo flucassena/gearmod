@@ -3284,6 +3284,17 @@ body:has(.overlay) .viewdock.floating{display:none}
 .sbar-legend{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;color:var(--muted)}
 /* Flow proposal in the chat: score, table and options. */
 .wfchoice{display:grid;gap:10px}
+.cask.wfchoice{max-width:none}
+.wfchoice .cgprop-h{align-items:center}.wfchoice .wfc-min{margin-left:4px;width:24px;height:24px;padding:0;justify-content:center;flex:none}
+.wfchoice.small{padding:8px 12px}
+.wfc-mini{display:flex;align-items:center;gap:8px 10px;min-width:0;flex-wrap:wrap}
+.wfc-chip{display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;font-size:11.5px;color:var(--muted);border:1px solid var(--g27);background:color-mix(in srgb,var(--text) 4%,transparent);white-space:nowrap}
+.wfc-chip.chosen{color:var(--cf-8fdcaa);border-color:color-mix(in srgb,#4ec27a 40%,transparent);background:color-mix(in srgb,#4ec27a 10%,transparent)}
+.wfc-chip.chosen.diff{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,transparent);background:color-mix(in srgb,var(--warn) 10%,transparent)}
+:root[data-theme="light"] .wfc-chip.chosen{color:#1f7a45}
+.wfc-mini .wfc-toggle{margin-left:auto;width:26px;height:26px;padding:0;justify-content:center;flex:none}
+.msg.flowrecord{padding:0;background:none;border:0}
+.wfc-mini .cx-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;text-transform:uppercase;font-weight:700}
 .wfc-score{display:flex;align-items:center;gap:16px}.wfc-score .cx-score{flex:none}
 .wfc-table{font-size:12px}.wfc-table td small{color:var(--muted);margin-left:3px}
 .wfc-opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}

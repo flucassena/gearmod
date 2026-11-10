@@ -18,4 +18,15 @@ describe('ApprovalService', () => {
     expect(() => approvals.consume(approved.id, approved.opHash)).toThrow(/não é válida/)
     expect(() => approvals.consume(approved.id, ApprovalService.operationHash({ other: true }))).toThrow(/não é válida/)
   })
+
+  it('expires only the open requests of one kind on one card', async () => {
+    const approvals = await service(), ask = (kind: string, cardId: string) => approvals.request({ kind, subjectRef: cardId, payload: { kind }, requestedActor: 'agent', cardId })
+    const decided = ask('workflow-choice', 'a'); approvals.decide(decided.id, true)
+    const old = ask('workflow-choice', 'a'), other = ask('workflow-choice', 'b'), move = ask('agent-move', 'a')
+    expect(approvals.expireOpen('workflow-choice', 'a')).toBe(1)
+    expect(approvals.get(old.id).status).toBe('expired')
+    expect(approvals.get(decided.id).status).toBe('approved')
+    expect(approvals.get(other.id).status).toBe('requested')
+    expect(approvals.get(move.id).status).toBe('requested')
+  })
 })

@@ -62,7 +62,17 @@ export const chat = {
     subtitle: 'pela pontuação de complexidade',
     complexity: 'Complexidade',
     seeDetails: 'Ver detalhes da avaliação',
-    seeMore: 'Clique aqui para ver mais…'
+    seeMore: 'Clique aqui para ver mais…',
+    minimize: 'Minimizar e continuar conversando',
+    expand: 'Expandir',
+    collapse: 'Recolher',
+    recommended: (flow: string) => `Recomendado: ${flow}`,
+    chosen: (flow: string) => `Escolhido: ${flow}`,
+    recordTitle: 'Fluxo do card',
+    confirmTitle: (flow: string) => `Usar o fluxo ${flow}?`,
+    confirmRecommended: 'É o fluxo que o agente recomendou. Ao confirmar, o agente continua o planejamento nesse fluxo.',
+    confirmOther: (recommended: string) => `O agente recomendou ${recommended}. Ao confirmar, o agente continua o planejamento no fluxo que você escolheu.`,
+    confirmOk: 'Usar este fluxo'
   },
   approval: {
     switchWorkflow: (workflow: string) => `Trocar o fluxo para ${workflow}`,

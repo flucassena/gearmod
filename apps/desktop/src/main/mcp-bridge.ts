@@ -331,6 +331,7 @@ export class McpBridge {
         const flowPolicyDenied = this.policyDenied(run, 'choose-workflow'); if (flowPolicyDenied) return { ok: false, error: flowPolicyDenied }
         if (!this.deps.approvals) return { ok: false, error: 'Approvals are not available' }
         if (workflow.data === 'sdd' && method) history.recommendSddMethod(cardId, method, String(args.motivo), source)
+        this.deps.approvals.expireOpen('workflow-choice', cardId)
         const card = this.deps.board.card(cardId), approval = this.deps.approvals.request({ kind: 'workflow-choice', subjectRef: cardId, payload: { workflow: workflow.data, method: method ?? null, reason: typeof args.motivo === 'string' ? args.motivo : '' }, requestedActor: 'agent', runId: run.runId, cardId, projectId: card.projectId })
         run.notify({ type: 'card' })
         return { ok: true, text: `Workflow proposal ${workflowLabels[workflow.data]}${method ? ` — ${method === 'native' ? 'GearMod SDD' : 'GitHub Spec Kit'}` : ''} registered for the user's approval (${approval.id}). Wait for the decision before continuing in the workflow.` }

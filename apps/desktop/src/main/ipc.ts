@@ -139,6 +139,13 @@ type Handler = (input: never) => unknown | Promise<unknown>
  * Only the app's own renderer (packaged local file or the dev server) may call the channels. Events without `senderFrame` do not come from
  * Electron (tests); with the key present and empty (destroyed frame) or from another origin, it refuses.
  */
+
+/** System message that records the flow choice in the chat: readable text plus the data for the collapsed card. */
+function workflowChoiceRecord(data: { cardId: string; projectId: string | null; version: number | null; recommended: { workflow: string; method: string | null }; chosen: { workflow: string; method: string | null } }): string {
+  return `${tm().ipc.workflowApprovedNotice}
+<!--gearmod:workflow-choice ${JSON.stringify(data)}-->`
+}
+
 export function isTrustedSender(event: unknown, devUrl: string | undefined = process.env.ELECTRON_RENDERER_URL): boolean {
   if (!event || typeof event !== 'object' || !('senderFrame' in event)) return true
   const url = (event as { senderFrame?: { url?: string } | null }).senderFrame?.url
@@ -249,13 +256,17 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
           const method = choice ? choice.method : approval.payload.method === 'native' || approval.payload.method === 'speckit' ? approval.payload.method : undefined
           if (workflow === 'sdd' && !method) throw new Error(tm().ipc.chooseSddMethodBeforeApproving)
           services.history.selectWorkflow(approval.cardId, workflow, { actor: 'user' }, choice && (choice.workflow !== approval.payload.workflow || (choice.method ?? null) !== (approval.payload.method ?? null)) ? '' : typeof approval.payload.reason === 'string' ? approval.payload.reason : '', 'user', method)
+          // Older proposals still open for this card are settled by this choice.
+          services.approvals.expireOpen('workflow-choice', approval.cardId)
           // The agent stopped waiting for this decision: it continues on its own in the chat that asked (when that chat is idle).
           const chatId = approval.runId ? services.database.db.prepare('SELECT chat_id FROM runs WHERE id = ?').pluck().get(approval.runId) as string | undefined : undefined
           const idle = chatId && !services.database.db.prepare(`SELECT 1 FROM runs WHERE chat_id = ? AND status IN ('queued', 'running') LIMIT 1`).get(chatId)
+          // The chat keeps the choice where it was made: the screen shows it as a collapsed flow card (recommended and chosen).
+          const record = workflowChoiceRecord({ cardId: approval.cardId, projectId: approval.projectId, version: services.history.latest(approval.cardId)?.version ?? null, recommended: { workflow: String(approval.payload.workflow ?? ''), method: typeof approval.payload.method === 'string' ? approval.payload.method : null }, chosen: { workflow, method: method ?? null } })
           if (chatId && idle) {
             const label = workflow === 'sdd' ? `SDD (${method === 'speckit' ? 'GitHub Spec Kit' : 'GearMod'})` : workflow === 'spec' ? 'Spec' : 'curto'
-            try { services.orchestrator.start({ chatId, prompt: tm().ipc.workflowApprovedPrompt(label), planning: true, notice: tm().ipc.workflowApprovedNotice, automatic: true }) } catch { /* the user can still continue by writing in the chat */ }
-          }
+            try { services.orchestrator.start({ chatId, prompt: tm().ipc.workflowApprovedPrompt(label), planning: true, notice: record, automatic: true }) } catch { /* the user can still continue by writing in the chat */ }
+          } else if (chatId) services.conversations.addMessage({ chatId, role: 'system', body: record, status: 'complete' })
         }
       }
       // S05: approving an agent move request applies the move now, still subject to the Done gate (skipGate stays false).

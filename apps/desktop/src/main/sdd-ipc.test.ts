@@ -98,10 +98,13 @@ describe('file-first SDD IPC (G10)', () => {
     expect((await git(repo, 'show', 'HEAD:.gearmod/constitution.md')).stdout).toBe('versão inicial')
 
     // Workflow proposal: the user may pick another flow than the agent's; the card follows the user's choice.
+    const older = approvals.request({ kind: 'workflow-choice', subjectRef: card.id, requestedActor: 'agent', projectId: project.id, cardId: card.id, payload: { workflow: 'spec', method: null, reason: 'antes' } })
     const flow = approvals.request({ kind: 'workflow-choice', subjectRef: card.id, requestedActor: 'agent', projectId: project.id, cardId: card.id, payload: { workflow: 'light', method: null, reason: 'pequeno' } })
     await expect(ipc.invoke('approvals:decide', { id: flow.id, approve: true, choice: { workflow: 'sdd' } })).rejects.toThrow()
     expect(await ipc.invoke('approvals:decide', { id: flow.id, approve: true, choice: { workflow: 'sdd', method: 'native' } })).toMatchObject({ status: 'approved' })
     expect(await ipc.invoke('history:get', { cardId: card.id })).toMatchObject({ workflow: 'sdd', sddMethod: 'native' })
+    // Choosing settles the older proposal still open, so it does not come back on the screen.
+    expect(approvals.get(older.id).status).toBe('expired')
 
     database.close()
   })

@@ -5,6 +5,7 @@ import { AttachmentChips, splitAttachmentNote } from './Attachments'
 import { ReplyContextCards } from './ChatReplies'
 import { splitChatReplies } from './chatReplyContext'
 import { useT } from './i18n'
+import { parseWorkflowChoice, WorkflowChoiceRecord } from './WorkflowChoice'
 
 /**
  * One chat message in Claude Code style: mine in the bubble; the agent's straight on the background, in Markdown;
@@ -20,6 +21,9 @@ export function ChatMessageView({ message, answered = true, busy = false, answer
   // Notice that a system skill is driving this run (instead of showing the prompt): becomes a discreet tag.
   const skill = message.role === 'system' ? /^▶ Usando a skill (\S+)(.*)$/.exec(message.body) : null
   if (skill) return <div className="msg sys skillnote"><span className="skillbadge">skill</span><b>{skill[1]}</b>{skill[2] && <small>{skill[2].replace(/^\s*·\s*/, '')}</small>}</div>
+  // The flow chosen on the card stays in the history, where it was chosen, as a collapsed flow card.
+  const flowChoice = message.role === 'system' ? parseWorkflowChoice(message.body) : null
+  if (flowChoice) return <div className="msg sys flowrecord" data-mid={message.id}><WorkflowChoiceRecord data={flowChoice} /></div>
   const kind = message.role === 'assistant' ? 'agent' : message.role === 'system' ? 'sys' : message.role
   // Long system notice marked with `▸ ` (e.g. files outside the Plan): first line always visible, the rest opens on click, so it does not take up the card.
   if (message.role === 'system' && message.status === 'failed' && message.body.includes('\n')) {

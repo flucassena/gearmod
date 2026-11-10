@@ -63,7 +63,17 @@ export const chat: typeof source = {
     subtitle: 'from the complexity score',
     complexity: 'Complexity',
     seeDetails: 'See assessment details',
-    seeMore: 'Click here to see more…'
+    seeMore: 'Click here to see more…',
+    minimize: 'Minimize and keep talking',
+    expand: 'Expand',
+    collapse: 'Collapse',
+    recommended: (flow: string) => `Recommended: ${flow}`,
+    chosen: (flow: string) => `Chosen: ${flow}`,
+    recordTitle: 'Card workflow',
+    confirmTitle: (flow: string) => `Use the ${flow} workflow?`,
+    confirmRecommended: 'This is the workflow the agent recommended. Once you confirm, the agent continues the planning in it.',
+    confirmOther: (recommended: string) => `The agent recommended ${recommended}. Once you confirm, the agent continues the planning in the workflow you chose.`,
+    confirmOk: 'Use this workflow'
   },
   approval: {
     switchWorkflow: (workflow: string) => `Switch the workflow to ${workflow}`,

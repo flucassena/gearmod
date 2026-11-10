@@ -52,6 +52,9 @@ export function ApprovalAsks({ cardId }: { cardId: string }): React.JSX.Element 
   const { items, reload } = useApprovals(cardId)
   // git-commit only mirrors the approval_record for audit (S06); the decision itself still goes through the commit card (CommitAsks), without duplicating the request on screen.
   const pending = items.filter((item) => (item.status === 'requested' && item.kind !== 'git-commit' && !item.kind.startsWith('speckit-')) || (item.kind === 'constitution-apply' && item.status === 'approved' && !item.consumedAt))
-  if (!pending.length) return null
-  return <>{pending.map((item) => item.kind === 'workflow-choice' ? <WorkflowChoiceAsk key={item.id} approval={item} onDecided={() => void reload()} /> : <ApprovalAsk key={item.id} approval={item} onDecided={() => void reload()} />)}</>
+  // Only the newest flow proposal (the list comes newest first): older ones were replaced while the user kept talking.
+  const latestFlow = pending.find((item) => item.kind === 'workflow-choice')
+  const shown = pending.filter((item) => item.kind !== 'workflow-choice' || item === latestFlow)
+  if (!shown.length) return null
+  return <>{shown.map((item) => item.kind === 'workflow-choice' ? <WorkflowChoiceAsk key={item.id} approval={item} onDecided={() => void reload()} /> : <ApprovalAsk key={item.id} approval={item} onDecided={() => void reload()} />)}</>
 }
