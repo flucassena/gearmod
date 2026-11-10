@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { GitAccountInfo, GitAccountsState, GitRepo, ProjectSource } from '@gearmod/contracts'
 import { gitIcons } from './GitPage'
-import { FolderGlyph, MoreIcon, TokenIcon, TrashIcon } from './icons'
+import { FolderGlyph, MoreIcon, TokenIcon, TrashIcon, CheckMiniIcon, CrossMiniIcon } from './icons'
 import { GitMenu, type MenuItem } from './BranchMenu'
 import { cachedGit, refreshGit } from './gitConfigCache'
 import { gitChangedEvent } from './GitSetup'
@@ -19,7 +19,7 @@ export const gitAccountsChangedEvent = 'gearmod:git-accounts-changed'
 /** Who the token's account is: name, user and email, plus the last 4 letters. The token itself never comes back to the screen. */
 function Who({ info }: { info: GitAccountInfo }): React.JSX.Element {
   const t = useT().git.accounts
-  return <span className="gacc-who">{info.invalid && <i className="gacc-dot" aria-hidden="true" />}<b>{info.name}</b> <span className="cx-muted">@{info.login}{info.email ? ` · ${info.email}` : ''} · {info.hint}</span>{info.invalid && <small className="cx-warn"> {t.invalid}</small>}</span>
+  return <span className="gacc-who">{info.invalid && <i className="gacc-dot" aria-hidden="true" />}<b>{info.name}</b> <span className="cx-muted">@{info.login}{info.email && info.email !== info.name ? ` · ${info.email}` : ''} · {info.hint}</span>{info.invalid && <small className="cx-warn"> {t.invalid}</small>}</span>
 }
 
 /** Project Git repositories and accounts: one token per server (applies to all its repositories) and, if wanted, a token of its own per repository.
@@ -105,9 +105,9 @@ export function GitAccountsPanel({ projectId, openFirst = false }: { projectId: 
     !items.length && repos.length <= 1 ? null : more(name, [...items, removeRepoItem()], (key) => { if (key === 'remove-repo') { if (!repoBusy) setRemovingRepo({ sourceId, name }) } else run(key) })
   // Token column: a chip says which token the repository uses; details (account, last letters) in the tooltip.
   const tokenChip = (repo: Host['repos'][number], host: Host): React.JSX.Element => {
-    if (repo.own) return <span className={`gacc-chip own ${repo.own.invalid ? 'bad' : ''}`} data-tip={`${repo.own.name} · @${repo.own.login} · ${repo.own.hint}${repo.own.invalid ? ` · ${t.invalid}` : ''}`}>{repo.own.invalid && <i className="gacc-dot" aria-hidden="true" />}{t.chipOwn}</span>
-    if (repo.using === 'project') return host.project?.invalid ? <span className="gacc-chip bad" data-tip={t.invalid}><i className="gacc-dot" aria-hidden="true" />{t.chipInvalid}</span> : <span className="gacc-chip project" data-tip={host.project ? `${host.project.name} · @${host.project.login}` : undefined}>{t.chipProject}</span>
-    return <span className="gacc-chip none" data-tip={t.chipNoneTip}>{t.chipNone}</span>
+    if (repo.own) return <span className={`gacc-chip own ${repo.own.invalid ? 'bad' : ''}`} data-tip={`${repo.own.name} · @${repo.own.login} · ${repo.own.hint}${repo.own.invalid ? ` · ${t.invalid}` : ''}`}>{repo.own.invalid ? <i className="gacc-dot" aria-hidden="true" /> : <CheckMiniIcon />}{t.chipOwn}</span>
+    if (repo.using === 'project') return host.project?.invalid ? <span className="gacc-chip bad" data-tip={t.invalid}><i className="gacc-dot" aria-hidden="true" />{t.chipInvalid}</span> : <span className="gacc-chip project" data-tip={host.project ? `${host.project.name} · @${host.project.login}` : undefined}><CheckMiniIcon />{t.chipProject}</span>
+    return <span className="gacc-chip none" data-tip={t.chipNoneTip}><CrossMiniIcon />{t.chipNone}</span>
   }
   const tableHead = <div className="gacc-tr gacc-th" role="row"><span role="columnheader">{t.colRepo}</span><span role="columnheader">{t.colBranch}</span><span role="columnheader" data-tip={t.baseTip}>{t.colBase}</span><span role="columnheader">{t.colToken}</span><span role="columnheader" aria-label={t.actions} /></div>
   const form = (host: Host, target: Target): React.JSX.Element => <div className="gacc-form">
@@ -139,7 +139,7 @@ export function GitAccountsPanel({ projectId, openFirst = false }: { projectId: 
     })}
     {state && repos.some((repo) => !repo.hasRemote) && <section className="cx-wfcard gacc-host">
       <h4>{t.noRemoteTitle}<small className="cx-muted"> · {t.noRemoteHint}</small></h4>
-      <div className="gacc-table" role="table" aria-label={t.noRemoteTitle}>{tableHead}{repos.filter((repo) => !repo.hasRemote).map((repo) => <div key={repo.sourceId} className="gacc-tr" role="row"><b role="cell" data-tip={repo.path}>{repo.name}</b><span role="cell">{branch(repo)}</span><span role="cell">{base(repo.sourceId)}</span><span role="cell"><span className="gacc-chip none">{t.noRemoteToken}</span></span><span role="cell" className="gacc-act">{repoMenu(repo.sourceId, repo.name, [])}</span></div>)}</div>
+      <div className="gacc-table" role="table" aria-label={t.noRemoteTitle}>{tableHead}{repos.filter((repo) => !repo.hasRemote).map((repo) => <div key={repo.sourceId} className="gacc-tr" role="row"><b role="cell" data-tip={repo.path}>{repo.name}</b><span role="cell">{branch(repo)}</span><span role="cell">{base(repo.sourceId)}</span><span role="cell"><span className="gacc-chip none"><CrossMiniIcon />{t.noRemoteToken}</span></span><span role="cell" className="gacc-act">{repoMenu(repo.sourceId, repo.name, [])}</span></div>)}</div>
     </section>}
     {edit && state && (() => {
       const host = state.hosts.find((item) => item.host === edit.host), repo = edit.sourceId ? host?.repos.find((item) => item.sourceId === edit.sourceId) : undefined

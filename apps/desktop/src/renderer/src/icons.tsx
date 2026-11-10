@@ -6,7 +6,7 @@ const make = (children: React.ReactNode, line = true) => function Icon(): React.
 export const BranchIcon = make(<><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="8" r="2" /><path d="M6 7v10" /><path d="M18 10c0 4-6 3-12 7" /></>)
 export const WorktreeIcon = make(<><rect x="9" y="3" width="6" height="5" rx="1" /><rect x="3" y="16" width="6" height="5" rx="1" /><rect x="15" y="16" width="6" height="5" rx="1" /><path d="M12 8v4M6 16v-4h12v4" /></>)
 export const TreeIcon = make(<><path d="m17 14 3 3.3a1 1 0 0 1-.7 1.7H4.7a1 1 0 0 1-.7-1.7L7 14h-.3a1 1 0 0 1-.7-1.7L9 9h-.2A1 1 0 0 1 8 7.3L12 3l4 4.3a1 1 0 0 1-.8 1.7H15l3 3.3a1 1 0 0 1-.7 1.7H17Z" /><path d="M12 22v-3" /></>)
-export const MoreIcon = make(<><circle cx="12" cy="5" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="12" cy="19" r="1.2" /></>)
+export const MoreIcon = make(<><circle cx="12" cy="5" r="1.6" fill="currentColor" /><circle cx="12" cy="12" r="1.6" fill="currentColor" /><circle cx="12" cy="19" r="1.6" fill="currentColor" /></>)
 export const KeyIcon = make(<><circle cx="8" cy="15" r="4" /><path d="m10.8 12.2 8.7-8.7" /><path d="m16 7 2.5 2.5" /><path d="m14 9 2 2" /></>)
 export const TokenIcon = make(<><ellipse cx="12" cy="6" rx="7" ry="3" /><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6" /><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" /></>)
 export const DatabaseIcon = make(<><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" /><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></>)
@@ -33,3 +33,11 @@ export const CheckIcon = (): React.JSX.Element => <svg className="chk" viewBox="
 export const DiffIcon = make(<><rect x="4" y="3" width="16" height="18" rx="2.5" /><path d="M12 7v6M9 10h6M9 17h6" /></>)
 export const PlusIcon = make(<path d="M12 5v14M5 12h14" />)
 export const RefreshIcon = make(<><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" /></>)
+
+/** The app's expand/collapse arrow (sections, groups, rows): points right when closed and turns down when open. */
+export function Chevron({ open }: { open: boolean }): React.JSX.Element {
+  return <span className={`xchev ${open ? 'open' : ''}`} aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m4.5 2.5 3.5 3.5-3.5 3.5" /></svg></span>
+}
+/** Small check and cross used inside chips (has / does not have). */
+export const CheckMiniIcon = (): React.JSX.Element => <svg className="mini-ico" viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 6.3 2.3 2.3 4.7-5" /></svg>
+export const CrossMiniIcon = (): React.JSX.Element => <svg className="mini-ico" viewBox="0 0 12 12" aria-hidden="true"><path d="m3.2 3.2 5.6 5.6M8.8 3.2 3.2 8.8" /></svg>

@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useEscape } from './useEscape'
 import { tr } from './i18n'
 
-export interface MenuItem<K extends string = string> { key: K; label: string; danger?: boolean; off?: string; icon?: React.ReactNode }
+export interface MenuItem<K extends string = string> { key: K; label: string; danger?: boolean; off?: string; icon?: React.ReactNode; tip?: string }
 export type BranchAction = 'checkout' | 'pull' | 'pull-rebase' | 'push' | 'rebase-onto' | 'merge' | 'create' | 'rename' | 'delete' | 'delete-remote' | 'copy'
 export type CommitMenuAction = 'checkout' | 'cherry-pick' | 'revert' | 'rebase' | 'reset-soft' | 'reset-mixed' | 'reset-hard' | 'branch' | 'tag' | 'copy'
 export type StashMenuAction = 'apply' | 'pop' | 'drop'
@@ -31,7 +31,7 @@ export function GitMenu<K extends string>({ x, y, title, label, items, run, clos
     <div className="ctxtitle" data-tip={title}>{title}</div>
     {list.map((item, index) => <React.Fragment key={item.key}>
       {item.danger && index > 0 &&<div className="ctxsep" />}
-      <button type="button" role="menuitem" disabled={Boolean(item.off)} className={`ctxitem ${item.danger ? 'danger' : ''} ${index === active ? 'on' : ''}`} onMouseEnter={() => setActive(index)} onClick={() => go(item)}>{item.icon}<span>{item.label}</span>{item.off && <kbd>{item.off}</kbd>}</button>
+      <button type="button" role="menuitem" disabled={Boolean(item.off)} className={`ctxitem ${item.danger ? 'danger' : ''} ${index === active ? 'on' : ''}`} data-tip={item.tip} onMouseEnter={() => setActive(index)} onClick={() => go(item)}>{item.icon}<span>{item.label}</span>{item.off && <kbd>{item.off}</kbd>}</button>
     </React.Fragment>)}
   </div>
 }

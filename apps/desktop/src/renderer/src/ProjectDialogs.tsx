@@ -90,7 +90,7 @@ function AgentTeam({ profiles, allowed, setAllowed, probes }: { profiles: AgentP
       {profiles.length > 0 && <button type="button" className="teamadd tip" data-tip={rest.length ? tp.addToTeam : tp.allInTeam} aria-label={tp.addAgentToTeam} disabled={!rest.length} onClick={(event) => { const box = event.currentTarget.getBoundingClientRect(); setMenu({ x: box.left, y: box.bottom + 6 }) }}><span>+</span></button>}
     </div>
     {team.length === 0 && profiles.length > 0 && <small className="hint">{tp.emptyTeam}</small>}
-    {menu && <GitMenu x={menu.x} y={menu.y} title={tp.addToTeam} label={tp.addAgentToTeam} items={rest.map((profile) => ({ key: profile.id, label: `${profile.label} · ${state(profile.id).text}` }))} run={(id) => { setMenu(null); setAllowed([...allowed, id]) }} close={() => setMenu(null)} />}
+    {menu && <GitMenu x={menu.x} y={menu.y} title={tp.addToTeam} label={tp.addAgentToTeam} items={rest.map((profile) => { const info = state(profile.id); return { key: profile.id, label: profile.label, tip: info.text, icon: <span className="teamav sm"><AgentIcon profile={profile} size="sm" tip={false} /><i className={`teamdot ${info.tone}`} aria-label={info.text} /></span> } })} run={(id) => { setMenu(null); setAllowed([...allowed, id]) }} close={() => setMenu(null)} />}
   </div>
 }
 

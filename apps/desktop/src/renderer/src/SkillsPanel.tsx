@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { Chevron } from './icons'
 import type { AgentProfile, SkillEntry, SkillScope } from '@gearmod/contracts'
 import { ProviderLogo } from './AgentIcon'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -35,7 +36,7 @@ export function SkillsPanel({ scope, projectId, profiles, globalCount }: { scope
       const expanded = open === skill.id
       return <div className={`skill-row compact ${expanded ? 'open' : ''}`} key={skill.id}>
         <div className="skill-top" role="button" tabIndex={0} aria-expanded={expanded} onClick={() => setOpen(expanded ? undefined : skill.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(expanded ? undefined : skill.id) } }}>
-          <span className="chev" aria-hidden="true">›</span>
+          <Chevron open={expanded} />
           <div className="skname"><b>{skill.name}</b>{skill.origin && <small className="path">{skill.origin}{skill.detected ? ts.detectedInRepo : ''}</small>}</div>
           <div className="provs" onClick={(e) => e.stopPropagation()}>{(['claude', 'codex', 'gemini'] as const).map((provider) => {
             const state = skill.providers[provider]

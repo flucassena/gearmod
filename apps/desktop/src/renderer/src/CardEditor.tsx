@@ -9,7 +9,7 @@ import { AgentIcon } from './AgentIcon'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeleteCardDialog } from './DeleteCardDialog'
 import { WorktreeDeleteDialog } from './WorktreeDelete'
-import { BranchIcon, ChatIcon, FolderGlyph, TrashIcon, CollapseIcon, TreeIcon, ExpandIcon, EyeIcon, PencilIcon, SplitIcon } from './icons'
+import { BranchIcon, ChatIcon, FolderGlyph, TrashIcon, CollapseIcon, TreeIcon, ExpandIcon, EyeIcon, PencilIcon, SplitIcon, Chevron } from './icons'
 import { Markdown } from './markdown'
 import { TokenUsage } from './TokenUsage'
 import { TestChecklist } from './TestChecklist'
@@ -146,7 +146,7 @@ export function CardEditor({ projectId, sources, profiles, cardTypes, draft: sta
     const expanded = openSec[purpose] ?? !d.id
     const model = state.options?.models.find((item) => item.id === state.config?.model)
     const preview = [profile?.label, model?.label ?? state.config?.model ?? t.defaultModel, state.config?.effort ? effortLabel[state.config.effort] : ''].filter(Boolean).join(' · ')
-    return <div className={`sep secfold ${expanded ? 'open' : ''}`}><div className="sechead"><button type="button" className="foldbtn" aria-expanded={expanded} onClick={() => setOpenSec({ ...openSec, [purpose]: !expanded })}><span className="chev" aria-hidden="true">›</span><span className="sectitle">{label}</span></button>{chatButton}</div>{!expanded && <button type="button" className="foldprev" onClick={() => setOpenSec({ ...openSec, [purpose]: true })}>{profile && <AgentIcon profile={profile} size="sm" tip={false} />}<span>{preview}</span></button>}{expanded && agentField(purpose, state)}</div>
+    return <div className={`sep secfold ${expanded ? 'open' : ''}`}><div className="sechead"><button type="button" className="foldbtn" aria-expanded={expanded} onClick={() => setOpenSec({ ...openSec, [purpose]: !expanded })}><Chevron open={expanded} /><span className="sectitle">{label}</span></button>{chatButton}</div>{!expanded && <button type="button" className="foldprev" onClick={() => setOpenSec({ ...openSec, [purpose]: true })}>{profile && <AgentIcon profile={profile} size="sm" tip={false} />}<span>{preview}</span></button>}{expanded && agentField(purpose, state)}</div>
   }
   // Worktree per repository: only fetches when the block is expanded (each repository's state costs a Git query).
   useEffect(() => { if (wsOpen && d.id) void window.gearmod.invoke('git:card', { cardId: d.id }).then((git) => setWsRepos(git.repos)).catch(() => setWsRepos([])) }, [wsOpen, d.id])
@@ -167,7 +167,7 @@ export function CardEditor({ projectId, sources, profiles, cardTypes, draft: sta
             // Small task the planner itself already handled: it is a single agent (plans, executes and validates) and a single chat, so it appears as "Agent".
             ? section('planning', planAgent, common.agent)
             : <>{!small && section('planning', planAgent)}{section('execution', execAgent)}{!small && section('test', testAgent)}</>)}
-          {d.id && workspace && <div className="f"><span>{t.branchAndWorktree}</span><div className="wsbox"><button type="button" className="wsfold" aria-expanded={wsOpen} onClick={() => setWsOpen(!wsOpen)}><BranchIcon /><b>{workspace.branch}</b><span className="chev" aria-hidden="true">›</span></button><div className="wsmeta"><small className="wsbase" data-tip={t.base(workspace.baseRef)}>{t.base(workspace.baseRef)}</small></div>{wsOpen && (wsRepos?.length ? <ul className="wsrepos">{wsRepos.map((repo) => { const shown = openRepos.includes(repo.sourceId), touched = repo.ahead > 0 || repo.files.length > 0
+          {d.id && workspace && <div className="f"><span>{t.branchAndWorktree}</span><div className="wsbox"><button type="button" className="wsfold" aria-expanded={wsOpen} onClick={() => setWsOpen(!wsOpen)}><BranchIcon /><b>{workspace.branch}</b><Chevron open={wsOpen} /></button><div className="wsmeta"><small className="wsbase" data-tip={t.base(workspace.baseRef)}>{t.base(workspace.baseRef)}</small></div>{wsOpen && (wsRepos?.length ? <ul className="wsrepos">{wsRepos.map((repo) => { const shown = openRepos.includes(repo.sourceId), touched = repo.ahead > 0 || repo.files.length > 0
     return <li key={repo.sourceId} className={`wstree ${touched ? 'touched' : ''}`}>
       <button type="button" className="wstree-head" aria-expanded={shown} onClick={() => setOpenRepos(shown ? openRepos.filter((id) => id !== repo.sourceId) : [...openRepos, repo.sourceId])}>
         <TreeIcon /><b>{repo.name}</b>

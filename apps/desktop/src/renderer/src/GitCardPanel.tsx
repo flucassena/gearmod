@@ -15,7 +15,7 @@ import { WorktreeDeleteDialog } from './WorktreeDelete'
 import { Select } from './Select'
 import { useAsk } from './useAsk'
 import { useT } from './i18n'
-import { SparkIcon, TrashIcon } from './icons'
+import { SparkIcon, TrashIcon, Chevron } from './icons'
 
 /** This card's agent commit requests (pending and the latest decided); reloads when the card changes. */
 export function useGitRequests(cardId: string): { items: GitRequest[]; reload(): Promise<void> } {
@@ -170,7 +170,7 @@ function RepoSection({ repo, cardId, branch, base, profiles, excluded, setExclud
     try { const out = await window.gearmod.invoke('git:create-prs', { cardId, draft: false, sourceId: repo.sourceId }); const failed = out.results.find((item) => item.error); if (failed?.error) setError(failed.error); await reload() } catch (reason) { setError(plainError(reason)) } finally { setOpening(false) }
   }
   const openLink = (url: string): void => { void window.gearmod.invoke('git:open-pr', { cardId, url }).catch((reason) => setError(plainError(reason))) }
-  return <section className={`cgrepo ${expanded ? 'open' : 'shut'}`}><header><button type="button" className="cgtoggle" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}><span className="cgchev" aria-hidden="true">▸</span>{gitIcons.repo}<span className="cgrname">{repo.name}</span></button><span className="cnts">{repo.ahead > 0 && <span className="pillg up">↑ {repo.ahead}</span>}{repo.behind > 0 && <span className="pillg down">↓ {repo.behind}</span>}{paths.length > 0 && <span className="pillg down">{t.uncommitted(paths.length)}</span>}{repo.published && <span className="pillg ok">{t.published}</span>}</span></header>
+  return <section className={`cgrepo ${expanded ? 'open' : 'shut'}`}><header><button type="button" className="cgtoggle" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}><Chevron open={expanded} />{gitIcons.repo}<span className="cgrname">{repo.name}</span></button><span className="cnts">{repo.ahead > 0 && <span className="pillg up">↑ {repo.ahead}</span>}{repo.behind > 0 && <span className="pillg down">↓ {repo.behind}</span>}{paths.length > 0 && <span className="pillg down">{t.uncommitted(paths.length)}</span>}{repo.published && <span className="pillg ok">{t.published}</span>}</span></header>
     {expanded && <div className="cgbody"><div className="cgnote" style={{ fontFamily: 'var(--mono)', fontSize: 11.5 }}>{repo.worktreePath}</div>
       <div><div className="cglabel" style={{ marginBottom: 4 }}>{t.cardCommits}</div>{repo.commits.length ? <div className="cgcommits" style={{ '--lc': color } as React.CSSProperties}>
         {repo.commits.map((commit) => { const agent = profiles.find((profile) => profile.id === commit.agentProfileId); return <React.Fragment key={commit.hash}><div className="cgc"><i /><button type="button" className="cgfile" data-tip={t.seeCommitFiles} onClick={() => setOpenCommit(openCommit === commit.hash ? undefined : commit.hash)} style={{ flex: 1, textAlign: 'left' }}>{commit.subject}</button><code>{agent ? `${agent.label} · ` : `${t.you} · `}{commit.short}</code></div>{openCommit === commit.hash && <CommitFiles sourceId={repo.sourceId} hash={commit.hash} pick={(path) => setDiff({ sourceId: repo.sourceId, path, hash: commit.hash })} />}</React.Fragment> })}

@@ -3234,3 +3234,21 @@ body:has(.overlay) .viewdock.floating{display:none}
 @media (max-width:640px){.tset-fields{grid-template-columns:1fr}}
 
 .ch-repos{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.ch-repo{font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:4px}.ch-repo.passed{color:var(--cf-8fdcaa)}.ch-repo.failed{color:var(--cf-ff8f86)}
+
+/* Shared expand/collapse arrow (icons.tsx Chevron): readable size, same look everywhere. */
+.xchev{display:inline-grid;place-items:center;width:18px;height:18px;flex:none;border-radius:5px;color:var(--muted);transition:transform .15s ease}
+.xchev svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.xchev.open{transform:rotate(90deg)}
+:is(button,[role="button"]):hover>.xchev,:is(button,[role="button"]):hover .xchev{color:var(--accent-strong)}
+.gwtog{display:inline-flex;align-items:center;gap:4px}
+/* Check / cross inside chips. */
+.mini-ico{width:11px;height:11px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* Repository base branch pill: text and arrow centered on the same line. */
+.sel.repobase .sel-btn{display:inline-flex;align-items:center;line-height:1}
+.sel.repobase .sel-btn .l{display:inline-flex;align-items:center;line-height:1}
+.sel.repobase .sel-btn .chev{display:inline-flex;align-items:center;line-height:1;font-size:10px;margin-top:1px}
+/* Agent icon with its connection dot inside menus. */
+.teamav.sm .teamdot{width:9px;height:9px;right:-2px;bottom:-2px;border-width:1.5px}
+/* Agent icon inside a menu item: does not stretch like the label span. */
+.ctxitem .teamav,.ctxitem .teamav span{flex:none}
+.gacc-more,.gacc-more svg{color:var(--text)}

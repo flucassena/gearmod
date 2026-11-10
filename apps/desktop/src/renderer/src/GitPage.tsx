@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Chevron } from './icons'
 import { errorCodeOf, withoutErrorCode, type AgentProfile, type GitChange, type GitCommitFile, type GitGraph, type GitRepo, type GitRow, type ProjectBoard, type PullRequestSummary } from '@gearmod/contracts'
 import { AgentIcon } from './AgentIcon'
 import { GitSide } from './GitSide'
@@ -202,7 +203,7 @@ function WipForm({ row, graph, summary, setSummary, changed, openDiff }: { row: 
       </React.Fragment>
   })}{!list.length && <div className="gwempty">{t.nothingHere}</div>}</>
   const section = (id: 'un' | 'on', title: string, list: GitChange[], isStaged: boolean): React.JSX.Element => <div className={`gwsec ${closed[id] ? 'closed' : ''}`} style={{ flexGrow: closed[id] ? 0 : closed[id === 'un' ? 'on' : 'un'] ? 1 : id === 'un' ? split : 100 - split }}><div className="gwsech" onContextMenu={!isStaged && list.length ? (event) => { event.preventDefault(); setSectionMenu({ x: event.clientX, y: event.clientY }) } : undefined}>
-    <button type="button" className="gwtog" onClick={() => setClosed({ ...closed, [id]: !closed[id] })}>{closed[id] ? '▸' : '▾'} {title} ({list.length})</button>
+    <button type="button" className="gwtog" onClick={() => setClosed({ ...closed, [id]: !closed[id] })}><Chevron open={!closed[id]} />{title} ({list.length})</button>
     {list.length > 0 && <span className="gwsection-actions">{!isStaged && <button type="button" className="gwdiscard" data-tip={t.discardAllTip} aria-label={t.discardAllTip} onClick={() => setPending({ kind: 'discard', paths: list.map((file) => file.path) })}>{gitIcons.trash}</button>}<button type="button" className={`gwall ${isStaged ? 'un' : ''}`} onClick={() => void stage([], !isStaged)}>{isStaged ? t.unstageAll : t.stageAll}</button></span>}</div>
     {!closed[id] && <div className="gwlist">{lines(list, isStaged)}</div>}</div>
   const toggleAmend = (value: boolean): void => { setAmend(value); if (value && !summary.trim()) setSummary(last); else if (!value && summary === last) setSummary('') }
