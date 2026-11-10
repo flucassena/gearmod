@@ -55,6 +55,7 @@ export const board = {
     test: 'Testar',
     stop: 'Parar',
     archive: 'Arquivar',
+    finalize: 'Finalizar card',
     viewResult: 'Ver resultado'
   },
   dock: {
@@ -103,6 +104,12 @@ export const board = {
       runTests: 'Rodar testes automatizados',
       openChanges: 'Abrir Alterações para revisar',
       moveAnyway: 'Mover mesmo assim'
+    },
+    finalize: {
+      eyebrow: 'Finalizar card',
+      text: 'Limpa o que sobrou no card: a execução parada ou que falhou deixa de aparecer, os pedidos de commit pendentes são recusados e as aprovações em aberto são encerradas. O chat, os documentos e a branch continuam como estão.',
+      ok: 'Finalizar',
+      done: 'Card finalizado'
     },
     stop: {
       eyebrow: 'Execução',

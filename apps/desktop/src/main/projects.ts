@@ -192,9 +192,9 @@ export function cardTestsRunning(db: Database.Database, cardId: string): boolean
 }
 
 export function cardRunState(db: Database.Database, cardId: string): CardRunState {
-  const row = db.prepare(`SELECT r.id, r.status, r.exit_reason AS exitReason, r.ended_at AS endedAt, r.profile_id AS profileId, ch.purpose, k.viewed_at AS viewedAt
+  const row = db.prepare(`SELECT r.id, r.status, r.exit_reason AS exitReason, r.started_at AS startedAt, r.ended_at AS endedAt, r.profile_id AS profileId, ch.purpose, k.viewed_at AS viewedAt, k.finalized_at AS finalizedAt
     FROM runs r JOIN chats ch ON ch.id = r.chat_id JOIN cards k ON k.id = r.card_id WHERE r.card_id = ? ORDER BY r.started_at DESC, r.rowid DESC LIMIT 1`).get(cardId) as
-    { id: string; status: string; exitReason: string | null; endedAt: string | null; profileId: string; purpose: string; viewedAt: string | null } | undefined
+    { id: string; status: string; exitReason: string | null; startedAt: string; endedAt: string | null; profileId: string; purpose: string; viewedAt: string | null; finalizedAt: string | null } | undefined
   const none = { state: 'idle' as const, runId: null, profileId: null, purpose: null }
   if (!row) return none
   const purpose = row.purpose === 'test' ? 'test' as const : row.purpose === 'planning' ? 'planning' as const : 'execution' as const
@@ -202,6 +202,8 @@ export function cardRunState(db: Database.Database, cardId: string): CardRunStat
   const active = row.status === 'queued' || row.status === 'running'
   if (row.purpose === 'planning') return active ? { state: 'planning', ...base } : none
   if (active) return { state: 'running', ...base }
+  // Finalized by the user after this run ended: nothing left to continue or to look at.
+  if (row.finalizedAt && row.finalizedAt >= (row.endedAt ?? row.startedAt)) return none
   if (row.status === 'completed') return row.endedAt && (!row.viewedAt || row.endedAt > row.viewedAt) ? { state: 'finished', ...base } : none
   // Failed (e.g. the agent has no login/token): not a pause, there is nothing useful to continue; the card asks to pick the agent again.
   if (row.status === 'failed') return { state: 'failed', ...base, error: row.exitReason }
@@ -218,7 +220,9 @@ export function cardWaiting(db: Database.Database, cardId: string): number {
   const live = liveWaitingChats()
   return count("SELECT COUNT(*) AS n FROM card_questions WHERE card_id = ? AND status = 'user'", cardId)
     + count("SELECT COUNT(*) AS n FROM card_changes WHERE card_id = ? AND status = 'pending'", cardId)
-    + count("SELECT COUNT(*) AS n FROM approval_records WHERE card_id = ? AND status = 'requested' AND (expires_at IS NULL OR expires_at > ?)", cardId, new Date().toISOString())
+    // A commit approval only counts while its commit request is still pending (a newer request replaces the older one).
+    + count(`SELECT COUNT(*) AS n FROM approval_records a WHERE a.card_id = ? AND a.status = 'requested' AND (a.expires_at IS NULL OR a.expires_at > ?)
+      AND (a.kind <> 'git-commit' OR EXISTS (SELECT 1 FROM git_commit_requests g WHERE g.approval_id = a.id AND g.status = 'pending'))`, cardId, new Date().toISOString())
     + (live.length ? count(`SELECT COUNT(*) AS n FROM chats WHERE card_id = ? AND id IN (${live.map(() => '?').join(',')})`, cardId, ...live) : 0)
 }
 
@@ -600,6 +604,17 @@ export class BoardRepository {
     })
     move()
     if (destination.state === 'done' && current.columnId !== columnId) this.onDone?.(cardId)
+    return this.card(cardId)
+  }
+
+  /** Finalizes the card: the last run stops showing as paused, failed or finished and the open approvals are closed. */
+  finalize(cardId: string): Card {
+    this.card(cardId)
+    const now = new Date().toISOString()
+    this.database.db.transaction(() => {
+      this.database.db.prepare('UPDATE cards SET finalized_at = ?, updated_at = ? WHERE id = ?').run(now, now, cardId)
+      this.database.db.prepare("UPDATE approval_records SET status = 'expired' WHERE card_id = ? AND status = 'requested'").run(cardId)
+    })()
     return this.card(cardId)
   }
 

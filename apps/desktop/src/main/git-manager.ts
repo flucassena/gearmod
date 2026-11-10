@@ -786,8 +786,9 @@ ${diff}`
   /**
    * Deletes the card worktree (all its folders) and frees the space. The card and its history stay; only the link becomes "removed".
    * The local branch is only deleted if `deleteBranch`; otherwise it keeps the commits that were not pushed.
+   * `force` deletes the branch even with commits that are not in the base (the user confirmed losing them).
    */
-  async deleteWorktree(projectId: string, cardId: string, deleteBranch: boolean, sourceId?: string): Promise<{ output: string; keptBranches: string[] }> {
+  async deleteWorktree(projectId: string, cardId: string, deleteBranch: boolean, sourceId?: string, force = false): Promise<{ output: string; keptBranches: string[] }> {
     const members = this.worktreeMembers(projectId, cardId, sourceId)
     const worktree = this.database.db.prepare(`SELECT id, path, external FROM worktrees WHERE card_id = ? AND cleanup_state != 'removed' ORDER BY created_at DESC LIMIT 1`).get(cardId) as { id: string; path: string; external: number } | undefined
     if (!members.length || !worktree) throw new Error(tm().git.cardHasNoWorktree)
@@ -814,7 +815,7 @@ ${diff}`
       if (existsSyncDir(member.path)) throw new Error(tm().git.worktreeFolderLocked(member.path))
       this.database.db.prepare('DELETE FROM worktree_members WHERE worktree_id = ? AND path = ?').run(worktree.id, member.path)
       try { this.onFolderRemoved?.(member.path) } catch { /* the index is informational */ }
-      if (deleteBranch && await this.tryRun(member.repoPath, ['branch', '-d', branch]) === null && await this.tryRun(member.repoPath, ['show-ref', '--verify', '-q', `refs/heads/${branch}`]) !== null) kept.push(branch)
+      if (deleteBranch && await this.tryRun(member.repoPath, ['branch', force ? '-D' : '-d', branch]) === null && await this.tryRun(member.repoPath, ['show-ref', '--verify', '-q', `refs/heads/${branch}`]) !== null) kept.push(branch)
     }
     // Only one folder was deleted and others remain: the card worktree is still valid.
     const remaining = this.database.db.prepare('SELECT COUNT(*) FROM worktree_members WHERE worktree_id = ?').pluck().get(worktree.id) as number
@@ -1407,11 +1408,14 @@ ${diff}`
     }
     const insert = this.database.db.prepare(`INSERT INTO git_commit_requests(id, card_id, source_id, repo_name, repo_path, chat_id, profile_id, message, files, status, approval_id, created_at, amend) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`)
     const drop = this.database.db.prepare(`DELETE FROM git_commit_requests WHERE card_id = ? AND source_id = ? AND status = 'pending'`)
+    // The replaced request's approval is closed too, so it does not stay waiting for the user.
+    const settle = this.database.db.prepare(`UPDATE approval_records SET status = 'expired' WHERE status = 'requested' AND id IN (SELECT approval_id FROM git_commit_requests WHERE card_id = ? AND source_id = ? AND status = 'pending')`)
     for (const item of plan) {
       const requestId = randomUUID()
       // Unified audit (S06): the commit request also becomes an approval_record; the decision UX remains the card's (`decide`).
       const approval = this.approvals.request({ kind: 'git-commit', subjectRef: requestId, payload: { message, files: item.paths, repo: item.source.name, amend: Boolean(input.amend) }, requestedActor: 'agent', cardId: input.cardId, projectId: card.projectId })
       this.database.db.transaction(() => {
+        settle.run(input.cardId, item.source.id)
         drop.run(input.cardId, item.source.id)
         insert.run(requestId, input.cardId, item.source.id, item.source.name, item.source.path, input.chatId, profileId, message, JSON.stringify(item.paths), approval.id, new Date().toISOString(), input.amend ? 1 : 0)
       })()

@@ -244,6 +244,16 @@ export const git = {
     },
     creating: 'Criando…'
   },
+  doneCleanup: {
+    eyebrow: 'Card concluído',
+    title: (card: string) => `Apagar a worktree e a branch de "${card}"?`,
+    text: 'O card foi para Done. Apagar libera espaço no disco; o card, o chat e os documentos continuam. Antes de apagar, o app confere se ficou algo sem enviar.',
+    ok: 'Apagar worktree e branch',
+    riskTitle: 'Tem trabalho que não foi enviado',
+    riskText: 'Se apagar agora, isto se perde junto com a worktree e a branch local:',
+    deleteAnyway: 'Apagar assim mesmo',
+    viewInGit: 'Ver no Git'
+  },
   worktreeDelete: {
     menuOne: 'Apagar somente a worktree deste repositório…',
     menuItem: 'Apagar todas as worktrees do card…',

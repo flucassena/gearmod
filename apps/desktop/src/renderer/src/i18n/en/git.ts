@@ -230,6 +230,16 @@ export const git: typeof source = {
     },
     creating: 'Creating…'
   },
+  doneCleanup: {
+    eyebrow: 'Card done',
+    title: (card: string) => `Delete the worktree and branch of "${card}"?`,
+    text: 'The card went to Done. Deleting frees disk space; the card, the chat and the documents stay. Before deleting, the app checks whether anything was left unsent.',
+    ok: 'Delete worktree and branch',
+    riskTitle: 'Some work was not sent',
+    riskText: 'If you delete now, this is lost with the worktree and the local branch:',
+    deleteAnyway: 'Delete anyway',
+    viewInGit: 'View in Git'
+  },
   worktreeDelete: {
     menuOne: "Delete only this repository's worktree…",
     menuItem: "Delete all of the card's worktrees…",

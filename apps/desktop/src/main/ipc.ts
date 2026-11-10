@@ -406,6 +406,12 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'cards:update': (input: { cardId: string; sourceId?: string | null; type: string; title: string; description: string; priority: string; acceptanceCriteria: { body: string; checked: boolean }[] }) => services.board.update(input),
     'cards:move': (input: { cardId: string; columnId: string; beforeCardId: string | null; skipGate?: boolean }) => services.board.move(input.cardId, input.columnId, input.beforeCardId, 'user', input.skipGate),
     'cards:archive': (input: { cardId: string }) => services.board.archive(input.cardId),
+    // Finalize: commit requests still pending are denied (the user is done with the card), then the leftover states are cleared.
+    'cards:finalize': async (input: { cardId: string }) => {
+      const pending = services.database.db.prepare("SELECT id FROM git_commit_requests WHERE card_id = ? AND status = 'pending'").pluck().all(input.cardId) as string[]
+      for (const id of pending) await services.gitManager.decide(id, 'deny')
+      return services.board.finalize(input.cardId)
+    },
     'cards:restore': (input: { cardId: string }) => services.board.archive(input.cardId, true),
     'cards:get': (input: { cardId: string }) => services.board.card(input.cardId),
     'cards:documents': (input: { cardId: string }) => services.board.documents.get(input.cardId),
@@ -654,7 +660,7 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     , 'reviews:prepare-local': (input: { cardId: string }) => services.quality.prepareLocalReview(input.cardId)
     , 'git:repos': (input: { projectId: string }) => services.gitManager.repos(input.projectId)
     , 'git:worktree-info': (input: { projectId?: string | undefined; cardId: string; sourceId?: string | undefined }) => services.gitManager.worktreeInfo(input.projectId ?? services.gitManager.projectOfCard(input.cardId), input.cardId, input.sourceId)
-    , 'git:worktree-delete': (input: { projectId?: string | undefined; cardId: string; sourceId?: string | undefined; deleteBranch: boolean }) => services.gitManager.deleteWorktree(input.projectId ?? services.gitManager.projectOfCard(input.cardId), input.cardId, input.deleteBranch, input.sourceId)
+    , 'git:worktree-delete': (input: { projectId?: string | undefined; cardId: string; sourceId?: string | undefined; deleteBranch: boolean; force?: boolean | undefined }) => services.gitManager.deleteWorktree(input.projectId ?? services.gitManager.projectOfCard(input.cardId), input.cardId, input.deleteBranch, input.sourceId, input.force === true)
     , 'git:upstream': (input: { sourceId: string; cardId: string | null }) => services.gitManager.upstream(input.sourceId, input.cardId)
     , 'git:set-upstream': (input: { sourceId: string; cardId: string | null; remote: string; branch: string }) => services.gitManager.setUpstream(input)
     , 'git:detect': (input: { projectId: string }) => services.gitManager.detect(input.projectId)

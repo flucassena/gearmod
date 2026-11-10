@@ -55,6 +55,7 @@ export const board: typeof source = {
     test: 'Test',
     stop: 'Stop',
     archive: 'Archive',
+    finalize: 'Finalize card',
     viewResult: 'View result'
   },
   dock: {
@@ -103,6 +104,12 @@ export const board: typeof source = {
       runTests: 'Run automated tests',
       openChanges: 'Open Changes to review',
       moveAnyway: 'Move anyway'
+    },
+    finalize: {
+      eyebrow: 'Finalize card',
+      text: 'Clears what was left on the card: a stopped or failed run stops showing, pending commit requests are denied and open approvals are closed. The chat, the documents and the branch stay as they are.',
+      ok: 'Finalize',
+      done: 'Card finalized'
     },
     stop: {
       eyebrow: 'Execution',

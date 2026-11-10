@@ -338,6 +338,16 @@ describe('delete card worktree', () => {
     await expect(manager.deleteWorktree(projectId, cardId, false)).rejects.toThrow()
   })
 
+  it('keeps a branch with commits outside the base unless the deletion is forced', async () => {
+    const kept = await setup()
+    await writeFile(join(kept.wt, 'c.txt'), 'c\n'); await kept.manager.commit({ sourceId: kept.sourceId, cardId: kept.cardId, message: 'Commit do card', paths: ['c.txt'] })
+    expect((await kept.manager.deleteWorktree(kept.projectId, kept.cardId, true)).keptBranches).toEqual([kept.branch])
+    const forced = await setup()
+    await writeFile(join(forced.wt, 'c.txt'), 'c\n'); await forced.manager.commit({ sourceId: forced.sourceId, cardId: forced.cardId, message: 'Commit do card', paths: ['c.txt'] })
+    expect((await forced.manager.deleteWorktree(forced.projectId, forced.cardId, true, undefined, true)).keptBranches).toEqual([])
+    expect((await git(forced.repo, 'branch', '--list', forced.branch)).stdout.trim()).toBe('')
+  })
+
   it('deletes the branch too when requested', async () => {
     const { manager, projectId, cardId, wt, branch, repo } = await setup()
     await writeFile(join(wt, 'solto.txt'), 's\n')

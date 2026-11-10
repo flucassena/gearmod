@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ConversationRepository } from './conversations'
 import { AppDatabase } from './database'
+import { ApprovalService } from './approvals'
 import { ExecutionService } from './executions'
 import { BoardRepository, ProfileRepository, ProjectRepository } from './projects'
 import { seedProfiles } from './test-helpers'
@@ -61,6 +62,26 @@ describe('ExecutionService', () => {
     service.resume(card.id)
     expect(conversations.listChats(board.card(card.id).projectId, card.id).filter((chat) => chat.purpose === 'execution')).toHaveLength(1)
     expect(started[1]!.chatId).toBe(started[0]!.chatId); expect(started[1]!.prompt).toContain('gearmod-implement'); expect(started[1]!.prompt).toContain('where it left off')
+    database.close()
+  })
+
+  it('finalizing clears a stopped run and the open approvals; a commit approval whose request is gone does not wait for the user', async () => {
+    const { database, board, conversations, profile, project, card, service } = await setup()
+    board.documents.write(card.id, 'plano', '## Plano\nFazer')
+    const run = service.start(card.id, { profileId: profile.id, model: null, effort: null, mode: 'auto' })
+    conversations.updateRun(run.id, 'interrupted', 'Interrompido pelo usuário')
+    const approvals = new ApprovalService(database)
+    approvals.request({ kind: 'git-commit', subjectRef: 'gone', payload: {}, requestedActor: 'agent', cardId: card.id, projectId: project.id })
+    expect(board.card(card.id).waiting).toBe(0)
+    const move = approvals.request({ kind: 'agent-move', subjectRef: card.id, payload: {}, requestedActor: 'agent', cardId: card.id, projectId: project.id })
+    expect(board.card(card.id)).toMatchObject({ run: { state: 'paused' }, waiting: 1 })
+    expect(board.finalize(card.id)).toMatchObject({ run: { state: 'idle' }, waiting: 0 })
+    expect(approvals.get(move.id).status).toBe('expired')
+    // A new run after finalizing shows its state again.
+    const next = service.resume(card.id)
+    expect(board.card(card.id).run.state).toBe('running')
+    conversations.updateRun(next.id, 'interrupted', 'x')
+    expect(board.card(card.id).run.state).toBe('paused')
     database.close()
   })
 

@@ -782,6 +782,14 @@ export const migrations: readonly Migration[] = [
       // An agent commit request can amend the last commit of the card branch instead of creating a new one.
       db.exec('ALTER TABLE git_commit_requests ADD COLUMN amend INTEGER NOT NULL DEFAULT 0;')
     }
+  },
+  {
+    version: 50,
+    checksum: 'sha256:gearmod-card-finalized-v50-2026-11-10',
+    up(db) {
+      // The user finalized the card: runs that ended before this no longer show as paused, failed or finished.
+      db.exec('ALTER TABLE cards ADD COLUMN finalized_at TEXT;')
+    }
   }
 ]
 

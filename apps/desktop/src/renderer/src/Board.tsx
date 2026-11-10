@@ -20,8 +20,9 @@ import { worktreeName } from './workspace'
 import { FreeChat } from './FreeChat'
 import { blankDraft, CardEditor, type Draft } from './CardEditor'
 import { ConfirmDialog } from './ConfirmDialog'
+import { DoneCleanupDialog } from './DoneCleanup'
 import { DeleteCardDialog } from './DeleteCardDialog'
-import { ArchiveIcon, BoardIcon, BranchIcon, ChatIcon, DatabaseIcon, EyeIcon, PlayIcon, SparkIcon, StopIcon } from './icons'
+import { ArchiveIcon, BoardIcon, BranchIcon, ChatIcon, DatabaseIcon, FinishIcon, PlayIcon, SparkIcon, StopIcon } from './icons'
 import { NewCardDialog, type StartChoice } from './NewCardDialog'
 import { PendingDialog } from './PendingDialog'
 import { NoAgentDialog } from './ProjectDialogs'
@@ -51,12 +52,14 @@ function draftCard(board: ProjectBoard, columnId: string): Card {
   return { id: '', projectId: board.project.id, columnId, sourceId: null, type: board.project.cardTypes[0]?.id ?? 'feature', title: '', description: '', priority: 'medium', orderKey: 0, createdAt: now, updatedAt: now, archivedAt: null, acceptanceCriteria: [], tasks: { done: 0, total: 0 }, run: { state: 'idle', runId: null, profileId: null, purpose: null }, hasPlan: false, planningOpen: false, workspace: null, pending: { changes: 0, questions: 0, commits: 0, toSend: 0, testFailures: 0 }, execProfileId: null, execModel: null, agentIds: [], complexity: null, repoIds: null, workflow: null, sddMethod: null } as Card
 }
 
-function CardTile({ card, types, state, agent, agents, dropLabel, dragProps, onPending, onSend, onSendFailures, onGit, onOpen, onChat, onPlan, onStart, onTest, onStop, onResume, onRetry, onArchive, onComplexity }: { card: Card; types: CardTypeDef[]; state: State; agent?: AgentProfile; agents: AgentProfile[]; dropLabel?: string; dragProps: React.HTMLAttributes<HTMLElement>; onPending(): void; onSend(): void; onSendFailures(): void; onGit(): void; onOpen(): void; onChat(): void; onPlan(): void; onStart(): void; onTest(): void; onStop(): void; onResume(): void; onRetry(): void; onArchive(): void; onComplexity(): void }): React.JSX.Element {
+function CardTile({ card, types, state, agent, agents, dropLabel, dragProps, onPending, onSend, onSendFailures, onGit, onOpen, onChat, onPlan, onStart, onTest, onStop, onResume, onRetry, onArchive, onFinalize, onComplexity }: { card: Card; types: CardTypeDef[]; state: State; agent?: AgentProfile; agents: AgentProfile[]; dropLabel?: string; dragProps: React.HTMLAttributes<HTMLElement>; onPending(): void; onSend(): void; onSendFailures(): void; onGit(): void; onOpen(): void; onChat(): void; onPlan(): void; onStart(): void; onTest(): void; onStop(): void; onResume(): void; onRetry(): void; onArchive(): void; onFinalize(): void; onComplexity(): void }): React.JSX.Element {
   const { board: t, common } = useT()
   const run = card.run.state, open = card.planningOpen, ready = run === 'idle' && card.hasPlan && (state === 'backlog' || state === 'todo')
   // Something waits for the user (question, change or approval to decide, agent asking permission): the card glows like a finished one, in the warning color.
-  const waiting = card.waiting ?? 0, unlisted = waiting - card.pending.questions - card.pending.changes
+  const waiting = card.waiting ?? 0, unlisted = waiting - card.pending.questions - card.pending.changes - card.pending.commits
   const { done, total } = card.tasks
+  // Something left over that "Finalize" clears: a stopped, failed or finished run, an approval nobody will answer, a pending commit.
+  const dirty = run === 'paused' || run === 'failed' || run === 'finished' || unlisted > 0 || card.pending.commits > 0
   const button = (cls: string, tip: string, click: () => void, icon: React.ReactNode): React.JSX.Element => <button type="button" className={`ib ${cls} tip`} data-tip={tip} aria-label={tip} onClick={(e) => { e.stopPropagation(); click() }}>{icon}</button>
   return <article className={`card ${waiting > 0 ? 'wait' : run === 'finished' ? 'fin' : ''} ${run === 'paused' || run === 'failed' ? 'paused' : ''} ${open ? 'planopen' : ''} ${ready ? 'ready' : ''} ${dropLabel ? 'drop-before' : ''}`} data-plabel={dropLabel} onClick={onOpen} {...dragProps}>
     <div className="pills"><CardTypePill types={types} type={card.type} /><span className={`pill ${card.priority}`}>{t.priority[card.priority]}</span><ComplexityBadge complexity={card.complexity} pendingDecisions={card.pending.decisions} onClick={onComplexity} /></div>
@@ -83,14 +86,13 @@ function CardTile({ card, types, state, agent, agents, dropLabel, dragProps, onP
         {card.workspace && <button type="button" className="ib view ws tip" data-tip={t.tile.branchTip(card.workspace.branch, worktreeName(card.workspace.path), card.workspace.baseRef)} aria-label={t.tile.branchAria(card.workspace.branch)} onClick={(e) => { e.stopPropagation(); onGit() }}><BranchIcon /></button>}
         {run === 'idle' && !card.hasPlan && (state === 'backlog' || state === 'todo') && button('plan', open ? t.tile.continuePlanning : t.tile.goToPlanning, onPlan, <SparkIcon />)}
         {(state === 'todo' || state === 'backlog') && (run !== 'idle' || card.hasPlan) && button('plan', t.tile.plan, onPlan, <SparkIcon />)}
-        {(run === 'paused' || run === 'failed') && button('view', t.tile.viewChat, onChat, <EyeIcon />)}
         {run === 'failed' && button('start', t.tile.chooseAgent, onRetry, <PlayIcon />)}
         {run === 'paused' && button('start', common.continue, onResume, <PlayIcon />)}
         {state === 'doing' && run !== 'running' && run !== 'paused' && run !== 'failed' && button('start', t.tile.start, onStart, <PlayIcon />)}
         {state === 'test' && card.workflow !== 'light' && run !== 'running' && run !== 'paused' && run !== 'failed' && button('start', t.tile.test, onTest, <PlayIcon />)}
         {run === 'running' && button('stop', t.tile.stop, onStop, <StopIcon />)}
+        {state === 'done' && dirty && button('view', t.tile.finalize, onFinalize, <FinishIcon />)}
         {state === 'done' && button('view', t.tile.archive, onArchive, <ArchiveIcon />)}
-        {run === 'finished' && button('done', t.tile.viewResult, onChat, <EyeIcon />)}
       </div>
     </div>
   </article>
@@ -172,7 +174,7 @@ function ViewDockDropPreview({ databaseEnabled }: { databaseEnabled: boolean }):
 
 export function Board({ board, profiles, history, refresh, onProjectConfig, openSettings, freeRequest, freeHandled, constitutionRequest, constitutionHandled, openTarget, targetHandled, slots }: { slots?: { view: HTMLElement | null; gear: HTMLElement | null; tray?: HTMLElement | null }; board: ProjectBoard; profiles: AgentProfile[]; history: AgentProfile[]; refresh(): Promise<void>; onProjectConfig(tab?: 'general' | 'git'): void; openSettings(): void; freeRequest?: { projectId: string; at: number }; freeHandled(): void; constitutionRequest?: { projectId: string; prompt?: string; at: number; mode?: 'constitution' | 'test-setup'; config?: AgentConfig }; constitutionHandled(): void; openTarget?: { projectId: string; cardId: string | null; chatId: string | null; purpose: string | null }; targetHandled(): void }): React.JSX.Element {
   const t = useT().board
-  const [draft, setDraft] = useState<Draft>(), [chatCard, setChatCardState] = useState<Card>(), [chatPurpose, setChatPurpose] = useState<AgentPurpose>('planning'), [starting, setStartingState] = useState<{ card: Card; purpose: 'execution' | 'test'; retry?: boolean }>(), [choosing, setChoosing] = useState<string>(), [stopping, setStopping] = useState<Card>(), [pendingCard, setPendingCard] = useState<Card>(), [assessing, setAssessing] = useState<Card>()
+  const [draft, setDraft] = useState<Draft>(), [chatCard, setChatCardState] = useState<Card>(), [chatPurpose, setChatPurpose] = useState<AgentPurpose>('planning'), [starting, setStartingState] = useState<{ card: Card; purpose: 'execution' | 'test'; retry?: boolean }>(), [choosing, setChoosing] = useState<string>(), [stopping, setStopping] = useState<Card>(), [finalizing, setFinalizing] = useState<Card>(), [cleanup, setCleanup] = useState<Card>(), [pendingCard, setPendingCard] = useState<Card>(), [assessing, setAssessing] = useState<Card>()
   /** Sends the developer each already-authorized card change that has not been sent yet. */
   const sendChanges = async (cardId: string): Promise<void> => {
     try { const { changes } = await window.gearmod.invoke('collab:list', { cardId }); for (const change of changes) if ((change.status === 'accepted' || change.status === 'applied') && !change.sentAt) await window.gearmod.invoke('collab:send-change', { changeId: change.id }); await refresh() } catch (reason) { say(plainError(reason), 'error') }
@@ -286,6 +288,9 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
         if (!passed || !reviewed) { setGate({ cardId, columnId, beforeCardId, stage: passed ? 'review' : 'test' }); return }
       }
       const moved = await window.gearmod.invoke('cards:move', { cardId, columnId, beforeCardId, skipGate })
+      // Arrived in Done with a worktree of its own: offers to delete the worktree and the branch.
+      const doneId = board.columns.find((column) => column.semanticState === 'done')?.id
+      if (before && before.columnId !== doneId && moved.columnId === doneId && moved.workspace && !moved.workspace.sharedFrom) setCleanup(moved)
       if (before && before.priority !== moved.priority) say(t.view.priorityChanged(t.priority[moved.priority]))
     } catch (reason) { say(plainError(reason), 'error') }
     await refresh()
@@ -337,6 +342,7 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
           onPending={() => setPendingCard(card)} onSend={() => void sendChanges(card.id)} onSendFailures={() => void sendFailures(card.id)} onGit={() => openCardGit(card.id)} onOpen={() => setDraft(edit(card))} onChat={() => setChatCard(card)} onPlan={() => setChatCard(card)} onStart={() => setStartingState({ card, purpose: 'execution' })} onTest={() => setStartingState({ card, purpose: 'test' })} onRetry={() => setStartingState({ card, purpose: card.run.purpose === 'test' ? 'test' : 'execution', retry: true })} onStop={() => setStopping(card)}
           onResume={() => void window.gearmod.invoke('cards:resume', { cardId: card.id, purpose: card.run.purpose === 'test' ? 'test' : card.run.purpose === 'execution' ? 'execution' : undefined }).then(refresh).catch((reason: unknown) => { const text = plainError(reason); if (errorCodeOf(text) === 'nothing-to-continue') setStartingState({ card, purpose: card.run.purpose === 'test' ? 'test' : 'execution', retry: true }); else say(withoutErrorCode(text), 'error') })}
           onArchive={() => void window.gearmod.invoke('cards:archive', { cardId: card.id }).then(() => { say(t.view.cardArchived); return refresh() })}
+          onFinalize={() => setFinalizing(card)}
           dragProps={{ draggable: true, onContextMenu: (e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, card }) }, onDragStart: (e) => { e.dataTransfer.setData('card', card.id); setDragId(card.id) }, onDragEnd: clear, onDragOver: (e) => { e.preventDefault(); e.stopPropagation(); setDropOn(card.id) }, onDrop: (e) => { e.stopPropagation(); const id = e.dataTransfer.getData('card'); clear(); if (id && id !== card.id) void move(id, column.id, card.id) } }} />)}
         {filtering && !cards.length && allCards.length > 0 && <p className="board-filter-empty">{t.view.noCardMatchesFilters}</p>}<button className="add" onClick={() => setChoosing(column.id)}>{t.view.addCard}</button>
       </section>
@@ -345,6 +351,8 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
     {draft && <CardEditor projectId={board.project.id} sources={board.project.sources} profiles={allowed} cardTypes={cardTypes} pending={draft.id ? (board.cards.find((item) => item.id === draft.id)?.pending) : undefined} onPending={() => { const card = board.cards.find((item) => item.id === draft.id); if (card) setPendingCard(card) }} draft={draft} close={() => setDraft(undefined)} saved={async () => { setDraft(undefined); await refresh() }} openChat={draft.id ? (purpose) => { const card = board.cards.find((item) => item.id === draft.id); setDraft(undefined); if (card) setChatCard(card, purpose) } : undefined} onStart={draft.id ? (purpose) => { const card = board.cards.find((item) => item.id === draft.id); setDraft(undefined); if (card) setStartingState({ card, purpose }) } : undefined} />}
     {starting && <StartDialog card={starting.card} purpose={starting.purpose} profiles={allowed} retry={starting.retry ? { error: board.cards.find((item) => item.id === starting.card.id)?.run.error ?? '' } : undefined} close={() => setStartingState(undefined)} start={async (config, baseBranch, replaceAgent) => { await window.gearmod.invoke('cards:start', { cardId: starting.card.id, config, purpose: starting.purpose, baseBranch, ...(replaceAgent ? { replaceAgent } : {}) }); setStartingState(undefined); await refresh(); setChatCard(starting.card, starting.purpose) }} />}
     {gate && (() => { const card = board.cards.find((item) => item.id === gate.cardId); if (!card) return null; return <ConfirmDialog eyebrow={t.view.gate.eyebrow} title={card.title || t.newCard} text={gate.stage === 'test' ? t.view.gate.textTest : t.view.gate.textReview} ok={gate.stage === 'test' ? t.view.gate.runTests : t.view.gate.openChanges} secondary={{ label: t.view.gate.moveAnyway, run: () => { const next = gate; setGate(undefined); void move(next.cardId, next.columnId, next.beforeCardId, true) } }} cancel={() => setGate(undefined)} confirm={() => { const next = gate; setGate(undefined); if (next.stage === 'test') void runGateTests(card); else setChatCard(card, 'test') }} /> })()}
+    {cleanup && <DoneCleanupDialog cardId={cleanup.id} projectId={cleanup.projectId} title={cleanup.title || t.newCard} close={() => { setCleanup(undefined); void refresh() }} openGit={() => openCardGit(cleanup.id)} />}
+    {finalizing && <ConfirmDialog eyebrow={t.view.finalize.eyebrow} title={finalizing.title || t.newCard} text={t.view.finalize.text} ok={t.view.finalize.ok} cancel={() => setFinalizing(undefined)} confirm={() => { const cardId = finalizing.id; setFinalizing(undefined); void window.gearmod.invoke('cards:finalize', { cardId }).then(() => { say(t.view.finalize.done); return refresh() }).catch((reason: unknown) => say(plainError(reason))) }} />}
     {stopping && <ConfirmDialog eyebrow={t.view.stop.eyebrow} title={t.view.stop.title} text={t.view.stop.text} ok={t.view.stop.ok} danger cancel={() => setStopping(undefined)} confirm={() => { const card = stopping; setStopping(undefined); if (card.run.runId) void window.gearmod.invoke('agents:cancel', { runId: card.run.runId }).then(refresh).catch((reason: unknown) => say(plainError(reason), 'error')) }} />}
     {assessing && <AssessmentDialog card={fresh(assessing)} close={() => setAssessing(undefined)} changed={() => void refresh()} />}
     {pendingCard && <PendingDialog card={fresh(pendingCard)} close={() => setPendingCard(undefined)} changed={() => void refresh()} />}
