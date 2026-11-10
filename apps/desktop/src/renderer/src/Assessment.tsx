@@ -176,9 +176,8 @@ function Decisions({ history, set, add }: { history: CardHistory; set(id: string
   return <div className="cx-decisions">
     <div className="cx-sechead"><h3>{t.cardDecisions}</h3><span className="cx-count">{history.decisions.length}</span>{open > 0 && <span className="cx-pill warn">{t.waitingForYou(open)}</span>}</div>
     {history.decisions.length ? <ul>{history.decisions.map((item) => <li key={item.id} className={item.status}>
-      <span className="cx-num">D{String(item.number).padStart(3, '0')}</span>
       <div className="cx-dbody">
-        <div className="cx-dtop"><span className={`cx-status ${item.status}`}>{labels[item.status]}</span><span className="cx-chip">{kinds[item.kind]}</span><small>{formatDate(item.createdAt)}</small></div>
+        <div className="cx-dtop"><span className="cx-num">D{String(item.number).padStart(3, '0')}</span><span className={`cx-status ${item.status}`}>{labels[item.status]}</span><span className="cx-chip">{kinds[item.kind]}</span><small>{formatDate(item.createdAt)}</small></div>
         <p className="cx-statement">{item.statement}</p>{item.rationale && <p className="cx-muted">{item.rationale}</p>}
         {item.supersedesId && <p className="cx-muted">{item.status === 'proposed' ? t.willReplace : item.status === 'approved' ? t.replaced : t.proposedReplace} D{String(history.decisions.find((previous) => previous.id === item.supersedesId)?.number ?? '?').padStart(3, '0')}{': '}{history.decisions.find((previous) => previous.id === item.supersedesId)?.statement}</p>}
         {item.status === 'proposed' && <div className="cx-actions"><button type="button" className="mini" onClick={() => set(item.id, 'approved')}>{t.approve}</button><button type="button" className="mini secondary" onClick={() => set(item.id, 'superseded')}>{t.discard}</button></div>}
