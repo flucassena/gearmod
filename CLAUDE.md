@@ -19,5 +19,6 @@ powershell -ExecutionPolicy Bypass -File .\installer.ps1
 
 ## Running the build
 
-- `test.ps1` opens the current build with the `test` profile (data in `%APPDATA%\GearMod-test`). `-CopyData` first copies the stable install's data into it.
+- `test.ps1` ("homolog") opens the current build with the stable install's data (`%APPDATA%\GearMod`), closing the stable install first: the user tests on their own cards. A build with a new database migration upgrades that data, so the stable install only opens it again after `promote.ps1`; say so when that happens.
+- `test.ps1 -Isolated` opens the separate `test` profile (data in `%APPDATA%\GearMod-test`), alongside the stable install. `-Isolated -CopyData` first copies the stable data into it (without the card worktrees). Use it only when the user asks for a more isolated version.
 - `promote.ps1` copies the current build to the stable install in `C:\GearMod-stable` and opens it. The stable data in `%APPDATA%\GearMod` is not touched.
