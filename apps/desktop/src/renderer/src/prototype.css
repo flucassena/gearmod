@@ -1028,7 +1028,8 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .chat-reply-close svg{width:14px;height:14px;stroke:currentColor;stroke-width:1.5;fill:none}
 .chat-reply-quote,.chat-reply-fullquote{margin:0 20px 0 0;padding-left:9px;border-left:2px solid var(--border);color:var(--muted);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}
 .chat-reply-quote{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.chat-reply-popover textarea{width:100%;min-height:64px;max-height:200px;resize:vertical;box-sizing:border-box;border:0;border-radius:6px;padding:5px 0;background:transparent;color:var(--text);font-size:13px;line-height:1.5}
+.chat-reply-popover textarea{display:block;width:100%;min-height:58px;max-height:220px;resize:none;overflow-y:auto;box-sizing:border-box;border:1px solid var(--g27,var(--border));border-radius:9px;padding:9px 11px;background:color-mix(in srgb,var(--text) 3%,transparent);color:var(--text);font-size:13px;line-height:1.5;outline:none;transition:border-color .12s}
+.chat-reply-popover textarea:focus,.chat-reply-popover textarea:focus-visible{border-color:color-mix(in srgb,var(--accent) 60%,var(--g27,var(--border)));outline:none;box-shadow:none}
 .chat-reply-actions{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .chat-reply-actions small{font-size:10px;color:var(--muted)}
 .chat-reply-actions button{font-size:12px;background:var(--accent-bg);color:var(--accent-strong);border:1px solid var(--accent-line)}

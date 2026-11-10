@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CloseIcon } from './icons'
 import { useFitInView } from './useFitInView'
@@ -58,6 +58,8 @@ export function ChatReplySelection({ log, add, scope }: { log: React.RefObject<H
     document.addEventListener('pointerup', read); document.addEventListener('keyup', escape); document.addEventListener('selectionchange', collapsed); document.addEventListener('scroll', hide, true); window.addEventListener('resize', hide); window.addEventListener('blur', hide)
     return () => { document.removeEventListener('pointerup', read); document.removeEventListener('keyup', escape); document.removeEventListener('selectionchange', collapsed); document.removeEventListener('scroll', hide, true); window.removeEventListener('resize', hide); window.removeEventListener('blur', hide) }
   }, [log, editing, close])
+  // The reply field grows with the text (up to its max-height, then it scrolls).
+  useLayoutEffect(() => { const box = field.current; if (!box) return; box.style.height = 'auto'; box.style.height = `${box.scrollHeight + 2}px` }, [response, editing])
   if (!selected) return null
   const submit = (): void => {
     if (!response.trim()) return
