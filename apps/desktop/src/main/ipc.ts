@@ -1,6 +1,7 @@
 import { machineInfo, recommendedConcurrency } from './capacity'
+import { inlineDetailAvatars, inlineListAvatars } from './avatar-inline'
 import { homedir } from 'node:os'
-import { systemDocumentKinds, ipcContracts, type AppSettings, type AgentConfig, type AgentPurpose, type GitPolicy, type CardDocumentKind, type IpcChannel, type IpcOutput } from '@gearmod/contracts'
+import { systemDocumentKinds, ipcContracts, type AppSettings, type AgentConfig, type AgentPurpose, type GitPolicy, type PrMergeMethod, type CardDocumentKind, type IpcChannel, type IpcOutput } from '@gearmod/contracts'
 import type { PopoutTarget, WindowPlacement } from './windows'
 import type { TerminalService } from './terminals'
 import type { BackupService } from './backup'
@@ -57,6 +58,8 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 
 import { tm } from './i18n'
 import type { UpdateService } from './updater'
 import type { StorageService } from './storage'
+import type { LineCommentInput } from './pr-positions'
+import type { CreateInput } from './pr-actions'
 
 /** Attachment types the chat may open in the system's app: documents, spreadsheets, text, images. */
 const openableAttachment = /^\.(pdf|docx?|dotx?|xlsx?|xlsm|csv|tsv|pptx?|odt|ods|odp|rtf|txt|md|json|jsonl|log|xml|ya?ml|png|jpe?g|gif|webp|bmp|svg|ico)$/i
@@ -572,12 +575,31 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'git-accounts:state': (input: { projectId: string }) => services.gitAccounts.state(input.projectId),
     'git-accounts:set': (input: { projectId: string; sourceId?: string; provider: 'github' | 'gitlab'; host: string; token: string }) => services.gitAccounts.set(input),
     'git-accounts:remove': (input: { projectId: string; sourceId?: string; host: string }) => services.gitAccounts.remove(input),
-    'prs:list': (input: { sourceId: string }) => services.pullRequests.list(input.sourceId),
+    'prs:list': (input: { sourceId: string; state?: 'open' | 'merged' | 'closed' | 'all'; page?: number }) => services.pullRequests.list(input.sourceId, input.state, input.page).then(inlineListAvatars),
+    'prs:checks': (input: { sourceId: string; numbers: number[] }) => services.pullRequests.checks(input.sourceId, input.numbers),
+    'prs:line-comment': (input: { sourceId: string; number: number } & LineCommentInput) => services.pullRequests.lineComment(input.sourceId, input.number, input),
+    'prs:reply': (input: { sourceId: string; number: number; threadId: string; body: string; resolve?: boolean }) => services.pullRequests.reply(input.sourceId, input.number, input.threadId, input.body, input.resolve),
+    'prs:note': ({ sourceId, number, ...input }: { sourceId: string; number: number; kind: 'note' | 'review' | 'issue'; id: string; action: 'edit' | 'delete' | 'react'; body?: string; reaction?: 'up' | 'down' }) => services.pullRequests.note(sourceId, number, input),
+    'prs:react': (input: { sourceId: string; number: number; kind: 'up' | 'down' }) => services.pullRequests.react(input.sourceId, input.number, input.kind),
+    'prs:merge': (input: { sourceId: string; number: number; method: PrMergeMethod; deleteSourceBranch: boolean; message: string | null }) => services.pullRequests.merge(input.sourceId, input.number, input),
     'prs:default-base': (input: { sourceId: string }) => services.pullRequests.defaultBase(input.sourceId),
-    'prs:view': (input: { sourceId: string; number: number }) => services.pullRequests.view(input.sourceId, input.number),
+    'prs:view': (input: { sourceId: string; number: number }) => services.pullRequests.view(input.sourceId, input.number).then(inlineDetailAvatars),
     'prs:comment': async (input: { sourceId: string; number: number; body: string }) => { await services.pullRequests.comment(input.sourceId, input.number, input.body); return {} },
     'prs:review': async (input: { sourceId: string; number: number; action: 'approve' | 'request-changes' | 'comment'; body: string }) => { await services.pullRequests.review(input.sourceId, input.number, input.action, input.body); return {} },
-    'prs:create': (input: { sourceId: string; head: string; base: string; title: string; body: string; draft: boolean }) => services.pullRequests.create(input.sourceId, input),
+    'prs:create': (input: { sourceId: string } & CreateInput) => services.pullRequests.create(input.sourceId, input),
+    'prs:commits': (input: { sourceId: string; number: number }) => services.pullRequests.commits(input.sourceId, input.number),
+    'prs:pipelines': (input: { sourceId: string; number: number }) => services.pullRequests.pipelines(input.sourceId, input.number),
+    'prs:job-log': (input: { sourceId: string; number: number; jobId: string }) => services.pullRequests.jobLog(input.sourceId, input.jobId),
+    'prs:pipeline-action': (input: { sourceId: string; number: number; pipelineId: string; action: 'cancel' | 'retry' }) => services.pullRequests.pipelineAction(input.sourceId, input.pipelineId, input.action),
+    'prs:job-action': (input: { sourceId: string; number: number; jobId: string; action: 'cancel' | 'retry' }) => services.pullRequests.jobAction(input.sourceId, input.jobId, input.action),
+    'prs:versions': (input: { sourceId: string; number: number }) => services.pullRequests.versions(input.sourceId, input.number),
+    'prs:version-diff': (input: { sourceId: string; number: number; versionId: string }) => services.pullRequests.versionDiff(input.sourceId, input.number, input.versionId),
+    'prs:unapprove': (input: { sourceId: string; number: number }) => services.pullRequests.unapprove(input.sourceId, input.number),
+    'prs:update': ({ sourceId, number, ...changes }: { sourceId: string; number: number; title?: string; body?: string; base?: string; draft?: boolean; assignees?: string[]; reviewers?: string[]; milestone?: string | null; labels?: string[]; squash?: boolean; deleteSourceBranch?: boolean; state?: 'close' | 'reopen' }) => services.pullRequests.update(sourceId, number, changes),
+    'prs:resolve': (input: { sourceId: string; number: number; threadId: string; resolved: boolean }) => services.pullRequests.resolve(input.sourceId, input.number, input.threadId, input.resolved),
+    'prs:create-options': (input: { sourceId: string }) => services.pullRequests.createOptions(input.sourceId),
+    'prs:compare': (input: { sourceId: string; head: string; base: string }) => services.pullRequests.compare(input.sourceId, input.head, input.base),
+    'prs:upload': (input: { sourceId: string; name: string; dataBase64: string }) => services.pullRequests.upload(input.sourceId, input.name, input.dataBase64),
     'prs:open': async (input: { sourceId: string; url: string }) => { await services.openExternal(await services.pullRequests.assertUrl(input.sourceId, input.url)); return { opened: true as const } },
     'git:open-pr': async (input: { cardId: string; url: string }) => { await services.openExternal(services.gitManager.prUrlOf(input.cardId, input.url)); return { opened: true as const } },
     'playwright:sources': (input: { projectId: string }) => services.playwright.nodeSources(input.projectId),

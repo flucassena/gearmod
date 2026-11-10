@@ -1,0 +1,269 @@
+/* PR mode of the Git screen: list, detail (overview, commits, pipelines, changes) and new request.
+   Follows docs/DESIGN-SYSTEM.md: states only through tones (ds-*, tone-*), surfaces and accent from the theme tokens.
+   The diff (prd-*) and the file status (prf-st, .nums) keep their own palette in prototype.css (rule 7). */
+
+/* ---- Frame: PR mode takes the whole Git panel; a fixed bar on top ---- */
+.gitpage>.prmode{grid-column:1/-1;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+.pm-bar{flex:none;display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+.pm-crumbs{display:flex;align-items:center;gap:6px;min-width:0;font-size:13px;color:var(--muted)}
+.pm-crumbs b{color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.pm-crumb{background:transparent;border:0;padding:2px 4px;border-radius:6px;color:var(--muted);font:inherit;min-height:0}
+.pm-crumb:hover{color:var(--text);background:var(--surface-3);filter:none}
+.pm-body{flex:1;min-height:0;display:flex;min-width:0}
+.pm-body>*{flex:1;min-width:0}
+
+/* ---- Icons inside PR mode (svg.ico has no size of its own) ---- */
+.prmode svg.ico{width:16px;height:16px;flex:none}
+.prmode svg.ico[viewBox="0 0 12 12"]{width:12px;height:12px}
+.prmode .mini svg.ico,.prmode .pr-iconbtn svg.ico,.prmode .ds-chip svg.ico{width:14px;height:14px}
+.prmode .ds-chip svg.ico{width:12px;height:12px}
+.prmode .ds-status.big svg.ico,.prmode .ds-status.big.ds-spin svg.ico{width:20px;height:20px}
+.prmode .mini .ds-spin svg.ico{width:13px;height:13px}
+
+/* ---- Small shared pieces ---- */
+.pr-muted{color:var(--muted);font-size:12.5px}
+.pr-mono{font-family:var(--mono)}
+.pr-pad{padding:16px}
+.pr-sha{font:12px var(--mono);color:var(--accent-strong)}
+.pr-link{display:inline-flex;align-items:center;gap:3px;background:transparent;border:0;padding:0;min-height:0;color:var(--accent-strong);font:inherit;cursor:pointer}
+.pr-link:hover{text-decoration:underline;filter:none}
+.pr-iconbtn{display:inline-grid;place-items:center;background:transparent;border:0;border-radius:7px;padding:5px;min-height:0;color:var(--muted)}
+.pr-iconbtn:hover{color:var(--text);background:var(--surface-3);filter:none}
+.pr-iconbtn.on{color:var(--text);background:var(--surface-3);box-shadow:inset 0 0 0 1px var(--border)}
+.pr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.pr-check{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px}
+.pr-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.pr-acts>.pr-muted{margin-left:auto}
+.pr-pulse{animation:pr-pulse 1.2s ease-in-out infinite}
+@keyframes pr-pulse{50%{opacity:.3}}
+.pr-av{display:inline-grid;place-items:center;flex:none;box-sizing:border-box;overflow:hidden;border-radius:50%;background:var(--accent-bg);color:var(--accent-strong);font:700 11px var(--sans);width:30px;height:30px;min-height:0;padding:0}
+.pr-av img{width:100%;height:100%;object-fit:cover;display:block}
+.pr-av.pr-av-sm{width:20px;height:20px;font-size:9.5px}
+.pr-av.pr-av-ai{background:var(--tone-info-fill);color:var(--tone-info)}
+.pr-av.pr-av-ai svg.ico{width:16px;height:16px}
+.pr-label{max-width:160px}
+.pr-dots{display:inline-flex;align-items:center;gap:2px}
+.pr-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border)}
+.pr-tabs button{display:inline-flex;align-items:center;gap:7px;background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;border-radius:0;padding:9px 12px;font-size:13.5px;font-weight:500;min-height:0}
+.pr-tabs button:hover{color:var(--text);filter:none}
+.pr-tabs button.on{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+
+/* ---- List ---- */
+.prlist{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+.pl-head{display:flex;align-items:center;gap:8px;padding:14px 18px 8px}.pl-head h2{flex:1;min-width:0;margin:0;font-size:16px}
+.pl-tabs{margin:0 18px}
+.pl-tools{display:flex;gap:10px;align-items:center;padding:12px 18px 6px}.pl-tools .in{flex:1;min-width:0}
+.pl-quick{display:flex;flex-wrap:wrap;gap:6px;padding:4px 18px 10px}
+.pl-quick button{background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:3px 11px;font-size:12px;font-weight:500;min-height:0}
+.pl-quick button:hover:not(:disabled){color:var(--text);filter:none}
+.pl-quick button.on{background:var(--accent-bg);border-color:var(--accent-line);color:var(--accent-strong)}
+.pl-pad{padding:8px 18px}
+.pl-rows{flex:1;min-height:0;overflow:auto;display:grid;align-content:start;grid-auto-rows:max-content}
+.pl-more{display:flex;justify-content:center;align-items:center;min-height:44px;color:var(--muted)}
+.pl-row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,auto) auto;gap:18px;align-items:center;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--border);border-radius:0;padding:11px 18px;color:inherit;min-height:0}
+.pl-row:hover{background:var(--surface-2);filter:none}
+.pl-main{display:grid;gap:4px;min-width:0}
+.pl-title{display:flex;align-items:center;gap:6px;font-weight:600;font-size:13.5px;min-width:0;overflow-wrap:anywhere}
+.pl-num{color:var(--muted);font-weight:400}
+.pl-sub{display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:12px;color:var(--muted)}.pl-sub code{font-family:var(--mono)}
+.pl-icons{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:12.5px}.pl-icons>span{display:inline-flex;align-items:center;gap:4px}
+.pl-icons svg.ico{width:14px;height:14px}
+.pl-wait{width:16px;height:16px}
+.pl-dates{display:grid;gap:2px;text-align:right;white-space:nowrap}.pl-dates small{color:var(--muted);font-size:11.5px}
+
+/* ---- Detail: fixed header (title, state, tabs); only the tab content scrolls ---- */
+.prs-wrap{display:flex;min-width:0;min-height:0}
+.prs-chrow>.prf{width:280px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--border);min-height:0}
+.prscreen{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+.prs-head{position:relative;flex:none;padding:16px 24px 0;border-bottom:1px solid var(--border)}
+.prs-head>*{max-width:1040px;margin-left:auto;margin-right:auto}
+.prs-close{position:absolute;top:12px;right:14px}
+.prs-titlerow{display:flex;align-items:center;gap:16px;padding-right:36px}
+.prs-titlerow h2{flex:1;min-width:0;margin:0;font-size:22px;line-height:1.3;overflow-wrap:anywhere}
+.prs-num{font-family:var(--mono);vertical-align:4px;margin-right:8px}
+.prs-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;margin-top:10px;font-size:13px;color:var(--muted)}.prs-meta b{color:var(--text)}
+.prs-meta .rchip{--lc:var(--accent);font-family:var(--mono);max-width:300px}
+.prs-head .pr-tabs{border-bottom:0;margin-top:12px}
+.prs-scroll{flex:1;min-height:0;overflow:auto}
+.prs-scroll>*{max-width:1040px;margin-left:auto;margin-right:auto;padding:4px 24px 48px;box-sizing:border-box}
+/* Changes, as GitLab: the compare bar spans the whole width, the file tree sits under it on the left and the diff takes the rest. */
+.prs-changes{flex:1;min-height:0;display:flex;flex-direction:column}
+.prs-changes>.ch-bar{position:static;margin:12px 16px 0;flex:none}
+.prs-chrow{flex:1;min-height:0;display:flex;margin-top:12px;border-top:1px solid var(--border)}
+.prs-chrow>.prs-scroll>.prs-chfiles{max-width:none;padding:12px 16px 48px;display:grid;gap:12px;align-content:start;grid-auto-rows:max-content}
+.prs-text.md{white-space:normal}
+
+/* ---- Cards, overview and activity ---- */
+.pr-overview{display:grid;gap:14px;align-content:start}
+.pr-card{border:1px solid var(--border);border-radius:10px;background:var(--surface-2);min-width:0}
+.pr-row{display:flex;align-items:center;gap:12px;padding:13px 16px;flex-wrap:wrap}
+.pr-cardbody{display:grid;gap:10px;padding:12px 16px 16px 48px;border-top:1px solid var(--border);font-size:13px}
+.pr-checks{display:flex;flex-wrap:wrap;gap:10px 22px}
+.pr-desc{padding:12px 16px}
+.pr-reacts{display:flex;gap:8px;margin-top:12px}
+.pr-reacts button{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:4px 12px;font-weight:600;min-height:32px}
+.pr-reacts button:hover{border-color:var(--accent-line);filter:none}
+.pr-reacts button.on{background:var(--accent-bg);border-color:var(--accent-line);color:var(--accent-strong)}
+.pr-acthead{display:flex;align-items:center;gap:12px;margin-top:14px}.pr-acthead h3{flex:1;margin:0;font-size:18px}
+.pr-timeline{position:relative;display:grid;gap:10px;padding-left:46px}
+.pr-timeline::before{content:"";position:absolute;left:15px;top:0;bottom:0;width:2px;background:var(--border)}
+.pr-ev{position:relative;font-size:13px;color:var(--muted);padding:4px 0}.pr-ev b{color:var(--text)}
+.pr-ev code{font:12px var(--mono);background:var(--surface-3);padding:1px 5px;border-radius:4px;color:var(--text)}
+.pr-evlist{margin:4px 0 0;padding-left:18px;display:grid;gap:2px}
+.pr-ev::before{content:"";position:absolute;left:-35px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.pr-note{position:relative;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);min-width:0}
+.pr-note>.pr-av{position:absolute;left:-46px;top:6px}
+.pr-notehead{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:10px 14px;font-size:13px}
+.pr-notebody{padding:0 14px 14px;font-size:13px;line-height:1.55;max-height:none}
+.pr-excerptbox{margin:0 14px 10px;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.pr-excerpthead{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface-3);font-size:12px}.pr-excerpthead .pr-link{margin-left:auto}
+.pr-excerpt{margin:0}
+.pr-note>.prd-thread{padding:0 14px 14px}
+/* One comment (PrComment): head with photo, author, when and the actions on the right; text; its reactions. */
+.prc-note{display:grid;gap:6px;padding:8px 0;border-bottom:1px solid var(--border);min-width:0}
+.prd-thread>.prc-note:last-of-type{border-bottom:0}
+/* In a thread every message is its own card and the thread takes the whole width (the prototype capped it at 760px). */
+.prd-thread,.prd-reply,.prd-compose{max-width:none}
+.prd-thread>.prc-note{padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.prd-thread>.prc-note:last-of-type{border-bottom:1px solid var(--border)}
+.prc-notehead{display:flex;align-items:center;gap:6px;font-size:13px;min-width:0}
+.prc-noteacts{display:inline-flex;align-items:center;gap:2px;margin-left:auto}
+.prc-noteacts .pr-iconbtn svg.ico{width:16px;height:16px}
+.prc-noteacts .pr-iconbtn.on{color:var(--tone-success)}
+.prc-notebody.md{min-height:0;padding:0;border:0;background:transparent;font-size:13px;line-height:1.55;max-height:none}
+.prc-noteedit{display:grid;gap:8px}
+.prc-reacts{margin-top:2px}.prc-reacts button{min-height:26px;padding:2px 9px;font-size:12px}
+.prc-reacts svg.ico{width:13px;height:13px}
+.pr-notecard{padding:4px 14px}
+.pr-notecard>.prc-note{border-bottom:0}
+/* "Responder…" bar under a thread (opens the editor) and its resolve button, as GitLab. */
+.prd-replybar{display:flex;align-items:center;gap:8px;padding-top:4px}
+.prd-fakeinput{flex:1;min-width:0;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 11px;color:var(--muted);font-weight:400;min-height:0;cursor:text}
+.prd-fakeinput:hover{border-color:var(--accent-line);filter:none}
+.prd-reply .pr-check{font-size:13px}
+.prd-thread.folded{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pr-composer{display:grid;gap:8px;margin-top:6px}
+
+/* ---- Markdown editor ---- */
+.pr-editor{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface-2)}
+.pr-editor-bar{display:flex;align-items:center;gap:6px;padding:4px 6px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.pr-editor-tools{display:flex;align-items:center;gap:1px;margin-left:auto}
+.pr-editor-sep{width:1px;height:18px;background:var(--border);margin:0 4px}
+.pr-editor textarea{display:block;width:100%;box-sizing:border-box;border:0;border-radius:0;background:transparent;resize:vertical;min-height:120px}
+.pr-editor-preview{min-height:120px;padding:10px 12px}
+.pr-editor-foot{padding:5px 10px;border-top:1px solid var(--border);font-size:11.5px;color:var(--muted)}
+
+/* ---- Commits (detail tab and new request) ---- */
+.pr-list{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:12px}
+.pr-listday{padding:8px 14px;font-size:12.5px;color:var(--muted);background:var(--surface-2);border-bottom:1px solid var(--border)}
+.pr-commit,.pr-file{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.pr-list>:last-child{border-bottom:0}
+.pr-committext{display:grid;gap:2px;min-width:0;flex:1}.pr-committext b{font-size:13.5px;overflow-wrap:anywhere}
+.pr-file{gap:8px;font-size:12.5px}.pr-file .nums{margin-left:auto}
+
+/* ---- Pipelines ---- */
+.pr-pipes{display:grid;gap:12px;align-content:start}
+.pr-pipehead{cursor:pointer}.pr-pipehead:focus-visible{outline:2px solid var(--accent-line);outline-offset:-2px}
+.pr-stages{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(190px,1fr);gap:16px;padding:14px 16px;border-top:1px solid var(--border);overflow-x:auto}
+.pr-stage h4{display:flex;align-items:center;gap:6px;margin:0 0 8px;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.pr-job{display:flex;align-items:center;gap:8px;width:100%;margin-bottom:6px;background:var(--surface-3);color:var(--text);border:1px solid var(--border);border-radius:999px;padding:5px 12px 5px 6px;font-size:12.5px;font-weight:500;text-align:left;min-height:0}
+.pr-job:hover{border-color:var(--accent-line);filter:none}
+.pr-job.on{background:var(--accent-bg);border-color:var(--accent-line)}
+.pr-jobname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pr-jobtime{font:11px var(--mono);color:var(--muted)}
+.pr-loghead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--border);font-size:13px}
+.pr-log{margin:0;height:320px;overflow:auto;padding:8px 0;background:var(--bg);font:12px/1.55 var(--mono);border-radius:0 0 10px 10px}
+.pr-log>div{display:flex;padding:0 12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.pr-log i{width:40px;flex:none;padding-right:12px;text-align:right;font-style:normal;color:var(--muted);opacity:.6;user-select:none}
+.pr-log .cmd{color:var(--tone-info);font-weight:600}
+.pr-log .cursor::after{content:"";display:inline-block;width:7px;height:13px;margin-left:2px;vertical-align:-2px;background:var(--tone-info);animation:pr-pulse 1s steps(2) infinite}
+
+/* ---- Changes: bar, preferences, files, pager ---- */
+.ch-bar{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding:8px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;font-size:13px}
+.ch-compare{color:var(--muted)}.ch-compare b{color:var(--text)}
+.ch-sum{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px}
+.ch-prefwrap{position:relative}
+.ch-pref{position:absolute;right:0;top:calc(100% + 6px);z-index:6;width:290px;display:grid;gap:4px;padding:0 12px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 30px color-mix(in srgb, var(--bg) 80%, transparent)}
+.ch-pt{text-align:center;font-weight:700;padding:10px 0;margin:0 -12px 4px;border-bottom:1px solid var(--border)}
+.ch-pl{font-weight:600;margin:8px 0 4px}
+.ch-seg{display:flex}.ch-seg button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px}
+.ch-pref .pr-check{margin-top:10px}
+.prs-files{display:grid;gap:12px;grid-auto-rows:max-content}
+.ch-pager{display:grid;justify-items:center;gap:8px;margin-top:8px}
+.ch-pg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.ch-pg button{display:inline-flex;align-items:center;gap:4px;background:transparent;color:var(--text);border:0;border-radius:0;padding:6px 12px;font-weight:500;min-height:0}
+.ch-pg button+button{border-left:1px solid var(--border)}
+.ch-pg button:disabled{color:var(--muted);cursor:default}
+.ch-pg button:hover:not(:disabled){background:var(--surface-3);filter:none}
+.prd-compose{position:sticky;left:0;box-sizing:border-box}
+.prd-cbtn{display:none;place-items:center}.prd-line:hover .prd-cbtn,.prd-line.sel .prd-cbtn{display:grid}
+.prd-cbtn svg.ico{width:12px;height:12px}
+.prd-toggle{display:inline-grid;place-items:center}
+.prf-folder{width:14px;height:14px;color:var(--muted)}
+.prf-row .prf-name.path{direction:rtl;text-align:left}
+
+/* ---- New request ---- */
+.prcreate{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+.prc-scroll{flex:1;min-height:0;overflow:auto}
+.prc-body{position:relative;max-width:1100px;margin:0 auto;padding:18px 24px 48px;display:grid;gap:16px;align-content:start;box-sizing:border-box}
+.prc-body>h2{margin:0;font-size:20px;padding-right:40px}
+.prc-branches{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.prc-fixed{display:flex;align-items:center;min-height:38px}
+/* Git/PRs switch fixed before the repository tabs: the highlight slides to the chosen side; in PRs the tabs take the info tone. */
+.gwrap>.gtabbar{flex:none}
+.gtabbar{display:flex;align-items:flex-start;gap:8px;min-width:0}
+.gtabbar>.gtabs{flex:1;min-width:0}
+.gmode{position:relative;flex:none;display:inline-grid;grid-template-columns:1fr 1fr;padding:2px;border-radius:10px;border:1px solid var(--border);background:var(--surface)}
+.gmode::before{content:"";position:absolute;top:2px;bottom:2px;left:2px;width:calc(50% - 2px);border-radius:8px;background:var(--accent-bg);box-shadow:inset 0 0 0 1px var(--accent-line);transition:transform .18s ease,background .18s ease}
+.gmode.prs::before{transform:translateX(100%);background:var(--tone-info-fill);box-shadow:inset 0 0 0 1px var(--tone-info-line)}
+.gmode button{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:transparent;border:0;color:var(--muted);padding:4px 11px;font-size:12.5px;font-weight:600;min-height:0;border-radius:8px}
+.gmode button:hover{color:var(--text);filter:none}
+.gmode button.on{color:var(--accent-strong)}
+.gmode.prs button.on{color:var(--tone-info)}
+.gmode svg.ico{width:14px;height:14px}
+.gmode .ydot{position:static}
+.gtabbar.prs .gtab.on{background:var(--tone-info-fill);color:var(--tone-info);border-color:var(--tone-info-line)}
+.gtab-all{font-style:normal}
+.pl-repo{color:var(--muted);font-weight:500}
+@media (prefers-reduced-motion:reduce){.gmode::before{transition:none}}
+.prc-branches .sel,.prc-branches .sel-btn,.prc-side .sel,.prc-side .sel-btn{width:100%}
+.prc-compare{display:flex;align-items:center;gap:10px;min-height:22px;font-size:12.5px}
+.prc-cols{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}
+.prc-main,.prc-side{display:grid;gap:16px;align-content:start;min-width:0}
+.prc-side{padding-left:24px;border-left:1px solid var(--border)}
+.prc-fh{display:flex;align-items:center;gap:8px;color:var(--muted)}.prc-fh .pr-link{margin-left:auto;font-size:12px}
+.prc-sub{margin-left:26px}
+.prc-tabs{margin-top:8px}
+.msel .sel-btn .l{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0}
+.msel-name{display:inline-flex;align-items:center;gap:6px}
+.msel-empty{color:var(--muted)}
+.msel-filter{margin:4px 4px 6px;width:calc(100% - 8px);box-sizing:border-box}
+
+@media (max-width:1000px){.prc-cols{grid-template-columns:minmax(0,1fr)}.prc-side{padding-left:0;border-left:0}.prs-chrow>.prf{width:220px}}
+:root[data-theme="light"] .pr-log{background:var(--surface)}
+/* Assignees on a list row (photos overlap a little, as GitLab). */
+.pl-assignees{display:inline-flex;align-items:center}.pl-assignees .pr-av+.pr-av{margin-left:-6px}
+.pl-assignees .pr-av{box-shadow:0 0 0 2px var(--bg)}
+/* Fixed details column on the right of an open request, as GitLab's sidebar. */
+.prs-side{width:280px;flex:none;border-left:1px solid var(--border);overflow:auto;padding:8px 16px 24px;box-sizing:border-box;font-size:13px;min-height:0}
+.prs-side.folded{width:44px;padding:8px 6px}
+.psd-top{display:flex;justify-content:flex-end}
+.psd-sec{display:grid;gap:6px;padding:12px 0;border-bottom:1px solid var(--border);min-width:0}
+.psd-sec:last-child{border-bottom:0}
+.psd-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.psd-people{display:grid;gap:6px}.psd-person{display:flex;align-items:center;gap:8px;min-width:0}.psd-person>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.psd-labels,.psd-avatars{display:flex;flex-wrap:wrap;gap:6px}
+.psd-ref{display:flex;align-items:center;gap:6px;min-width:0}.psd-ref>.pr-muted{flex:none}
+.psd-val{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:1100px){.prs-side:not(.folded){width:230px}}
+/* Activity thread: the code excerpt and its first comment are one card (the comment is about those lines). */
+.prd-lead{border:1px solid var(--border);border-radius:8px;background:var(--surface);overflow:hidden;min-width:0}
+.prd-lead>.pr-excerptbox{margin:0;border:0;border-bottom:1px solid var(--border);border-radius:0}
+.prd-lead>.prc-note{padding:10px 12px;border:0}
+/* Inline editing in the details column. */
+.psd-edit{display:grid;gap:6px;min-width:0}.psd-edit .sel,.psd-edit .sel-btn{width:100%}
+.psd-cancel{justify-self:start;font-size:12px}
+.psd-head .pr-link:disabled{opacity:.5;cursor:default}
+
+/* Merge method picker in the merge card. */
+.pr-method{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pr-method .gseg button:disabled{opacity:.55;cursor:default}

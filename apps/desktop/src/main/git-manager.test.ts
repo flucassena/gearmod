@@ -81,9 +81,11 @@ describe('agent commit rule', () => {
     const { manager, projectId } = await setup()
     expect(manager.policy(projectId)).toEqual(defaultGitPolicy)
     const saved = manager.setPolicy(projectId, { def: 'auto', rules: [{ pattern: ' hotfix/* ', rule: 'ask' }, { pattern: '', rule: 'never' }] })
-    expect(saved).toEqual({ def: 'auto', rules: [{ pattern: 'hotfix/*', rule: 'ask' }] })
+    expect(saved).toEqual({ def: 'auto', mergeMethod: 'merge', rules: [{ pattern: 'hotfix/*', rule: 'ask' }] })
     expect(manager.policy(projectId)).toEqual(saved)
     expect(manager.ruleFor(projectId, 'hotfix/1')).toEqual({ rule: 'ask', why: 'exceção da branch hotfix/*' })
+    expect(manager.setPolicy(projectId, { def: 'ask', rules: [], mergeMethod: 'rebase' }).mergeMethod).toBe('rebase')
+    expect(manager.policy(projectId).mergeMethod).toBe('rebase')
   })
 
   it('translates common Git errors', () => {

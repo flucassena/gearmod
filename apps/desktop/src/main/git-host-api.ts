@@ -1,12 +1,13 @@
 import type { PullRequestDetail, PullRequestSummary } from '@gearmod/contracts'
 import { tm } from './i18n'
+import { create as createPr, listByState, listPage, view as viewPr, type CreateInput, type HttpMethod, type PrState, type RepoCall } from './pr-actions'
 
 export type HostProvider = 'github' | 'gitlab'
 export interface HostAccess { provider: HostProvider; host: string; token: string }
 export interface HostUser { login: string; name: string; email: string | null }
 /** `origin` remote already parsed: where it is from and what the project's path is on the provider. */
 export interface RemoteRef { host: string; path: string }
-export type Fetch = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown>; text(): Promise<string> }>
+export type Fetch = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string | FormData; signal?: AbortSignal; redirect?: 'follow' | 'manual' }) => Promise<{ ok: boolean; status: number; headers?: { get(name: string): string | null }; json(): Promise<unknown>; text(): Promise<string> }>
 
 export class HostAuthError extends Error { constructor(readonly status: number) { super(`HTTP ${status}`) } }
 export class HostApiError extends Error { constructor(readonly status: number, message: string) { super(message) } }
@@ -35,14 +36,6 @@ function friendlyNetwork(host: string, error: unknown): string {
   return p.hostNetwork(host)
 }
 
-const MAX_DIFF = 300_000
-const cutDiff = (diff: string): string => diff.length > MAX_DIFF ? `${diff.slice(0, MAX_DIFF)}\n… diff cortado (muito grande); abra o PR no navegador para ver tudo.` : diff
-const countDiff = (diff: string): { additions: number; deletions: number } => {
-  let additions = 0, deletions = 0
-  for (const line of diff.split('\n')) { if (line.startsWith('+') && !line.startsWith('+++')) additions++; else if (line.startsWith('-') && !line.startsWith('---')) deletions++ }
-  return { additions, deletions }
-}
-
 /** Understands `https://host/owner/repo.git`, `git@host:owner/repo.git` and `ssh://git@host:port/owner/repo`. */
 export function parseRemote(url: string): RemoteRef | null {
   const text = url.trim()
@@ -67,14 +60,29 @@ export class HostApi {
     return `https://${host}/api/v4`
   }
 
-  private async call<T>(path: string, init: { method?: string; body?: unknown; text?: boolean; accept?: string } = {}): Promise<T> {
+  /**
+   * One API request. `text` returns the raw answer and follows redirects by hand (GitHub job logs redirect to a storage host):
+   * the token only goes along while the address stays on the API's own origin.
+   */
+  private async call<T>(path: string, init: { method?: string; body?: unknown; text?: boolean; accept?: string; form?: FormData } = {}): Promise<T> {
     const headers: Record<string, string> = this.access.provider === 'github'
       ? { Authorization: `Bearer ${this.access.token}`, Accept: init.accept ?? 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'GearMod' }
       : { 'PRIVATE-TOKEN': this.access.token, Accept: 'application/json', 'User-Agent': 'GearMod' }
-    if (init.body !== undefined) headers['Content-Type'] = 'application/json'
-    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 30_000)
+    if (init.body !== undefined && !init.form) headers['Content-Type'] = 'application/json'
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), init.text ? 120_000 : 30_000)
+    const send = (url: string, options: Parameters<Fetch>[1]): ReturnType<Fetch> => this.fetcher(url, options).catch((error: unknown) => { throw new HostApiError(0, friendlyNetwork(this.access.host, error)) })
     try {
-      const response = await this.fetcher(`${this.base}${path}`, { method: init.method ?? 'GET', headers, body: init.body === undefined ? undefined : JSON.stringify(init.body), signal: controller.signal }).catch((error: unknown) => { throw new HostApiError(0, friendlyNetwork(this.access.host, error)) })
+      const body = init.form ?? (init.body === undefined ? undefined : JSON.stringify(init.body))
+      let url = `${this.base}${path}`
+      let response = await send(url, { method: init.method ?? 'GET', headers, body, signal: controller.signal, ...(init.text ? { redirect: 'manual' as const } : {}) })
+      const origin = new URL(this.base).origin
+      for (let hop = 0; init.text && hop < 5 && [301, 302, 303, 307, 308].includes(response.status); hop++) {
+        const location = response.headers?.get('location')
+        if (!location) break
+        url = new URL(location, url).href
+        const sameOrigin = new URL(url).origin === origin
+        response = await send(url, { method: 'GET', headers: sameOrigin ? headers : { 'User-Agent': 'GearMod' }, signal: controller.signal, redirect: 'manual' })
+      }
       if (response.status === 401) throw new HostAuthError(401)
       if (!response.ok) {
         const raw = await response.text().catch(() => '')
@@ -85,6 +93,7 @@ export class HostApi {
         const html = /^\s*<(?:!doctype|html|head|body)/i.test(raw)
         throw new HostApiError(response.status, friendlyStatus(this.access.host, response.status, detail, html))
       }
+      if (response.status === 204) return undefined as T
       return (init.text ? await response.text() : await response.json()) as T
     } finally { clearTimeout(timer) }
   }
@@ -104,55 +113,25 @@ export class HostApi {
   private gh(remote: RemoteRef): string { return `/repos/${remote.path.split('/').map(encodeURIComponent).join('/')}` }
   private gl(remote: RemoteRef): string { return `/projects/${encodeURIComponent(remote.path)}` }
 
-  async list(remote: RemoteRef, viewer: string | null): Promise<PullRequestSummary[]> {
-    if (this.access.provider === 'github') {
-      const raw = await this.call<Array<{ number: number; title: string; html_url: string; draft?: boolean; head: { ref: string }; base: { ref: string }; updated_at: string; user?: { login?: string } | null; requested_reviewers?: Array<{ login?: string }> }>>(`${this.gh(remote)}/pulls?state=open&per_page=50`)
-      return raw.map((pr) => ({ number: pr.number, title: pr.title, url: pr.html_url, draft: Boolean(pr.draft), head: pr.head.ref, base: pr.base.ref, updatedAt: pr.updated_at, reviewDecision: null, author: pr.user?.login ?? '', comments: 0, reviewRequested: Boolean(viewer && pr.requested_reviewers?.some((item) => item.login === viewer)) }))
-    }
-    const raw = await this.call<Array<{ iid: number; title: string; web_url: string; draft?: boolean; work_in_progress?: boolean; source_branch: string; target_branch: string; updated_at: string; author?: { username?: string } | null; reviewers?: Array<{ username?: string }>; user_notes_count?: number }>>(`${this.gl(remote)}/merge_requests?state=opened&per_page=50&order_by=updated_at`)
-    return raw.map((mr) => ({ number: mr.iid, title: mr.title, url: mr.web_url, draft: Boolean(mr.draft ?? mr.work_in_progress), head: mr.source_branch, base: mr.target_branch, updatedAt: mr.updated_at, reviewDecision: null, author: mr.author?.username ?? '', comments: mr.user_notes_count ?? 0, reviewRequested: Boolean(viewer && mr.reviewers?.some((item) => item.username === viewer)) }))
-  }
-
-  async view(remote: RemoteRef, number: number): Promise<PullRequestDetail> {
-    if (this.access.provider === 'github') {
-      const base = `${this.gh(remote)}/pulls/${number}`
-      const pr = await this.call<{ number: number; title: string; body?: string | null; html_url: string; state: string; merged?: boolean; draft?: boolean; head: { ref: string }; base: { ref: string }; user?: { login?: string } | null; additions: number; deletions: number; mergeable_state?: string | null }>(base)
-      const [files, comments, reviews] = await Promise.all([
-        this.call<Array<{ filename: string; additions: number; deletions: number; patch?: string }>>(`${base}/files?per_page=100`).catch(() => []),
-        this.call<Array<{ user?: { login?: string } | null; body: string; created_at: string }>>(`${this.gh(remote)}/issues/${number}/comments?per_page=100`).catch(() => []),
-        this.call<Array<{ user?: { login?: string } | null; body?: string; state: string; submitted_at?: string }>>(`${base}/reviews?per_page=100`).catch(() => [])
-      ])
-      const decided = reviews.filter((item) => item.state === 'APPROVED' || item.state === 'CHANGES_REQUESTED').at(-1)
-      const diff = files.map((file) => `diff --git a/${file.filename} b/${file.filename}\n--- a/${file.filename}\n+++ b/${file.filename}\n${file.patch ?? ''}`).join('\n')
-      return {
-        number: pr.number, title: pr.title, body: pr.body ?? '', url: pr.html_url, state: pr.merged ? 'MERGED' : pr.state.toUpperCase(), draft: Boolean(pr.draft), head: pr.head.ref, base: pr.base.ref,
-        reviewDecision: decided ? (decided.state === 'APPROVED' ? 'APPROVED' : 'CHANGES_REQUESTED') : null, author: pr.user?.login ?? '', additions: pr.additions, deletions: pr.deletions,
-        mergeable: pr.mergeable_state === 'dirty' ? 'CONFLICTING' : pr.mergeable_state && pr.mergeable_state !== 'unknown' ? 'MERGEABLE' : null,
-        files: files.map((file) => ({ path: file.filename, additions: file.additions, deletions: file.deletions })),
-        comments: comments.map((item) => ({ author: item.user?.login ?? '', body: item.body, at: item.created_at })),
-        reviews: reviews.filter((item) => item.state !== 'PENDING').map((item) => ({ author: item.user?.login ?? '', body: item.body ?? '', state: item.state, at: item.submitted_at ?? '' })),
-        diff: cutDiff(diff)
+  /** The REST door of one repository (`subpath` relative to it), shared by every PR action. */
+  repo(remote: RemoteRef, viewer: string | null): RepoCall {
+    const root = this.access.provider === 'github' ? this.gh(remote) : this.gl(remote)
+    const rc: RepoCall = { provider: this.access.provider, viewer, call: <T>(method: HttpMethod, subpath: string, body?: unknown, options?: { text?: boolean }) => this.call<T>(subpath ? `${root}/${subpath}` : root, { method, body, text: options?.text }) }
+    if (this.access.provider === 'gitlab') {
+      rc.upload = (subpath: string, name: string, data: Uint8Array) => {
+        const form = new FormData()
+        form.append('file', new Blob([new Uint8Array(data)]), name)
+        return this.call(`${root}/${subpath}`, { method: 'POST', form })
       }
     }
-    const base = `${this.gl(remote)}/merge_requests/${number}`
-    const mr = await this.call<{ iid: number; title: string; description?: string; web_url: string; state: string; draft?: boolean; source_branch: string; target_branch: string; has_conflicts?: boolean; author?: { username?: string } }>(base)
-    const [notes, changes, approvals] = await Promise.all([
-      this.call<Array<{ author?: { username?: string }; body: string; created_at: string; system?: boolean }>>(`${base}/notes?per_page=100&sort=asc`).catch(() => []),
-      this.call<{ changes?: Array<{ new_path: string; diff: string }> }>(`${base}/changes`).catch(() => ({ changes: [] })),
-      this.call<{ approved_by?: Array<{ user?: { username?: string } }> }>(`${base}/approvals`).catch(() => ({ approved_by: [] }))
-    ])
-    const files = (changes.changes ?? []).map((item) => ({ path: item.new_path, ...countDiff(item.diff) }))
-    const diff = (changes.changes ?? []).map((item) => `diff --git a/${item.new_path} b/${item.new_path}\n${item.diff}`).join('\n')
-    const approved = approvals.approved_by ?? []
-    return {
-      number: mr.iid, title: mr.title, body: mr.description ?? '', url: mr.web_url, state: mr.state.toUpperCase(), draft: Boolean(mr.draft), head: mr.source_branch, base: mr.target_branch,
-      reviewDecision: approved.length ? 'APPROVED' : null, author: mr.author?.username ?? '', additions: files.reduce((sum, file) => sum + file.additions, 0), deletions: files.reduce((sum, file) => sum + file.deletions, 0),
-      mergeable: mr.has_conflicts ? 'CONFLICTING' : null, files,
-      comments: notes.filter((note) => !note.system).map((note) => ({ author: note.author?.username ?? '', body: note.body, at: note.created_at })),
-      reviews: approved.map((item) => ({ author: item.user?.username ?? '', body: '', state: 'APPROVED', at: '' })),
-      diff: cutDiff(diff)
-    }
+    return rc
   }
+
+  list(remote: RemoteRef, viewer: string | null, state: PrState = 'open'): Promise<PullRequestSummary[]> { return listByState(this.repo(remote, viewer), state) }
+  /** One page of the list, and whether there may be more. */
+  listPage(remote: RemoteRef, viewer: string | null, state: PrState, page: number): Promise<{ prs: PullRequestSummary[]; more: boolean }> { return listPage(this.repo(remote, viewer), state, page) }
+
+  view(remote: RemoteRef, number: number, viewer: string | null = null): Promise<PullRequestDetail> { return viewPr(this.repo(remote, viewer), number) }
 
   async comment(remote: RemoteRef, number: number, body: string): Promise<void> {
     if (this.access.provider === 'github') await this.call(`${this.gh(remote)}/issues/${number}/comments`, { method: 'POST', body: { body } })
@@ -169,12 +148,5 @@ export class HostApi {
     if (action === 'approve') await this.call(`${this.gl(remote)}/merge_requests/${number}/approve`, { method: 'POST', body: {} })
   }
 
-  async create(remote: RemoteRef, input: { head: string; base: string; title: string; body: string; draft: boolean }): Promise<{ url: string }> {
-    if (this.access.provider === 'github') {
-      const pr = await this.call<{ html_url: string }>(`${this.gh(remote)}/pulls`, { method: 'POST', body: { title: input.title, head: input.head, base: input.base, body: input.body, draft: input.draft } })
-      return { url: pr.html_url }
-    }
-    const mr = await this.call<{ web_url: string }>(`${this.gl(remote)}/merge_requests`, { method: 'POST', body: { source_branch: input.head, target_branch: input.base, title: input.draft && !/^draft:/i.test(input.title) ? `Draft: ${input.title}` : input.title, description: input.body } })
-    return { url: mr.web_url }
-  }
+  create(remote: RemoteRef, input: CreateInput, viewer: string | null = null): Promise<{ url: string; number: number | null; warning: string | null }> { return createPr(this.repo(remote, viewer), input) }
 }

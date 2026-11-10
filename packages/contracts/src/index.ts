@@ -371,8 +371,12 @@ export const moveCardInputSchema = z.object({ cardId: uuid, columnId: uuid, befo
 
 /** Git: agent commit rule (project default + per-branch exceptions; the first that matches wins). */
 export const gitRuleSchema = z.enum(['auto', 'ask', 'never'])
-export const gitPolicySchema = z.object({ def: gitRuleSchema, rules: z.array(z.object({ pattern: z.string().trim().max(200), rule: gitRuleSchema }).strict()).max(50) }).strict()
-export const defaultGitPolicy: z.infer<typeof gitPolicySchema> = { def: 'ask', rules: [{ pattern: 'main', rule: 'never' }, { pattern: 'develop', rule: 'never' }, { pattern: 'release/*', rule: 'never' }] }
+/** How a PR/MR goes into its target: a merge commit, all commits squashed into one, or rebased on top with no merge commit (GitLab: fast-forward). */
+export const prMergeMethodSchema = z.enum(['merge', 'squash', 'rebase'])
+export type PrMergeMethod = z.output<typeof prMergeMethodSchema>
+/** `mergeMethod`: the one chosen beforehand when merging a PR/MR of the project. */
+export const gitPolicySchema = z.object({ def: gitRuleSchema, rules: z.array(z.object({ pattern: z.string().trim().max(200), rule: gitRuleSchema }).strict()).max(50), mergeMethod: prMergeMethodSchema.default('merge') }).strict()
+export const defaultGitPolicy: z.infer<typeof gitPolicySchema> = { def: 'ask', mergeMethod: 'merge', rules: [{ pattern: 'main', rule: 'never' }, { pattern: 'develop', rule: 'never' }, { pattern: 'release/*', rule: 'never' }] }
 export const gitResolvedRuleSchema = z.object({ rule: gitRuleSchema, why: z.string() })
 export const gitRepoSchema = z.object({ sourceId: uuid, name: z.string(), path: z.string(), head: z.string().nullable(), hasRemote: z.boolean() })
 export const gitRefSchema = z.object({ name: z.string(), kind: z.enum(['head', 'local', 'remote', 'tag']) })
@@ -397,16 +401,70 @@ export const gitChangeSchema = z.object({ path: z.string(), status: z.enum(['M',
 export const backgroundTaskSchema = z.object({ id: z.string(), runId: z.string(), kind: z.enum(['subagent', 'command']), title: z.string(), activity: z.string(), status: z.enum(['running', 'completed', 'failed', 'stopped']), startedAt: z.string(), endedAt: z.string().nullable(), summary: z.string() })
 export type BackgroundTask = z.output<typeof backgroundTaskSchema>
 export const gitCommitFileSchema = z.object({ path: z.string(), status: z.enum(['M', 'A', 'D']), additions: z.number().int().nonnegative(), deletions: z.number().int().nonnegative() })
-export const pullRequestSummarySchema = z.object({ number: z.number().int(), title: z.string(), url: z.string(), draft: z.boolean(), head: z.string(), base: z.string(), updatedAt: z.string(), reviewDecision: z.string().nullable(), author: z.string(), comments: z.number().int().nonnegative(), reviewRequested: z.boolean() })
-export const pullRequestListSchema = z.object({ supported: z.boolean(), provider: z.enum(['github', 'gitlab']).nullable(), error: z.string().nullable(), viewer: z.string().nullable(), prs: z.array(pullRequestSummarySchema), via: z.enum(['token', 'cli']).nullable().optional(), problem: z.enum(['no-cli', 'not-logged-in', 'invalid-token']).nullable().optional(), host: z.string().nullable().optional() })
+/** A project label as the host has it; `color` is the host's own `#rrggbb` (a project choice, outside the design system tones). */
+export const prLabelSchema = z.object({ name: z.string(), color: z.string() })
+/** Someone on the host: login (username) and display name. */
+export const prPersonSchema = z.object({ login: z.string(), name: z.string() })
+export const pullRequestSummarySchema = z.object({ number: z.number().int(), title: z.string(), url: z.string(), draft: z.boolean(), head: z.string(), base: z.string(), updatedAt: z.string(), reviewDecision: z.string().nullable(), author: z.string(), comments: z.number().int().nonnegative(), reviewRequested: z.boolean(), state: z.enum(['OPEN', 'MERGED', 'CLOSED']), createdAt: z.string(), labels: z.array(prLabelSchema).default([]),
+  /** Who the request is assigned to, with the host's photo when it gives one (the list shows them on the right of each row). */
+  assignees: z.array(z.object({ login: z.string(), avatar: z.string().default(''), email: z.string().default('') })).default([]) })
+export const pullRequestListSchema = z.object({ supported: z.boolean(), provider: z.enum(['github', 'gitlab']).nullable(), error: z.string().nullable(), viewer: z.string().nullable(), prs: z.array(pullRequestSummarySchema), more: z.boolean().optional(), via: z.enum(['token', 'cli']).nullable().optional(), problem: z.enum(['no-cli', 'not-logged-in', 'invalid-token']).nullable().optional(), host: z.string().nullable().optional() })
 export const gitAccountInfoSchema = z.object({ scope: z.enum(['project', 'repo']), host: z.string(), provider: z.enum(['github', 'gitlab']), login: z.string(), name: z.string(), email: z.string().nullable(), hint: z.string(), invalid: z.boolean(), savedAt: z.string() })
 export const gitAccountsStateSchema = z.object({ hosts: z.array(z.object({ host: z.string(), provider: z.enum(['github', 'gitlab']).nullable(), project: gitAccountInfoSchema.nullable(), repos: z.array(z.object({ sourceId: z.string(), name: z.string(), own: gitAccountInfoSchema.nullable(), using: z.enum(['repo', 'project']).nullable() })) })) })
 export type GitAccountInfo = z.output<typeof gitAccountInfoSchema>
 export type GitAccountsState = z.output<typeof gitAccountsStateSchema>
-export const pullRequestDetailSchema = z.object({ number: z.number().int(), title: z.string(), body: z.string(), url: z.string(), state: z.string(), draft: z.boolean(), head: z.string(), base: z.string(), reviewDecision: z.string().nullable(), author: z.string(), additions: z.number().int(), deletions: z.number().int(), mergeable: z.string().nullable(), files: z.array(z.object({ path: z.string(), additions: z.number().int(), deletions: z.number().int() })), comments: z.array(z.object({ author: z.string(), body: z.string(), at: z.string() })), reviews: z.array(z.object({ author: z.string(), body: z.string(), state: z.string(), at: z.string() })), diff: z.string() })
+export const prPipelineStatusSchema = z.enum(['success', 'failed', 'running', 'pending', 'canceled', 'none'])
+export const prReactionsSchema = z.object({ up: z.number().int().nonnegative(), down: z.number().int().nonnegative(), mineUp: z.boolean(), mineDown: z.boolean() })
+/** A comment: `kind` says which host object it is (a GitLab note, a GitHub review comment or issue comment), for editing, deleting and reacting; `url` is its link on the host. */
+export const prThreadCommentSchema = z.object({ id: z.string(), author: z.string(), body: z.string(), at: z.string(), url: z.string().default(''), kind: z.enum(['note', 'review', 'issue']).default('note'), reactions: prReactionsSchema.default({ up: 0, down: 0, mineUp: false, mineDown: false }) })
+/** A conversation pinned to the diff. `resolvable`: the host lets us resolve it through the API (GitLab yes; GitHub REST no). */
+export const prThreadSchema = z.object({ id: z.string(), path: z.string(), oldPath: z.string(), side: z.enum(['old', 'new']), line: z.number().int(), startLine: z.number().int().nullable(), comments: z.array(prThreadCommentSchema), resolvable: z.boolean().default(false), resolved: z.boolean().default(false) })
+/** A history event of the PR (assigned, labeled, pushed commits, marked ready…), already as one readable line. */
+export const prEventSchema = z.object({ author: z.string(), body: z.string(), at: z.string() })
+export const prCommitSchema = z.object({ sha: z.string(), shortSha: z.string(), title: z.string(), author: z.string(), at: z.string(), email: z.string().default('') })
+export const prJobSchema = z.object({ id: z.string(), name: z.string(), status: z.enum(['success', 'failed', 'running', 'pending', 'canceled', 'skipped', 'manual']), duration: z.number().nonnegative().nullable(), startedAt: z.string().nullable(), url: z.string().nullable() })
+export const prPipelineSchema = z.object({
+  id: z.string(), sha: z.string(), ref: z.string(), source: z.string(), status: z.enum(['success', 'failed', 'running', 'pending', 'canceled', 'skipped', 'manual']), createdAt: z.string(), duration: z.number().nonnegative().nullable(), url: z.string().nullable(),
+  /** In run order. GitHub has no stages: each workflow run is a pipeline with one stage named after the workflow. */
+  stages: z.array(z.object({ name: z.string(), jobs: z.array(prJobSchema) }))
+})
+export const prVersionSchema = z.object({ id: z.string(), headSha: z.string(), baseSha: z.string().nullable(), startSha: z.string().nullable(), createdAt: z.string() })
+export const prFileSchema = z.object({ path: z.string(), oldPath: z.string(), status: z.enum(['added', 'modified', 'removed', 'renamed']), additions: z.number().int(), deletions: z.number().int() })
+export const pullRequestDetailSchema = z.object({ number: z.number().int(), title: z.string(), body: z.string(), url: z.string(), state: z.string(), draft: z.boolean(), head: z.string(), base: z.string(), reviewDecision: z.string().nullable(), author: z.string(), additions: z.number().int(), deletions: z.number().int(), mergeable: z.string().nullable(), files: z.array(z.object({ path: z.string(), oldPath: z.string(), status: z.enum(['added', 'modified', 'removed', 'renamed']), additions: z.number().int(), deletions: z.number().int() })), comments: z.array(prThreadCommentSchema), reviews: z.array(z.object({ author: z.string(), body: z.string(), state: z.string(), at: z.string() })), diff: z.string(), headSha: z.string().nullable(), baseSha: z.string().nullable(), startSha: z.string().nullable(), createdAt: z.string(), pipeline: prPipelineStatusSchema, canDeleteSource: z.boolean(), mergeMethods: z.array(prMergeMethodSchema).default(['merge', 'squash', 'rebase']), mergeDefault: prMergeMethodSchema.default('merge'), threads: z.array(prThreadSchema).max(500), reactions: prReactionsSchema,
+  labels: z.array(prLabelSchema).default([]), assignees: z.array(prPersonSchema).default([]), reviewers: z.array(prPersonSchema).default([]),
+  /** Who approved, and whether the viewer did (to show "Revogar aprovação"); `canUnapprove`: the host lets the viewer take it back (GitLab). */
+  approvedBy: z.array(z.string()).default([]), approvedByMe: z.boolean().default(false), canUnapprove: z.boolean().default(false),
+  /** History lines for the activity (system notes on GitLab, timeline events on GitHub), oldest first. */
+  events: z.array(prEventSchema).max(500).default([]),
+  /** For editing: the milestone id (GitLab) or number (GitHub), and the merge options saved on the MR (GitLab; null on GitHub). */
+  milestone: z.string().nullable().default(null), milestoneTitle: z.string().nullable().default(null), squashOnMerge: z.boolean().nullable().default(null), removeSourceOnMerge: z.boolean().nullable().default(null),
+  /** Photo of each person on the page (login → the host's avatar URL), and who is looking (what can be edited or deleted). */
+  avatars: z.record(z.string(), z.string()).default({}), viewer: z.string().nullable().default(null),
+  /** E-mail of each login when known (public e-mail, a name that is an e-mail, the viewer's git e-mail): the photo comes from Gravatar first. */
+  emails: z.record(z.string(), z.string()).default({}) })
+const prSha = z.string().regex(/^[0-9a-fA-F]{1,64}$/)
+const prPath = z.string().min(1).max(1000).refine((v) => !v.split(/[\\/]/).includes('..') && !v.startsWith('-'))
+const prPoint = z.object({ oldLine: z.number().int().positive().nullable(), newLine: z.number().int().positive().nullable(), oldPos: z.number().int().nonnegative(), newPos: z.number().int().nonnegative() }).strict().refine((v) => v.oldLine !== null || v.newLine !== null)
 export type PullRequestSummary = z.output<typeof pullRequestSummarySchema>
 export type PullRequestList = z.output<typeof pullRequestListSchema>
 export type PullRequestDetail = z.output<typeof pullRequestDetailSchema>
+export type PrPipeline = z.output<typeof prPipelineSchema>
+export type PrJob = z.output<typeof prJobSchema>
+export type PrCommit = z.output<typeof prCommitSchema>
+export type PrLabel = z.output<typeof prLabelSchema>
+export type PrPerson = z.output<typeof prPersonSchema>
+export type PrVersion = z.output<typeof prVersionSchema>
+export type PrFile = z.output<typeof prFileSchema>
+/** What the "Nova solicitação" form can offer on this host (and which fields the host accepts when creating). */
+export const prCreateOptionsSchema = z.object({
+  viewer: z.string().nullable(), members: z.array(prPersonSchema), milestones: z.array(z.object({ id: z.string(), title: z.string(), due: z.string().nullable() })), labels: z.array(prLabelSchema),
+  supports: z.object({ assignees: z.boolean(), reviewers: z.boolean(), milestone: z.boolean(), labels: z.boolean(), deleteSource: z.boolean(), squash: z.boolean(), uploads: z.boolean() })
+})
+export type PrCreateOptions = z.output<typeof prCreateOptionsSchema>
+/** What a new PR would carry, from the local repository: commits of head that base doesn't have and the changed files. */
+/** `message`: the body of the newest commit going in (with its title, the new request's title and description). */
+export const prCompareSchema = z.object({ ahead: z.number().int().nonnegative(), additions: z.number().int().nonnegative(), deletions: z.number().int().nonnegative(), commits: z.array(prCommitSchema).max(200), files: z.array(prFileSchema).max(1000), message: z.string().default('') })
+export type PrCompare = z.output<typeof prCompareSchema>
 export const gitChangesSchema = z.object({ branch: z.string().nullable(), files: z.array(gitChangeSchema), lastMessage: z.string() })
 export const gitRequestSchema = z.object({
   id: uuid, cardId: uuid, sourceId: uuid, repoName: z.string(), message: z.string(), files: z.array(z.string()), status: z.enum(['pending', 'done', 'denied', 'failed']),
@@ -639,12 +697,36 @@ export const ipcContracts = {
   , 'git-accounts:state': { input: z.object({ projectId: uuid }).strict(), output: gitAccountsStateSchema }
   , 'git-accounts:set': { input: z.object({ projectId: uuid, sourceId: uuid.optional(), provider: z.enum(['github', 'gitlab']), host: z.string().trim().min(1).max(253).regex(/^[a-z0-9.-]+(:[0-9]{1,5})?$/i), token: z.string().trim().min(1).max(500) }).strict(), output: gitAccountsStateSchema }
   , 'git-accounts:remove': { input: z.object({ projectId: uuid, sourceId: uuid.optional(), host: z.string().trim().min(1).max(253) }).strict(), output: gitAccountsStateSchema }
-  , 'prs:list': { input: z.object({ sourceId: uuid }).strict(), output: pullRequestListSchema }
+  , 'prs:list': { input: z.object({ sourceId: uuid, state: z.enum(['open', 'merged', 'closed', 'all']).optional(), page: z.number().int().min(1).max(200).optional() }).strict(), output: pullRequestListSchema }
+  , 'prs:checks': { input: z.object({ sourceId: uuid, numbers: z.array(z.number().int().positive()).min(1).max(20) }).strict(), output: z.object({ checks: z.array(z.object({ number: z.number().int(), status: prPipelineStatusSchema, approvals: z.number().int().nonnegative().nullable().default(null) })) }) }
+  , 'prs:commits': { input: z.object({ sourceId: uuid, number: z.number().int().positive() }).strict(), output: z.object({ commits: z.array(prCommitSchema).max(250) }) }
+  , 'prs:pipelines': { input: z.object({ sourceId: uuid, number: z.number().int().positive() }).strict(), output: z.object({ pipelines: z.array(prPipelineSchema).max(10), canAct: z.boolean() }) }
+  , 'prs:job-log': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), jobId: z.string().regex(/^\d{1,20}$/) }).strict(), output: z.object({ text: z.string(), truncated: z.boolean() }) }
+  , 'prs:pipeline-action': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), pipelineId: z.string().regex(/^\d{1,20}$/), action: z.enum(['cancel', 'retry']) }).strict(), output: z.object({}) }
+  , 'prs:job-action': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), jobId: z.string().regex(/^\d{1,20}$/), action: z.enum(['cancel', 'retry']) }).strict(), output: z.object({}) }
+  , 'prs:versions': { input: z.object({ sourceId: uuid, number: z.number().int().positive() }).strict(), output: z.object({ versions: z.array(prVersionSchema).max(100) }) }
+  , 'prs:version-diff': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), versionId: z.string().regex(/^\d{1,20}$/) }).strict(), output: z.object({ diff: z.string(), files: z.array(prFileSchema), headSha: z.string().nullable(), baseSha: z.string().nullable(), startSha: z.string().nullable() }) }
+  , 'prs:unapprove': { input: z.object({ sourceId: uuid, number: z.number().int().positive() }).strict(), output: z.object({}) }
+  /** Edits the PR/MR (only the fields given), marks/unmarks it as draft, or closes/reopens it (`state`). */
+  , 'prs:update': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), title: z.string().trim().min(1).max(240).optional(), body: z.string().max(20_000).optional(), base: z.string().min(1).max(250).refine((v) => !v.startsWith('-')).optional(), draft: z.boolean().optional(),
+    assignees: z.array(z.string().min(1).max(100)).max(20).optional(), reviewers: z.array(z.string().min(1).max(100)).max(20).optional(), milestone: z.string().max(40).nullable().optional(), labels: z.array(z.string().min(1).max(255)).max(50).optional(),
+    squash: z.boolean().optional(), deleteSourceBranch: z.boolean().optional(), state: z.enum(['close', 'reopen']).optional() }).strict(), output: z.object({ warning: z.string().nullable() }) }
+  , 'prs:resolve': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), threadId: z.string().min(1).max(200), resolved: z.boolean() }).strict(), output: z.object({}) }
+  , 'prs:create-options': { input: z.object({ sourceId: uuid }).strict(), output: prCreateOptionsSchema }
+  , 'prs:compare': { input: z.object({ sourceId: uuid, head: z.string().min(1).max(250).refine((v) => !v.startsWith('-')), base: z.string().min(1).max(250).refine((v) => !v.startsWith('-')) }).strict(), output: prCompareSchema }
+  , 'prs:upload': { input: z.object({ sourceId: uuid, name: z.string().min(1).max(255).refine((v) => !/[\\/]/.test(v)), dataBase64: z.string().max(14_000_000) }).strict(), output: z.object({ markdown: z.string() }) }
+  , 'prs:line-comment': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), body: z.string().trim().min(1).max(20_000), path: prPath, oldPath: prPath, headSha: prSha, baseSha: prSha.nullable(), startSha: prSha.nullable(), start: prPoint, end: prPoint }).strict(), output: prThreadSchema }
+  , 'prs:reply': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), threadId: z.string().min(1).max(200), body: z.string().trim().min(1).max(20_000), resolve: z.boolean().optional() }).strict(), output: prThreadCommentSchema }
+  /** Edits, deletes or reacts (👍/👎, toggled) to one comment. */
+  , 'prs:note': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), kind: z.enum(['note', 'review', 'issue']), id: z.string().regex(/^\d{1,20}$/), action: z.enum(['edit', 'delete', 'react']), body: z.string().trim().min(1).max(20_000).optional(), reaction: z.enum(['up', 'down']).optional() }).strict(), output: z.object({ body: z.string().optional(), reactions: prReactionsSchema.optional() }) }
+  , 'prs:react': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), kind: z.enum(['up', 'down']) }).strict(), output: prReactionsSchema }
+  , 'prs:merge': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), method: prMergeMethodSchema, deleteSourceBranch: z.boolean(), message: z.string().max(20_000).nullable() }).strict(), output: z.object({ merged: z.literal(true), branchDeleted: z.boolean(), warning: z.string().nullable() }) }
   , 'prs:default-base': { input: z.object({ sourceId: uuid }).strict(), output: z.object({ branch: z.string().nullable() }) }
   , 'prs:view': { input: z.object({ sourceId: uuid, number: z.number().int().positive() }).strict(), output: pullRequestDetailSchema }
   , 'prs:comment': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), body: z.string().trim().min(1).max(20_000) }).strict(), output: z.object({}) }
   , 'prs:review': { input: z.object({ sourceId: uuid, number: z.number().int().positive(), action: z.enum(['approve', 'request-changes', 'comment']), body: z.string().max(20_000) }).strict(), output: z.object({}) }
-  , 'prs:create': { input: z.object({ sourceId: uuid, head: z.string().min(1).max(250).refine((v) => !v.startsWith('-')), base: z.string().min(1).max(250).refine((v) => !v.startsWith('-')), title: z.string().trim().min(1).max(240), body: z.string().max(20_000), draft: z.boolean() }).strict(), output: z.object({ url: z.string() }) }
+  , 'prs:create': { input: z.object({ sourceId: uuid, head: z.string().min(1).max(250).refine((v) => !v.startsWith('-')), base: z.string().min(1).max(250).refine((v) => !v.startsWith('-')), title: z.string().trim().min(1).max(240), body: z.string().max(20_000), draft: z.boolean(), squash: z.boolean().optional(),
+    assignees: z.array(z.string().min(1).max(100)).max(20).optional(), reviewers: z.array(z.string().min(1).max(100)).max(20).optional(), milestone: z.string().max(40).nullable().optional(), labels: z.array(z.string().min(1).max(255)).max(50).optional(), deleteSourceBranch: z.boolean().optional() }).strict(), output: z.object({ url: z.string(), number: z.number().int().positive().nullable().default(null), warning: z.string().nullable().default(null) }) }
   , 'prs:open': { input: z.object({ sourceId: uuid, url: z.string().url().max(2000) }).strict(), output: z.object({ opened: z.literal(true) }) }
   , 'git:open-pr': { input: z.object({ cardId: uuid, url: z.string().url().max(2000) }).strict(), output: z.object({ opened: z.literal(true) }) }
   , 'playwright:sources': { input: projectIdInput, output: z.array(z.object({ id: uuid, name: z.string(), node: z.boolean() })) }
@@ -756,7 +838,7 @@ export const ipcContracts = {
   , 'app:set-titlebar-theme': { input: z.object({ light: z.boolean() }).strict(), output: z.object({ ok: z.literal(true) }) }
   , 'app:set-brand-color': { input: z.object({ color: z.string().regex(/^#[0-9a-fA-F]{6}$/) }).strict(), output: z.object({ ok: z.literal(true) }) }
   , 'app:open-link': { input: z.object({ url: z.string().min(1).max(2048) }).strict(), output: z.object({ opened: z.literal(true) }) }
-  , 'git:sync': { input: z.object({ ...gitTarget, action: z.enum(['fetch', 'pull', 'push', 'stash', 'pop']), pull: z.enum(['ff', 'ff-only', 'rebase']).optional(), force: z.boolean().optional(), branch: z.string().regex(/^[A-Za-z0-9_][A-Za-z0-9._\/-]{0,254}$/).optional() }).strict(), output: z.object({ output: z.string(), conflicts: z.number().int().nonnegative().optional() }) }
+  , 'git:sync': { input: z.object({ ...gitTarget, action: z.enum(['fetch', 'pull', 'push', 'stash', 'pop']), pull: z.enum(['ff', 'ff-only', 'rebase']).optional(), force: z.boolean().optional(), branch: z.string().regex(/^[A-Za-z0-9_][A-Za-z0-9._/-]{0,254}$/).optional() }).strict(), output: z.object({ output: z.string(), conflicts: z.number().int().nonnegative().optional() }) }
   , 'git:card': { input: cardIdInput, output: gitCardSchema }
   , 'git:base-options': { input: z.object({ sourceId: uuid }).strict(), output: z.array(z.string()) }
   , 'git:set-base': { input: z.object({ cardId: uuid, sourceId: uuid, baseRef: z.string().trim().min(1).max(200) }).strict(), output: z.object({ baseRef: z.string() }) }

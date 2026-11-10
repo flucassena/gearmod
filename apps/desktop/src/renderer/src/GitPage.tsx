@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Chevron, SparkIcon, WarningIcon } from './icons'
+import { BranchIcon, Chevron, PullRequestIcon, SparkIcon, WarningIcon } from './icons'
 import { errorCodeOf, withoutErrorCode, type AgentProfile, type GitChange, type GitCommitFile, type GitGraph, type GitRepo, type GitRow, type ProjectBoard, type PullRequestSummary } from '@gearmod/contracts'
 import { AgentIcon } from './AgentIcon'
 import { GitSide } from './GitSide'
-import { PrPanel, PrScreen } from './PrPanel'
+import { PrScreen } from './PrPanel'
+import { PrList } from './PrList'
+import { PrMode, type PrCrumb } from './PrMode'
+import { Loading } from './Loading'
+import { PrCreate } from './PrCreate'
 import type { PullRequestsState } from './usePullRequests'
 import { GitMenu, branchItems, commitItems, stashItems, type BranchAction, type CommitMenuAction, type StashMenuAction } from './BranchMenu'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -22,7 +26,7 @@ import { FileContextMenu, type FileMenuItem } from './FileContextMenu'
 import { useAsk } from './useAsk'
 import { useEscape } from './useEscape'
 import { useT } from './i18n'
-import { gravatarEnabled } from './gravatarSetting'
+import { useGravatar } from './gravatarSetting'
 import { branchNameProblem } from './branchName'
 
 const I = (children: React.ReactNode): React.JSX.Element => <svg className="ico" viewBox="0 0 24 24" aria-hidden="true">{children}</svg>
@@ -115,32 +119,6 @@ function RefsCell({ row, ghost, spacing, worktrees, act }: { row: GitRow; ghost:
       const target = chip.tag ? null : chip.local ? { kind: 'local' as const, name: chip.name } : remote ? { kind: 'remote' as const, name: remote } : null
       return <Chip key={chip.name} chip={chip} {...details(chip)} {...(target ? { pick: () => act(target.kind, target.name, false), open: () => act(target.kind, target.name, true) } : {})} />
     })}</span>{chips.length > 1 && <span className="rmore">+{chips.length - 1}</span>}</span>
-}
-
-/** Author photo from Gravatar (the same service GitKraken uses): only the email hash leaves the app; with no registered photo, the initials stay. */
-const gravatars = new Map<string, Promise<string | null>>()
-function gravatarUrl(email: string): Promise<string | null> {
-  const key = email.trim().toLowerCase()
-  if (!key || !globalThis.crypto?.subtle) return Promise.resolve(null)
-  let found = gravatars.get(key)
-  if (!found) {
-    found = crypto.subtle.digest('SHA-256', new TextEncoder().encode(key)).then((buffer) => {
-      const hash = Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('')
-      const url = `https://gravatar.com/avatar/${hash}?s=64&d=404`
-      return new Promise<string | null>((resolve) => { const image = new Image(); image.onload = () => resolve(url); image.onerror = () => resolve(null); image.src = url })
-    }).catch(() => null)
-    gravatars.set(key, found)
-  }
-  return found
-}
-function useGravatar(email: string): string | null {
-  const [url, setUrl] = useState<string | null>(null)
-  useEffect(() => {
-    let alive = true; setUrl(null)
-    void gravatarEnabled().then((enabled) => enabled ? gravatarUrl(email) : null).then((value) => { if (alive) setUrl(value) })
-    return () => { alive = false }
-  }, [email])
-  return url
 }
 
 function Dot({ row, profiles, spacing }: { row: GitRow; profiles: AgentProfile[]; spacing: number }): React.JSX.Element {
@@ -294,17 +272,30 @@ const graphMin = 36
 const colKey = 'gearmod.gitCols'
 const loadCols = (): Record<string, number> => { try { return JSON.parse(localStorage.getItem(colKey) ?? '{}') as Record<string, number> } catch { return {} } }
 
-function RepoTabs({ repos, selected, select, reorder, alerts, conflicts }: { repos: GitRepo[]; selected?: string; select(id: string): void; reorder(id: string, index: number): void; alerts(sourceId: string): number; conflicts: Array<ConflictTarget & { operation: keyof typeof operationLabel; files: string[] }> }): React.JSX.Element {
+/**
+ * Fixed switch before the repository tabs: Git or PRs. The highlight slides to the chosen side and, in PRs, the tabs take its tone:
+ * each one then opens that repository's PRs (and the project tab, all of them).
+ */
+function ModeSwitch({ prs, set, unread }: { prs: boolean; set(prs: boolean): void; unread: number }): React.JSX.Element {
+  const t = useT().git.pr
+  return <div className={`gmode ${prs ? 'prs' : ''}`} role="group" aria-label={t.modeSwitch}>
+    <button type="button" aria-pressed={!prs} className={prs ? '' : 'on'} onClick={() => set(false)}><BranchIcon />{t.modeGit}</button>
+    <button type="button" aria-pressed={prs} className={prs ? 'on' : ''} onClick={() => set(true)}><PullRequestIcon />{t.modePrs}{unread > 0 && <i className="ydot" />}</button>
+  </div>
+}
+
+function RepoTabs({ repos, selected, select, reorder, alerts, conflicts, mode, all }: { repos: GitRepo[]; selected?: string; select(id: string): void; reorder(id: string, index: number): void; alerts(sourceId: string): number; conflicts: Array<ConflictTarget & { operation: keyof typeof operationLabel; files: string[] }>; mode: { prs: boolean; set(prs: boolean): void }; all?: { label: string; on: boolean; pick(): void } }): React.JSX.Element {
   const t = useT().git.page
   const [dragging, setDragging] = useState<string>(), [drop, setDrop] = useState<number>(), geometry = useRef<number[]>([]), dragWidth = useRef(0)
   const position = (x: number): number => { const index = geometry.current.findIndex((center) => x < center); return index < 0 ? geometry.current.length : index }
   let visibleIndex = 0
   const dragged = repos.find((repo) => repo.sourceId === dragging)
   const placeholder = dragged ? <span className="gtab gtab-placeholder" style={{ width: dragWidth.current }} aria-hidden="true">{gitIcons.repo}<span className="gtn">{dragged.name}</span></span> : null
-  return <div className="gtabs" role="tablist" aria-label={t.reposAria} onDragOver={(event) => { if (!event.dataTransfer.types.includes('application/x-gearmod-git-repo')) return; event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDrop(position(event.clientX)) }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDrop(undefined) }} onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData('application/x-gearmod-git-repo'); if (id) reorder(id, drop ?? position(event.clientX)); setDragging(undefined); setDrop(undefined) }}>
-    {repos.map((repo) => { const index = repo.sourceId === dragging ? -1 : visibleIndex++; const flagged = conflicts.filter((entry) => entry.sourceId === repo.sourceId), total = flagged.reduce((sum, entry) => sum + entry.files.length, 0); return <React.Fragment key={repo.sourceId}>{index >= 0 && drop === index && placeholder}<button type="button" role="tab" data-repo-tab={repo.sourceId} aria-selected={repo.sourceId === selected} className={`gtab ${repo.sourceId === selected ? 'on' : ''} ${repo.sourceId === dragging ? 'dragging' : ''}`} draggable onDragStart={(event) => { const source = event.currentTarget, rect = source.getBoundingClientRect(), tabs = [...source.parentElement!.querySelectorAll<HTMLElement>('[data-repo-tab]')], sourceIndex = tabs.indexOf(source); dragWidth.current = Math.round(rect.width); geometry.current = tabs.filter((tab) => tab !== source).map((tab, i) => { const box = tab.getBoundingClientRect(); return box.left + box.width / 2 - (i >= sourceIndex ? rect.width + 4 : 0) }); window.setTimeout(() => { setDragging(repo.sourceId); setDrop(sourceIndex) }, 0); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('application/x-gearmod-git-repo', repo.sourceId) }} onDragEnd={() => { setDragging(undefined); setDrop(undefined); geometry.current = [] }} data-tip={`${repo.path}${repo.head ? ` · ${repo.head}` : ''}`} onClick={() => select(repo.sourceId)}>{gitIcons.repo}<span className="gtn">{repo.name}</span>{alerts(repo.sourceId) > 0 && <i className="ydot" data-tip={t.prsWithNews(alerts(repo.sourceId))} />}{flagged.length > 0 && <span className="gtab-conflict" data-tip={t.repoConflictOps(flagged.length)}>{t.conflictTab}{total ? ` · ${total}` : ''}</span>}</button></React.Fragment> })}
+  return <div className={`gtabbar ${mode.prs ? 'prs' : ''}`}><ModeSwitch prs={mode.prs} set={mode.set} unread={repos.reduce((sum, repo) => sum + alerts(repo.sourceId), 0)} /><div className="gtabs" role="tablist" aria-label={t.reposAria} onDragOver={(event) => { if (!event.dataTransfer.types.includes('application/x-gearmod-git-repo')) return; event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDrop(position(event.clientX)) }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDrop(undefined) }} onDrop={(event) => { event.preventDefault(); const id = event.dataTransfer.getData('application/x-gearmod-git-repo'); if (id) reorder(id, drop ?? position(event.clientX)); setDragging(undefined); setDrop(undefined) }}>
+    {all && <button type="button" role="tab" aria-selected={all.on} className={`gtab gtab-all ${all.on ? 'on' : ''}`} onClick={all.pick}>{gitIcons.repo}<span className="gtn">{all.label}</span></button>}
+    {repos.map((repo) => { const index = repo.sourceId === dragging ? -1 : visibleIndex++; const flagged = conflicts.filter((entry) => entry.sourceId === repo.sourceId), total = flagged.reduce((sum, entry) => sum + entry.files.length, 0); return <React.Fragment key={repo.sourceId}>{index >= 0 && drop === index && placeholder}<button type="button" role="tab" data-repo-tab={repo.sourceId} aria-selected={repo.sourceId === selected && !all?.on} className={`gtab ${repo.sourceId === selected && !all?.on ? 'on' : ''} ${repo.sourceId === dragging ? 'dragging' : ''}`} draggable onDragStart={(event) => { const source = event.currentTarget, rect = source.getBoundingClientRect(), tabs = [...source.parentElement!.querySelectorAll<HTMLElement>('[data-repo-tab]')], sourceIndex = tabs.indexOf(source); dragWidth.current = Math.round(rect.width); geometry.current = tabs.filter((tab) => tab !== source).map((tab, i) => { const box = tab.getBoundingClientRect(); return box.left + box.width / 2 - (i >= sourceIndex ? rect.width + 4 : 0) }); window.setTimeout(() => { setDragging(repo.sourceId); setDrop(sourceIndex) }, 0); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('application/x-gearmod-git-repo', repo.sourceId) }} onDragEnd={() => { setDragging(undefined); setDrop(undefined); geometry.current = [] }} data-tip={`${repo.path}${repo.head ? ` · ${repo.head}` : ''}`} onClick={() => select(repo.sourceId)}>{gitIcons.repo}<span className="gtn">{repo.name}</span>{alerts(repo.sourceId) > 0 && <i className="ydot" data-tip={t.prsWithNews(alerts(repo.sourceId))} />}{flagged.length > 0 && <span className="gtab-conflict" data-tip={t.repoConflictOps(flagged.length)}>{t.conflictTab}{total ? ` · ${total}` : ''}</span>}</button></React.Fragment> })}
     {dragging && drop === visibleIndex && placeholder}
-  </div>
+  </div></div>
 }
 
 const reposCacheKey = (projectId: string): string => `gearmod.gitRepos.${projectId}`
@@ -328,7 +319,9 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
     next.splice(Math.max(0, Math.min(index, next.length)), 0, item); setRepos(next)
     try { localStorage.setItem(repoOrderKey, JSON.stringify(next.map((repo) => repo.sourceId))) } catch { /* only valid for this session */ }
   }
-  const [worktree, setWorktree] = useState<string | null>(null), [prOpen, setPrOpen] = useState(false), [prFocus, setPrFocus] = useState<{ number: number; at: number }>(), [prShown, setPrShown] = useState<PullRequestSummary>()
+  const [worktree, setWorktree] = useState<string | null>(null), [prOpen, setPrOpen] = useState(false), [prFocus, setPrFocus] = useState<{ number: number; at: number }>(), [prShown, setPrShown] = useState<PullRequestSummary>(), [prCreating, setPrCreating] = useState(false), [prAll, setPrAll] = useState(false)
+  // A PR chosen in the branch sidebar opens in the middle once the list knows it.
+  useEffect(() => { if (!prFocus || !repoId) return; const found = prs.lists[repoId]?.prs.find((item) => item.number === prFocus.number); if (found) { setPrCreating(false); setViewer(undefined); setPrShown(found) } }, [prFocus?.at])
   const [renameStash, setRenameStash] = useState<{ ref: string; commit: string; message: string }>()
   const [renameCommit, setRenameCommit] = useState<{ hash: string; message: string; confirm: boolean }>()
   const [picked, setPicked] = useState<string>()
@@ -564,7 +557,15 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
     const observer = new ResizeObserver(measure); observer.observe(box); const head = box.querySelector('.ghead'); if (head) observer.observe(head)
     return () => observer.disconnect()
   })
-  const clickRow = (row: GitRow): void => { setRenameCommit((current) => (current && !current.confirm ? undefined : current)); if (open && sel === row.hash) setOpen(false); else { setSel(row.hash); setOpen(true) } }
+  // A row that is a local branch's tip also picks that branch, as a click on it in the side list does (Push/Pull then act on it).
+  // A non-checked-out branch wins over the checked-out one; a row with no local branch leaves nothing picked.
+  const clickRow = (row: GitRow): void => {
+    setRenameCommit((current) => (current && !current.confirm ? undefined : current))
+    if (open && sel === row.hash) { setOpen(false); return }
+    setSel(row.hash); setOpen(true)
+    const branch = row.refs.find((ref) => ref.kind === 'local') ?? row.refs.find((ref) => ref.kind === 'head')
+    if (branch) setPicked(`local:${branch.name}`)
+  }
   const grip = (key: 'cr' | 'cg' | 'cm' | 'cc' | 'cd', min: number, cell: number) => (e: React.PointerEvent<HTMLElement>): void => {
     e.preventDefault(); e.stopPropagation()
     const box = list.current, head = box?.querySelectorAll<HTMLElement>('.ghead > span')[cell]
@@ -615,7 +616,6 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
   const colStyle = { '--gw': `${width}px`, ...Object.fromEntries(Object.entries(cols).map(([k, v]) => [`--${k}`, `${v}px`])) } as React.CSSProperties
   const undoTool = (redo: boolean): React.JSX.Element => { const info = redo ? undoInfo.redo : undoInfo.undo; return <button type="button" className="gtool" aria-label={redo ? t.redo : t.undo} disabled={!info || Boolean(busy)} data-tip={info ? (redo ? t.redoTip(info.label) : t.undoTip(info.label)) : redo ? t.nothingToRedo : t.nothingToUndo} onClick={() => void stepUndo(redo)}>{redo ? gitIcons.redo : gitIcons.undo}</button> }
   const center = <section className="gcenter" onMouseDown={(event) => { if (!(event.target as HTMLElement).closest('.gtools')) setPicked(undefined) }}><div className="gtools">{undoTool(false)}{undoTool(true)}<span className="sep" />{pullTool}{tool(gitIcons.push, 'Push', 'push')}{tool(gitIcons.stash, 'Stash', 'stash', false)}{tool(gitIcons.stash, 'Pop', 'pop', false)}<span className="sep" />
-    <button type="button" className={`gtool ${prOpen ? 'on' : ''}`} aria-pressed={prOpen} data-tip={t.prsTip} onClick={() => { setPrFocus(undefined); setPrOpen(!prOpen) }}>{t.prsButton}{repoId && prs.unread(repoId).length > 0 && <i className="ydot" />}</button><span className="sep" />
     {focus ? <button type="button" className="gonly on" onClick={() => setFocus(null)}>{gitIcons.graph}{t.onlyCard(title(focus))}</button> : <span className="gonly">{gitIcons.graph}{t.allBranches}</span>}
     <span className="gcur">{worktree ? t.worktreeOfIn(title(worktree)) : t.mainFolderIn}<b>{graph?.repo.head ?? '—'}</b></span></div>
     {error && <p className="error" style={{ margin: '10px 14px' }}>{error}</p>}
@@ -643,11 +643,26 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
       : selected.stash ? <StashDetail row={selected} sourceId={graph.repo.sourceId} cardId={worktree} busy={Boolean(busy)} action={(action, ref) => void stashAction(action, ref)} rename={() => beginRenameStash(selected.stash!.ref)} />
       : <CommitDetail row={selected} graph={graph} profiles={profiles} board={board} focus={focus} setFocus={setFocus} openCardGit={openCardGit} {...(selected.refs.some((ref) => ref.kind === 'head') ? { editMessage: () => setRenameCommit({ hash: selected.hash, message: selected.subject, confirm: false }) } : {})} {...(renameCommit && !renameCommit.confirm && renameCommit.hash === selected.hash ? { renaming: { value: renameCommit.message, change: (value: string) => setRenameCommit({ ...renameCommit, message: value }), submit: () => setRenameCommit({ ...renameCommit, confirm: true }), cancel: () => setRenameCommit((current) => (current && !current.confirm ? undefined : current)) } } : {})} openFile={(file) => setViewer({ sourceId: graph.repo.sourceId, cardId: selected.cardId, hash: selected.hash, file: { ...file, staged: false } })} />}
   </aside> : null
-  const prPane = prOpen && repoId ? <PrPanel sourceId={repoId} repoName={repos?.find((item) => item.sourceId === repoId)?.name ?? ''} branches={graph?.branches.local.map((branch) => branch.name) ?? []} head={graph?.repo.head ?? null} prs={prs} focus={prFocus} shown={prShown?.number} show={(pr) => { setViewer(undefined); setPrShown(pr) }} close={() => { setPrOpen(false); setPrShown(undefined) }} /> : null
-  const right = prPane ?? detail
-  return <div className="gwrap">{confirmDialog}<RepoTabs repos={repos ?? []} selected={repoId} alerts={(id) => prs.unread(id).length} conflicts={allConflicts} reorder={dropRepo} select={async (id) => { if (resolveTarget && !(await leaveConflicts())) return; setRepoId(id); setWorktree(null); setFocus(null); setViewer(undefined); setPrShown(undefined); setResolveTarget(undefined); try { localStorage.setItem(`gearmod.gitRepo.${projectId}`, id) } catch { /* only valid for this session */ } }} />{allConflicts.length > 0 && <div className="cfl-banner" role="status"><WarningIcon className="cfl-ico" />
+  const right = prOpen ? null : detail
+  // PR mode: which repository (or the whole project) and the path on top. Opening a PR or a new request from the project list moves to its repository.
+  const T2 = T.git.pr
+  const repoTitle = repos?.find((item) => item.sourceId === repoId)?.name ?? ''
+  const remember = (id: string): void => { try { localStorage.setItem(`gearmod.gitRepo.${projectId}`, id) } catch { /* only valid for this session */ } }
+  const goRepo = (id: string): void => { if (id === repoId) return; setRepoId(id); setWorktree(null); setFocus(null); setViewer(undefined); remember(id) }
+  const setMode = (value: boolean): void => { setPrFocus(undefined); setPrShown(undefined); setPrCreating(false); setPrAll(false); setPrOpen(value) }
+  const toList = (): void => { setPrShown(undefined); setPrCreating(false) }
+  const crumbs: PrCrumb[] = [{ label: board.project.name, go: () => { toList(); setPrAll(true) } }, ...(prAll ? [] : [{ label: repoTitle, go: toList }]), { label: T2.crumbPrs, go: toList },
+    ...(!prAll && prShown && repoId ? [{ label: `${T2.prRef(prs.lists[repoId]?.provider ?? null, prShown.number)} ${prShown.title}` }] : !prAll && prCreating ? [{ label: T2.newRequestTitle }] : [])]
+  const branchNames = graph && graph.repo.sourceId === repoId ? graph.branches.local.map((branch) => branch.name) : null
+  const prBody = (): React.ReactNode => {
+    if (!prAll && prShown && repoId) return <PrScreen key={`${repoId}#${prShown.number}`} sourceId={repoId} provider={prs.lists[repoId]?.provider ?? null} pr={prs.lists[repoId]?.prs.find((item) => item.number === prShown.number) ?? prShown} branches={branchNames ?? []} close={toList} changed={() => { void prs.refresh(repoId) }} />
+    if (!prAll && prCreating && repoId) return branchNames ? <PrCreate key={repoId} sourceId={repoId} branches={branchNames} head={graph?.repo.head ?? null} back={() => setPrCreating(false)} created={(number) => { setPrCreating(false); void prs.refresh(repoId); if (number !== null) void window.gearmod.invoke('prs:list', { sourceId: repoId }).then((list) => { const found = list.prs.find((item) => item.number === number); if (found) setPrShown(found) }).catch(() => undefined) }} /> : <Loading />
+    const shown = prAll ? (repos ?? []).map((item) => ({ sourceId: item.sourceId, name: item.name })) : repoId ? [{ sourceId: repoId, name: repoTitle }] : []
+    return <PrList key={prAll ? 'all' : repoId} repos={shown} title={prAll ? board.project.name : repoTitle} prs={prs} open={(item, sourceId) => { goRepo(sourceId); setViewer(undefined); setPrAll(false); setPrShown(item) }} create={(sourceId) => { goRepo(sourceId); setPrAll(false); setPrCreating(true) }} />
+  }
+  return <div className="gwrap">{confirmDialog}<RepoTabs repos={repos ?? []} selected={repoId} alerts={(id) => prs.unread(id).length} conflicts={allConflicts} reorder={dropRepo} mode={{ prs: prOpen, set: setMode }} all={prOpen ? { label: board.project.name, on: prAll, pick: () => { toList(); setPrAll(true) } } : undefined} select={async (id) => { if (resolveTarget && !(await leaveConflicts())) return; setRepoId(id); setWorktree(null); setFocus(null); setViewer(undefined); setPrShown(undefined); setPrCreating(false); setPrAll(false); setResolveTarget(undefined); try { localStorage.setItem(`gearmod.gitRepo.${projectId}`, id) } catch { /* only valid for this session */ } }} />{allConflicts.length > 0 && <div className="cfl-banner" role="status"><WarningIcon className="cfl-ico" />
     <div className="cfl-info"><b>{t.conflictInRepos(allConflicts.length)}</b>{allConflicts.length === 1 && <small>{t.operationInProgress(operationLabel[allConflicts[0]!.operation])} · {allConflicts[0]!.files.length ? t.conflictFiles(allConflicts[0]!.files.length) : t.conflictsResolvedPending}</small>}</div>
-    <div className="cfl-targets">{allConflicts.map((entry) => <button key={`${entry.sourceId}:${entry.cardId ?? ''}`} type="button" className="cfl-target" data-tip={t.conflictTarget(operationLabel[entry.operation], entry.repo, entry.cardTitle)} onClick={() => resolve(entry)}><span className="cfl-where"><b>{entry.repo}</b>{entry.cardTitle && <small>{entry.cardTitle}</small>}</span><span className="cfl-go">{entry.files.length ? t.resolve : common.continue}</span></button>)}</div></div>}<section ref={page} className={`gitpage ${right ? '' : 'nodetail'}`} style={{ '--gside': `${panes.side}px`, '--gdetail': `${panes.detail}px` } as React.CSSProperties} aria-label={t.projectGit}>{resolveTarget ? <ConflictsView key={`${resolveTarget.sourceId}:${resolveTarget.cardId ?? ''}`} target={resolveTarget} profiles={profiles.filter((profile) => board.project.allowedProfileIds.includes(profile.id))} setDirty={(value) => { conflictDirty.current = value }} changed={() => { void load(); refreshConflicts() }} back={() => { setResolveTarget(undefined); refreshConflicts() }} /> : prShown && prOpen && repoId ? <>{side}<PrScreen key={`${repoId}#${prShown.number}`} sourceId={repoId} provider={prs.lists[repoId]?.provider ?? null} pr={prs.lists[repoId]?.prs.find((item) => item.number === prShown.number) ?? prShown} close={() => setPrShown(undefined)} changed={() => { void prs.refresh(repoId) }} /></> : viewer ? <DiffView viewer={viewer} close={() => setViewer(undefined)} changed={() => void load()} /> : <>{side}{center}</>}{!resolveTarget && right}{!viewer && !resolveTarget && <div className="gpanegrip side" role="separator" aria-orientation="vertical" data-tip={t.dragPaneTip} onPointerDown={gripPane('side')} onDoubleClick={resetPane('side')} />}{right && !resolveTarget && <div className="gpanegrip detail" role="separator" aria-orientation="vertical" data-tip={t.dragPaneTip} onPointerDown={gripPane('detail')} onDoubleClick={resetPane('detail')} />}</section>
+    <div className="cfl-targets">{allConflicts.map((entry) => <button key={`${entry.sourceId}:${entry.cardId ?? ''}`} type="button" className="cfl-target" data-tip={t.conflictTarget(operationLabel[entry.operation], entry.repo, entry.cardTitle)} onClick={() => resolve(entry)}><span className="cfl-where"><b>{entry.repo}</b>{entry.cardTitle && <small>{entry.cardTitle}</small>}</span><span className="cfl-go">{entry.files.length ? t.resolve : common.continue}</span></button>)}</div></div>}<section ref={page} className={`gitpage ${right ? '' : 'nodetail'}`} style={{ '--gside': `${panes.side}px`, '--gdetail': `${panes.detail}px` } as React.CSSProperties} aria-label={t.projectGit}>{resolveTarget ? <ConflictsView key={`${resolveTarget.sourceId}:${resolveTarget.cardId ?? ''}`} target={resolveTarget} profiles={profiles.filter((profile) => board.project.allowedProfileIds.includes(profile.id))} setDirty={(value) => { conflictDirty.current = value }} changed={() => { void load(); refreshConflicts() }} back={() => { setResolveTarget(undefined); refreshConflicts() }} /> : prOpen && (prAll || repoId) ? <PrMode crumbs={crumbs}>{prBody()}</PrMode> : viewer ? <DiffView viewer={viewer} close={() => setViewer(undefined)} changed={() => void load()} /> : <>{side}{center}</>}{!resolveTarget && right}{!viewer && !resolveTarget && !prOpen && <div className="gpanegrip side" role="separator" aria-orientation="vertical" data-tip={t.dragPaneTip} onPointerDown={gripPane('side')} onDoubleClick={resetPane('side')} />}{right && !resolveTarget && <div className="gpanegrip detail" role="separator" aria-orientation="vertical" data-tip={t.dragPaneTip} onPointerDown={gripPane('detail')} onDoubleClick={resetPane('detail')} />}</section>
     {extMenu && <GitMenu x={extMenu.x} y={extMenu.y} title={extMenu.name} label={t.externalMenuLabel(extMenu.name)} items={[{ key: 'folder' as const, label: t.openFolder }, { key: 'vscode' as const, label: t.openVsCode }, { key: 'copy' as const, label: t.copyPath }, ...(graph ? [{ key: 'delete' as const, label: T.git.worktreeDelete.externalMenu, danger: true }] : [])]} run={(kind) => {
       const { path } = extMenu; setExtMenu(undefined)
       if (kind === 'delete') { if (graph) setExtDelete({ sourceId: graph.repo.sourceId, path }); return }

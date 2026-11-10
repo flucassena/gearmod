@@ -5,6 +5,7 @@ import type { AgentConfig, AgentProfile, AppSettings, Project, ProjectBoard } fr
 import './theme-tokens.css'
 import './prototype.css'
 import './design-system.css'
+import './pr.css'
 import { installCloseOnScroll } from './closeOnScroll'
 import { Board } from './Board'
 import { ProjectAgentsDialog, ProjectConfigDialog, ProjectDialog } from './ProjectDialogs'
