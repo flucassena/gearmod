@@ -57,6 +57,13 @@ export const chat = {
     fullCommand: 'Comando completo',
     technicalDetails: 'Detalhes técnicos'
   },
+  workflowChoice: {
+    title: 'Escolha o fluxo deste card',
+    subtitle: 'pela pontuação de complexidade',
+    complexity: 'Complexidade',
+    seeDetails: 'Ver detalhes da avaliação',
+    seeMore: 'Clique aqui para ver mais…'
+  },
   approval: {
     switchWorkflow: (workflow: string) => `Trocar o fluxo para ${workflow}`,
     sddNative: 'SDD completo — SDD do GearMod',

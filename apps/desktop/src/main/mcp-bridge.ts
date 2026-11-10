@@ -318,7 +318,7 @@ export class McpBridge {
         const { assessment, previous } = history.assess({ cardId: cardId, scores: scores.data, justifications, confidence, preliminary: args.preliminar === true, criticalRisks: strings(args.riscos_criticos), evidence: evidence(args.evidencias), trigger: trigger.data, reason: args.motivo, source })
         run.notify({ type: 'card' })
         const delta = previous ? ` (before ${previous.total}; ${assessment.total - previous.total >= 0 ? '+' : ''}${assessment.total - previous.total})` : ''
-        return { ok: true, text: `Assessment v${assessment.version} registered: ${assessment.total} points${delta}, ${levelLabels[assessment.level]} task${assessment.preliminary ? ' (preliminary)' : ''}. Recommended workflow: ${workflowLabels[assessment.workflow]}. Present the recommendation to the user; when they confirm (or choose another), call gearmod_choose_workflow.` }
+        return { ok: true, text: `Assessment v${assessment.version} registered: ${assessment.total} points${delta}, ${levelLabels[assessment.level]} task${assessment.preliminary ? ' (preliminary)' : ''}. Recommended workflow: ${workflowLabels[assessment.workflow]}. Now call gearmod_choose_workflow with the flow you recommend (for sdd, metodo and motivo): the app shows the score table and the options in the chat and the user picks there. Do not ask which flow in the chat.` }
       }
       if (tool === 'gearmod_choose_workflow') {
         const workflow = workflowKindSchema.safeParse(args.fluxo)

@@ -232,20 +232,23 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     },
     'speckit:request-move': (input: { cardId: string }) => { services.speckit.requestMove(input.cardId); return specKitState(input.cardId) },
     'approvals:list': (input: { cardId?: string }) => services.approvals.list(input.cardId),
-    'approvals:decide': async (input: { id: string; approve: boolean; note?: string }) => {
+    'approvals:decide': async (input: { id: string; approve: boolean; note?: string; choice?: { workflow: 'light' | 'spec' | 'sdd'; method?: 'native' | 'speckit' } }) => {
       const pending = services.approvals.get(input.id)
+      // Workflow proposal: the user may pick another flow than the agent's (the proposal stays in the audit; the choice goes in the note).
+      const choice = pending.kind === 'workflow-choice' ? input.choice : undefined
+      if (choice && choice.workflow === 'sdd' && !choice.method) throw new Error(tm().ipc.chooseSddMethodBeforeApproving)
       if (input.approve && pending.kind === 'constitution-apply' && pending.cardId && pending.projectId) {
         const view = await services.sddResolver.constitution({ projectId: pending.projectId, cardId: pending.cardId })
         if (view.blobSha !== pending.payload.expectBlobSha) throw new Error(tm().ipc.constitutionChanged)
       }
-      if (input.approve && pending.kind === 'workflow-choice' && pending.payload.workflow === 'sdd' && pending.payload.method !== 'native' && pending.payload.method !== 'speckit') throw new Error(tm().ipc.chooseSddMethodBeforeApproving)
-      const approval = services.approvals.decide(input.id, input.approve, input.note)
+      if (input.approve && !choice && pending.kind === 'workflow-choice' && pending.payload.workflow === 'sdd' && pending.payload.method !== 'native' && pending.payload.method !== 'speckit') throw new Error(tm().ipc.chooseSddMethodBeforeApproving)
+      const approval = services.approvals.decide(input.id, input.approve, input.note ?? (choice ? `chosen: ${choice.workflow}${choice.method ? ` (${choice.method})` : ''}` : undefined))
       if (approval.status === 'approved' && approval.kind === 'workflow-choice' && approval.cardId) {
-        const workflow = approval.payload.workflow
+        const workflow = choice?.workflow ?? approval.payload.workflow
         if (workflow === 'light' || workflow === 'spec' || workflow === 'sdd') {
-          const method = approval.payload.method === 'native' || approval.payload.method === 'speckit' ? approval.payload.method : undefined
+          const method = choice ? choice.method : approval.payload.method === 'native' || approval.payload.method === 'speckit' ? approval.payload.method : undefined
           if (workflow === 'sdd' && !method) throw new Error(tm().ipc.chooseSddMethodBeforeApproving)
-          services.history.selectWorkflow(approval.cardId, workflow, { actor: 'user' }, typeof approval.payload.reason === 'string' ? approval.payload.reason : '', 'user', method)
+          services.history.selectWorkflow(approval.cardId, workflow, { actor: 'user' }, choice && (choice.workflow !== approval.payload.workflow || (choice.method ?? null) !== (approval.payload.method ?? null)) ? '' : typeof approval.payload.reason === 'string' ? approval.payload.reason : '', 'user', method)
           // The agent stopped waiting for this decision: it continues on its own in the chat that asked (when that chat is idle).
           const chatId = approval.runId ? services.database.db.prepare('SELECT chat_id FROM runs WHERE id = ?').pluck().get(approval.runId) as string | undefined : undefined
           const idle = chatId && !services.database.db.prepare(`SELECT 1 FROM runs WHERE chat_id = ? AND status IN ('queued', 'running') LIMIT 1`).get(chatId)

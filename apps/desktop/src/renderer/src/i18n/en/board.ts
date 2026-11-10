@@ -188,7 +188,13 @@ export const board: typeof source = {
     recommended: 'Recommended',
     careful: 'Careful',
     starting: 'Starting…',
-    startButton: 'Start'
+    startButton: 'Start',
+    decisionsEyebrow: 'Pending decisions',
+    decisionsTitle: (n) => n === 1 ? '1 decision to approve' : `${n} decisions to approve`,
+    decisionsText: (items) => `The agent recommended decisions you have not approved yet. The implementation follows what is approved:\n\n${items.join('\n')}`,
+    reviewDecisions: 'Review decisions',
+    acceptAllAndStart: 'Accept all and start',
+    acceptAll: (n) => `Approve all ${n}`
   },
   delivery: {
     noneMarkedTip: 'None marked: the worktree is created only in the first repository of the project; the agent adds others when needed.',

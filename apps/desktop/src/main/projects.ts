@@ -495,9 +495,9 @@ export class BoardRepository {
     return this.card(cardId)
   }
 
-  private pendingCounts(cardId: string): { changes: number; questions: number; commits: number; toSend: number; testFailures: number } {
+  private pendingCounts(cardId: string): { changes: number; questions: number; commits: number; toSend: number; testFailures: number; decisions: number } {
     const count = (sql: string): number => (this.database.db.prepare(sql).get(cardId) as { value: number }).value
-    return { changes: count("SELECT COUNT(*) AS value FROM card_changes WHERE card_id = ? AND status = 'pending'"), questions: count("SELECT COUNT(*) AS value FROM card_questions WHERE card_id = ? AND status = 'user'"), commits: count("SELECT COUNT(*) AS value FROM git_commit_requests WHERE card_id = ? AND status = 'pending'"), toSend: count("SELECT COUNT(*) AS value FROM card_changes WHERE card_id = ? AND status IN ('accepted', 'applied') AND sent_at IS NULL"), testFailures: this.testFailures(cardId) }
+    return { changes: count("SELECT COUNT(*) AS value FROM card_changes WHERE card_id = ? AND status = 'pending'"), questions: count("SELECT COUNT(*) AS value FROM card_questions WHERE card_id = ? AND status = 'user'"), commits: count("SELECT COUNT(*) AS value FROM git_commit_requests WHERE card_id = ? AND status = 'pending'"), toSend: count("SELECT COUNT(*) AS value FROM card_changes WHERE card_id = ? AND status IN ('accepted', 'applied') AND sent_at IS NULL"), testFailures: this.testFailures(cardId), decisions: count("SELECT COUNT(*) AS value FROM card_decisions WHERE card_id = ? AND status = 'proposed'") }
   }
 
   /**

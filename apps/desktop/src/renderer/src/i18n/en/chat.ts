@@ -58,6 +58,13 @@ export const chat: typeof source = {
     fullCommand: 'Full command',
     technicalDetails: 'Technical details'
   },
+  workflowChoice: {
+    title: 'Choose this card\'s workflow',
+    subtitle: 'from the complexity score',
+    complexity: 'Complexity',
+    seeDetails: 'See assessment details',
+    seeMore: 'Click here to see more…'
+  },
   approval: {
     switchWorkflow: (workflow: string) => `Switch the workflow to ${workflow}`,
     sddNative: 'Full SDD — GearMod SDD',

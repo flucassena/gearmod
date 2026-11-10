@@ -229,7 +229,7 @@ export const cardRunStateSchema = z.object({ state: z.enum(['idle', 'planning', 
 export const cardSchema = z.object({
   id: uuid, projectId: uuid, columnId: uuid, sourceId: uuid.nullable(), type: cardTypeSchema, title: z.string(), description: z.string(),
   priority: cardPrioritySchema, orderKey: z.number(), createdAt: isoDate, updatedAt: isoDate,
-  archivedAt: isoDate.nullable(), acceptanceCriteria: z.array(criterionSchema), tasks: taskCountSchema, run: cardRunStateSchema, testsRunning: z.boolean().optional(), hasPlan: z.boolean(), planningOpen: z.boolean(), workspace: z.object({ branch: z.string(), baseRef: z.string(), path: z.string(), sharedFrom: z.string().nullable().optional() }).nullable(), pending: z.object({ changes: z.number().int().nonnegative(), questions: z.number().int().nonnegative(), commits: z.number().int().nonnegative(), toSend: z.number().int().nonnegative(), testFailures: z.number().int().nonnegative() }), execProfileId: uuid.nullable(), execModel: z.string().nullable(), agentIds: z.array(uuid), complexity: cardComplexitySchema.nullable(), repoIds: z.array(uuid).nullable(),
+  archivedAt: isoDate.nullable(), acceptanceCriteria: z.array(criterionSchema), tasks: taskCountSchema, run: cardRunStateSchema, testsRunning: z.boolean().optional(), hasPlan: z.boolean(), planningOpen: z.boolean(), workspace: z.object({ branch: z.string(), baseRef: z.string(), path: z.string(), sharedFrom: z.string().nullable().optional() }).nullable(), pending: z.object({ changes: z.number().int().nonnegative(), questions: z.number().int().nonnegative(), commits: z.number().int().nonnegative(), toSend: z.number().int().nonnegative(), testFailures: z.number().int().nonnegative(), decisions: z.number().int().nonnegative().optional() }), execProfileId: uuid.nullable(), execModel: z.string().nullable(), agentIds: z.array(uuid), complexity: cardComplexitySchema.nullable(), repoIds: z.array(uuid).nullable(),
   /** Chosen flow (`light` = short flow, a single agent) and, in SDD, the method. Null = not chosen yet. */
   workflow: workflowKindSchema.nullable(), sddMethod: cardSddMethodSchema.nullable(),
   /** How many things wait for the user on the card: questions, changes and approvals to decide, and agents asking permission right now. */
@@ -448,7 +448,7 @@ export const ipcContracts = {
   'updates:check': { input: z.undefined(), output: appUpdateSchema },
   'updates:install': { input: z.undefined(), output: appUpdateSchema },
   'approvals:list': { input: z.object({ cardId: uuid.optional() }).strict(), output: z.array(approvalSchema) },
-  'approvals:decide': { input: z.object({ id: uuid, approve: z.boolean(), note: z.string().max(4000).optional() }).strict(), output: approvalSchema },
+  'approvals:decide': { input: z.object({ id: uuid, approve: z.boolean(), note: z.string().max(4000).optional(), choice: z.object({ workflow: workflowKindSchema, method: z.enum(['native', 'speckit']).optional() }).strict().optional() }).strict(), output: approvalSchema },
   'approvals:apply-constitution': { input: z.object({ id: uuid }).strict(), output: approvalSchema },
   'db:feature-enabled': { input: z.undefined(), output: z.boolean() },
   'db:connections:list': { input: projectIdInput, output: z.array(dbConnectionSchema) },

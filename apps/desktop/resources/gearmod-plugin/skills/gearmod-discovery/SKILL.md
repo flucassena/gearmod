@@ -50,10 +50,10 @@ Call `gearmod_assess_complexity` with a score from 0 to 3 per dimension and an o
 
 ## 5. Recommend the flow
 
-The app returns the score and the recommended flow. Present it in one or two sentences (points, level, main reason) and ask the user, with buttons, whether to follow the recommendation or another flow:
+The app returns the score and the recommended flow. Right after it, call `gearmod_choose_workflow` with the flow you recommend (`confirmado_pelo_usuario: false`). The app shows the user, in the chat, the score table, the points bar and the flow options with yours marked; the user picks there. Do not ask which flow in the chat (no `gearmod_ask_user` for this): at most one or two sentences with the points, the level and the main reason. The options the user sees:
 
 - `light` (simple): short workflow; a single agent implements and validates, with no Specification/Plan/Tasks. It is a workflow, not a card type.
 - `spec` (medium): concise Specification, Plan and Tasks from GearMod.
 - `sdd` (complex): for this card, recommend either GearMod's SDD or GitHub Spec Kit, explaining the reason in the context of the task. Consider GearMod for evolving existing features and Spec Kit for new work, as suggestions, not fixed rules. The final choice is the user's.
 
-Call `gearmod_choose_workflow` to propose the flow; for SDD provide `metodo` and `motivo`. Wait for the user's approval. If they correct a premise, record the decision and reassess with the right trigger; the previous assessment stays in the history.
+For SDD provide `metodo` and `motivo` in `gearmod_choose_workflow`; `motivo` appears in the card, so make it one short sentence about this card. Then stop and wait: the app resumes you when the user chooses (the chosen flow may differ from yours). If they correct a premise, record the decision and reassess with the right trigger; the previous assessment stays in the history.

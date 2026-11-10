@@ -188,7 +188,13 @@ export const board = {
     recommended: 'Recomendado',
     careful: 'Cuidado',
     starting: 'Iniciando…',
-    startButton: 'Iniciar'
+    startButton: 'Iniciar',
+    decisionsEyebrow: 'Decisões pendentes',
+    decisionsTitle: (n: number) => n === 1 ? 'Falta aprovar 1 decisão' : `Falta aprovar ${n} decisões`,
+    decisionsText: (items: string[]) => `O agente recomendou decisões que você ainda não aprovou. A implementação segue o que estiver aprovado:\n\n${items.join('\n')}`,
+    reviewDecisions: 'Revisar decisões',
+    acceptAllAndStart: 'Aceitar todas e iniciar',
+    acceptAll: (n: number) => `Aprovar as ${n}`
   },
   delivery: {
     noneMarkedTip: 'Nenhum marcado: a worktree é criada só no primeiro repositório do projeto; o agente inclui outros quando precisar.',

@@ -4,6 +4,7 @@ import { plainError } from './NoticeDialog'
 import { DiffEditor } from './editor/DiffEditor'
 import { usePreferences } from './editor/preferences'
 import { tr, useT } from './i18n'
+import { WorkflowChoiceAsk } from './WorkflowChoice'
 
 /** Approval requests (S02) of this card: reloads when the card changes or an agent tool is used. */
 export function useApprovals(cardId: string): { items: Approval[]; reload(): Promise<void> } {
@@ -52,5 +53,5 @@ export function ApprovalAsks({ cardId }: { cardId: string }): React.JSX.Element 
   // git-commit only mirrors the approval_record for audit (S06); the decision itself still goes through the commit card (CommitAsks), without duplicating the request on screen.
   const pending = items.filter((item) => (item.status === 'requested' && item.kind !== 'git-commit' && !item.kind.startsWith('speckit-')) || (item.kind === 'constitution-apply' && item.status === 'approved' && !item.consumedAt))
   if (!pending.length) return null
-  return <>{pending.map((item) => <ApprovalAsk key={item.id} approval={item} onDecided={() => void reload()} />)}</>
+  return <>{pending.map((item) => item.kind === 'workflow-choice' ? <WorkflowChoiceAsk key={item.id} approval={item} onDecided={() => void reload()} /> : <ApprovalAsk key={item.id} approval={item} onDecided={() => void reload()} />)}</>
 }

@@ -11,7 +11,7 @@ import { dateLocale, tr, useT } from './i18n'
 
 /** Complexity indicator (Kanban, editor and chat): only the dots; on hover a card drops down with level, flow, variation and confidence. `full` shows everything in the badge itself, as in the card editor. */
 /** `workflowText`: name of the already chosen flow, in place of the recommended flow's abbreviation. */
-export function ComplexityBadge({ complexity, onClick, full = false, workflowText }: { complexity: CardComplexity | null; onClick?(): void; full?: boolean; workflowText?: string }): React.JSX.Element | null {
+export function ComplexityBadge({ complexity, onClick, full = false, workflowText, pendingDecisions = 0 }: { complexity: CardComplexity | null; onClick?(): void; full?: boolean; workflowText?: string; pendingDecisions?: number }): React.JSX.Element | null {
   const tb = useT().board, t = tb.assessment
   const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null), button = useRef<HTMLButtonElement>(null)
   if (!complexity) return null
@@ -24,6 +24,7 @@ export function ComplexityBadge({ complexity, onClick, full = false, workflowTex
   return <button type="button" ref={button} className={`cx-badge ${complexity.level}`} aria-label={t.complexityAria(complexity.total, tb.levelLabels[complexity.level])} onMouseEnter={show} onMouseLeave={() => setPos(null)} onFocus={show} onBlur={() => setPos(null)} onClick={(event) => { event.stopPropagation(); setPos(null); onClick?.() }}>
     <b>{complexity.preliminary ? '~' : ''}{complexity.total}</b>
     {full && <>{tb.levelLabels[complexity.level]}{delta !== null && delta !== 0 && <span className={`cx-delta ${delta > 0 ? 'up' : 'down'}`}>{delta > 0 ? `▲${delta}` : `▼${-delta}`}</span>}<span className="cx-wf">{workflowText ?? t.shortWorkflow[wf]}</span></>}
+    {pendingDecisions > 0 && <i className="pendot cx-pend" aria-label={t.waitingForYou(pendingDecisions)} />}
     {pos && createPortal(<span className="cx-pop" role="tooltip" style={{ left: pos.left, top: pos.top, bottom: pos.bottom }}>
       <span className="cx-pop-head"><span className={`cx-pop-score ${complexity.level}`}>{complexity.preliminary ? '~' : ''}{complexity.total}</span><span className="cx-pop-title"><b>{tb.levelLabels[complexity.level]}</b><small>{t.complexityPoints}{complexity.preliminary ? ` · ${t.preliminary}` : ''}</small></span>
         {delta !== null && delta !== 0 && <span className={`cx-pop-delta ${delta > 0 ? 'up' : 'down'}`}>{delta > 0 ? '▲' : '▼'} {Math.abs(delta)}</span>}</span>
@@ -88,7 +89,7 @@ export function AssessmentDialog({ card, close, changed, initialTab = 'avaliacao
   }
   return <div className="overlay top" role="dialog" aria-label={t.historyLabel} onClick={close}><div className="modal cx-dialog" onClick={(event) => event.stopPropagation()}>
     <header><div><div className="eyebrow">{t.eyebrow}</div><h2>{card.title || t.untitledCard}</h2></div><button type="button" className="x" onClick={close} aria-label={common.close}>×</button></header>
-    <div className="cx-tabrow"><div className="tabs" role="tablist">{([['avaliacao', t.tabs.assessment], ['riscos', t.tabs.risks(assessments.at(-1)?.criticalRisks.length ?? 0)], ['decisoes', t.tabs.decisions(history?.decisions.length ?? 0)], ['entendimento', t.tabs.understanding], ['metricas', t.tabs.metrics], ['eventos', t.tabs.events]] as const).map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={`tab ${tab === value ? 'on' : ''}`} onClick={() => setTab(value)}>{label}</button>)}</div><button type="button" className="mini secondary cx-open" onClick={() => { void window.gearmod.invoke('history:open-folder', { cardId: card.id }).catch((reason) => setError(plainError(reason))) }}>{t.openArtifacts}</button></div>
+    <div className="cx-tabrow"><div className="tabs" role="tablist">{([['avaliacao', t.tabs.assessment], ['riscos', t.tabs.risks(assessments.at(-1)?.criticalRisks.length ?? 0)], ['decisoes', t.tabs.decisions(history?.decisions.length ?? 0)], ['entendimento', t.tabs.understanding], ['metricas', t.tabs.metrics], ['eventos', t.tabs.events]] as const).map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={`tab ${tab === value ? 'on' : ''}`} onClick={() => setTab(value)}>{label}{value === 'decisoes' && (history?.decisions.some((item) => item.status === 'proposed') ?? false) && <i className="pendot" />}</button>)}</div><button type="button" className="mini secondary cx-open" onClick={() => { void window.gearmod.invoke('history:open-folder', { cardId: card.id }).catch((reason) => setError(plainError(reason))) }}>{t.openArtifacts}</button></div>
     {error && <div className="cx-error" role="alert">{error}</div>}
     {!history ? <p className="cx-muted">{common.loading}</p> : <div className={`cx-body ${tab === 'decisoes' ? 'cx-body-decisions' : tab === 'eventos' ? 'cx-body-events' : ''}`}>
       {tab === 'avaliacao' && <div className="cx-grid">
@@ -322,7 +323,7 @@ function Events({ history, rebuild }: { history: CardHistory; rebuild(): void })
   </div>
 }
 
-function Dots({ value }: { value: number }): React.JSX.Element {
+export function Dots({ value }: { value: number }): React.JSX.Element {
   const t = useT().board.assessment
   return <span className="cx-dots" aria-label={t.ofThree(value)}>{[1, 2, 3].map((index) => <i key={index} className={index <= value ? 'on' : ''} />)}</span>
 }

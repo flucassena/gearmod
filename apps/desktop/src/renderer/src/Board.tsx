@@ -59,7 +59,7 @@ function CardTile({ card, types, state, agent, agents, dropLabel, dragProps, onP
   const { done, total } = card.tasks
   const button = (cls: string, tip: string, click: () => void, icon: React.ReactNode): React.JSX.Element => <button type="button" className={`ib ${cls} tip`} data-tip={tip} aria-label={tip} onClick={(e) => { e.stopPropagation(); click() }}>{icon}</button>
   return <article className={`card ${waiting > 0 ? 'wait' : run === 'finished' ? 'fin' : ''} ${run === 'paused' || run === 'failed' ? 'paused' : ''} ${open ? 'planopen' : ''} ${ready ? 'ready' : ''} ${dropLabel ? 'drop-before' : ''}`} data-plabel={dropLabel} onClick={onOpen} {...dragProps}>
-    <div className="pills"><CardTypePill types={types} type={card.type} /><span className={`pill ${card.priority}`}>{t.priority[card.priority]}</span><ComplexityBadge complexity={card.complexity} onClick={onComplexity} /></div>
+    <div className="pills"><CardTypePill types={types} type={card.type} /><span className={`pill ${card.priority}`}>{t.priority[card.priority]}</span><ComplexityBadge complexity={card.complexity} pendingDecisions={card.pending.decisions} onClick={onComplexity} /></div>
     <button type="button" className="cardchat tip" data-tip={t.tile.openChat} aria-label={t.tile.openChat} onClick={(e) => { e.stopPropagation(); onChat() }}><ChatIcon /></button>
     <h3 className="ctitle" data-tip={card.title || undefined}>{card.title || t.newCard}</h3>
     {card.description && <div className="desc">{plain(card.description)}</div>}
