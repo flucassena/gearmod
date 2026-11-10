@@ -815,6 +815,7 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .ch-step{font-size:11.5px;font-weight:600;color:color-mix(in srgb, var(--accent) 8%, var(--g79));padding:3px 8px;border-radius:999px;background:color-mix(in srgb, var(--accent) 6%, var(--g17));border:1px solid color-mix(in srgb, var(--accent) 6%, var(--g25));cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-family:inherit}.ch-step:hover:not(:disabled){border-color:var(--accent-line);color:var(--text);filter:none}.ch-step:disabled{cursor:default}.ch-step:disabled:not(.ok){opacity:.6}
 .ch-step.ok{color:var(--cf-8fdcaa);border-color:var(--cl-2f5a40);background:color-mix(in srgb, var(--accent) 6%, var(--g15))}
 .ch-step.bad{color:var(--cf-ff8f86);border-color:var(--cl-5a3532);background:var(--cb-2a1b1a)}
+.ch-command{max-width:220px;min-width:0}.ch-command-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .ch-body{display:grid;gap:10px;min-height:0;overflow:auto;border-top:1px solid color-mix(in srgb, var(--accent) 6%, var(--g20));padding-top:10px}
 .ch-files{list-style:none;margin:0;padding:0;display:grid;gap:2px;max-height:210px;overflow:auto}
 .ch-file{display:flex;align-items:center;gap:8px;width:100%;padding:5px 8px;border-radius:7px;background:transparent;border:0;color:color-mix(in srgb, var(--accent) 8%, var(--gd3));font:500 12px var(--mono);text-align:left;cursor:pointer}
@@ -827,7 +828,7 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .ch-diff .d{color:var(--cf-ff8f86);background:var(--cb-ff6b6b12);display:inline-block;min-width:100%}
 .ch-diff .h{color:var(--cf-8fb3d9)}
 .ch-log{white-space:pre-wrap;color:var(--cf-ff8f86)}
-.ch-cmd{display:grid;gap:5px;font-size:11.5px;font-weight:600;color:color-mix(in srgb, var(--accent) 8%, var(--g9b))}
+.ch-cmd+.ch-cmd{margin-top:10px}.ch-cmd{display:grid;gap:5px;font-size:11.5px;font-weight:600;color:color-mix(in srgb, var(--accent) 8%, var(--g9b))}
 .ch-error{margin:0;font-size:12px;line-height:1.45;color:var(--cf-ff8f86)}
 
 /* ---- file viewer beside the chat ---- */
@@ -3223,3 +3224,13 @@ body:has(.overlay) .viewdock.floating{display:none}
 .projalerts .palert .pa-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.projalerts .palert small{font-size:11px;color:var(--muted)}
 .projalerts .palert.waiting .dot,.projalerts .palert.waiting small{color:var(--warn)}.projalerts .palert.failed .dot{color:var(--warn)}.projalerts .palert.finished .dot{color:var(--accent)}
 @media (prefers-reduced-motion:reduce){.card.wait,.tile.wait{animation:none}}
+
+/* Project settings > Tests: one automated-test command per repository. */
+.tset-actions{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:12px}.tset-actions .hint{margin:0}.tset-head .hint{margin:6px 0 0;line-height:1.5}.tset-list{display:grid;gap:10px;margin:8px 0}
+.tset-repo{border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:grid;gap:10px;background:color-mix(in srgb, var(--accent) 3%, var(--g15))}.tset-repo.skip{opacity:.75}
+.tset-top{display:flex;align-items:center;gap:10px;min-width:0}.tset-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.tset-chip{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted);display:inline-flex;align-items:center}.tset-chip.ok{color:var(--cf-8fdcaa);border-color:var(--cl-2f5a40)}.tset-chip.missing{color:var(--cf-ff8f86);border-color:var(--cl-5a3532)}
+.tset-fields{display:grid;grid-template-columns:minmax(120px,1fr) 3fr;gap:10px}.tset-fields .in.mono{font-family:var(--mono, ui-monospace, monospace)}
+@media (max-width:640px){.tset-fields{grid-template-columns:1fr}}
+
+.ch-repos{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.ch-repo{font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:4px}.ch-repo.passed{color:var(--cf-8fdcaa)}.ch-repo.failed{color:var(--cf-ff8f86)}

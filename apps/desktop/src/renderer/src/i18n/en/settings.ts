@@ -362,6 +362,28 @@ export const settings: typeof source = {
     allowAgents: 'Enable agents'
   },
 
+  projectTests: {
+    tab: 'Tests',
+    title: 'Automated tests',
+    intro: "Each repository has its own test command. In “Automated tests”, in the card's Changes panel, GearMod runs only the repositories the card changed, each inside its folder in the card worktree. Repositories without tests are left out.",
+    generate: 'Generate automated test commands',
+    review: 'Review with the agent',
+    generatePrompt: 'Set up the automated tests of each repository of this project.',
+    reviewPrompt: "Review the automated test commands of this project's repositories and fill in what is missing.",
+    summary: (ok, skip, total) => `${ok} of ${total} with a command${skip ? ` · ${skip} without tests` : ''}`,
+    repositories: 'Repositories',
+    noRepos: 'This project has no repositories.',
+    stateOk: 'Set up',
+    stateSkip: 'No tests',
+    stateMissing: 'No command',
+    hasTests: 'Has tests',
+    hasTestsTip: 'Turn off for repositories without automated tests: they do not hold Done',
+    name: 'Name',
+    namePlaceholder: 'e.g. Jest, Pytest',
+    command: 'Command',
+    commandPlaceholder: 'e.g. npm test -- --watchAll=false',
+    howItRuns: "The command runs in the system shell (cmd on Windows) in the repository folder inside the card worktree. It gets GEARMOD_WORKTREE, GEARMOD_REPO and GEARMOD_REPO_PATH. 10-minute limit; exit code 0 passes."
+  },
   codeIndex: {
     title: 'Code index',
     hint: 'A map of the project\'s functions, classes and calls, stored only on this computer. Agents query it before opening files, which uses fewer tokens, and the editor uses it for Ctrl+T, F12 and Shift+F12.',

@@ -43,7 +43,7 @@ export class McpBridge {
   private readonly dir: string
   readonly socketPath: string
 
-  constructor(private readonly deps: { board: BoardRepository; context: Pick<AgentContextService, 'block' | 'skillInstructions'>; serverScript: string; runtime?: string; collab?: CollaborationService; conversations?: Pick<ConversationRepository, 'projectOf' | 'convertToPlanning'>; constitution?: Pick<ConstitutionRepository, 'get' | 'write' | 'propose'>; checklists?: Pick<ChecklistRepository, 'write' | 'get'>; git?: Pick<GitManager, 'agentCommit'>; history?: CardHistoryService; approvals?: ApprovalService; policy?: PolicyEngine; sddResolver?: Pick<SddResolver, 'constitution' | 'locate'>; sddWriter?: Pick<SddWriter, 'write'>; planReady?: (cardId: string) => { notices: string[] }; prepareWorktree?: (cardId: string) => Promise<unknown>; trimWorktree?: (cardId: string, keep: string[]) => Promise<{ removed: string[]; kept: Array<{ name: string; reason: string }> }>; repositories?: (cardId: string) => Array<{ path: string; status: string }>; agentMoveApproval?: boolean; codeIndex?: Pick<CodeIndexService, 'tool' | 'isTool' | 'prewarm'>; codeRoots?: (run: { cardId: string | null; chatId: string }) => string[]; codeEnabled?: (run: { cardId: string | null; chatId: string }) => boolean; testCommand?: { get(projectId: string): string; set(projectId: string, command: string): string; suggest(cardId: string): string } }) {
+  constructor(private readonly deps: { board: BoardRepository; context: Pick<AgentContextService, 'block' | 'skillInstructions'>; serverScript: string; runtime?: string; collab?: CollaborationService; conversations?: Pick<ConversationRepository, 'projectOf' | 'convertToPlanning'>; constitution?: Pick<ConstitutionRepository, 'get' | 'write' | 'propose'>; checklists?: Pick<ChecklistRepository, 'write' | 'get'>; git?: Pick<GitManager, 'agentCommit'>; history?: CardHistoryService; approvals?: ApprovalService; policy?: PolicyEngine; sddResolver?: Pick<SddResolver, 'constitution' | 'locate'>; sddWriter?: Pick<SddWriter, 'write'>; planReady?: (cardId: string) => { notices: string[] }; prepareWorktree?: (cardId: string) => Promise<unknown>; trimWorktree?: (cardId: string, keep: string[]) => Promise<{ removed: string[]; kept: Array<{ name: string; reason: string }> }>; repositories?: (cardId: string) => Array<{ path: string; status: string }>; agentMoveApproval?: boolean; codeIndex?: Pick<CodeIndexService, 'tool' | 'isTool' | 'prewarm'>; codeRoots?: (run: { cardId: string | null; chatId: string }) => string[]; codeEnabled?: (run: { cardId: string | null; chatId: string }) => boolean; testCommand?: { repos(projectId: string): Array<{ sourceId: string; repo: string; command: string; name: string; applicable: boolean }>; setRepo(projectId: string, sourceId: string, input: { command: string; name: string; applicable: boolean }): unknown; findRepo(projectId: string, ref: string): { id: string; name: string } | undefined; suggest(cardId: string): string } }) {
     const id = randomBytes(6).toString('hex')
     this.dir = join(tmpdir(), `gearmod-${id}`)
     this.socketPath = process.platform === 'win32' ? `\\\\.\\pipe\\gearmod-${id}` : join(this.dir, 'mcp.sock')
@@ -68,20 +68,34 @@ export class McpBridge {
     if (process.platform !== 'win32') chmodSync(this.socketPath, 0o600)
   }
 
-  /** Reads or saves the project's automated-test command (the "Configure command" of the Changes panel). It never runs the command. */
+  /**
+   * Reads or saves the automated-test command of each project repository (Project settings > Tests, and the Changes panel).
+   * It never runs the commands: the user does, with confirmation.
+   */
   private testCommand(run: RunState, args: Record<string, unknown>): Reply {
     const store = this.deps.testCommand
     if (!store) return { ok: false, error: 'The test command is not available' }
     const projectId = run.cardId ? this.deps.board.card(run.cardId).projectId : this.deps.conversations?.projectOf(run.chatId)
     if (!projectId) return { ok: false, error: 'This conversation has no project' }
-    if (args.comando === undefined) {
-      const current = store.get(projectId), suggested = run.cardId && !current ? store.suggest(run.cardId) : ''
-      return { ok: true, text: current ? `Current test command: ${current}` : suggested ? `No test command saved. Suggested from the worktree: ${suggested}` : 'No test command saved.' }
+    const repos = store.repos(projectId), names = repos.map((repo) => `"${repo.repo}"`).join(', ')
+    const describe = (): string => repos.map((repo) => `- ${repo.repo}: ${!repo.applicable ? 'no automated tests (skipped)' : repo.command ? `${repo.name ? `"${repo.name}" — ` : ''}${repo.command}` : 'not set yet'}`).join('\n')
+    if (args.comando === undefined && args.aplicavel === undefined) {
+      if (args.nome !== undefined || args.repositorio !== undefined) return { ok: false, error: 'Pass comando (and nome), or aplicavel: false, together with repositorio' }
+      const suggested = run.cardId && repos.length === 1 && !repos[0]!.command ? store.suggest(run.cardId) : ''
+      return { ok: true, text: `Test commands of the project repositories (each one runs inside that repository's folder in the card worktree, only when the card changed it):\n${describe()}${suggested ? `\nSuggested from the worktree: ${suggested}` : ''}` }
     }
-    if (typeof args.comando !== 'string') return { ok: false, error: 'comando must be a text (empty to clear)' }
-    const saved = store.set(projectId, args.comando)
+    if (args.repositorio !== undefined && typeof args.repositorio !== 'string') return { ok: false, error: 'repositorio must be the repository name' }
+    if (args.repositorio === undefined && repos.length !== 1) return { ok: false, error: `repositorio is required. Repositories: ${names}` }
+    const repo = typeof args.repositorio === 'string' ? store.findRepo(projectId, args.repositorio) : { id: repos[0]!.sourceId, name: repos[0]!.repo }
+    if (!repo) return { ok: false, error: `Unknown repository "${String(args.repositorio)}". Repositories: ${names}` }
+    if (args.aplicavel !== undefined && typeof args.aplicavel !== 'boolean') return { ok: false, error: 'aplicavel must be true or false' }
+    if (args.comando !== undefined && typeof args.comando !== 'string') return { ok: false, error: 'comando must be a text (empty to clear)' }
+    if (args.nome !== undefined && typeof args.nome !== 'string') return { ok: false, error: 'nome must be a short text' }
+    const applicable = args.aplicavel !== false, current = repos.find((item) => item.sourceId === repo.id)!
+    const command = typeof args.comando === 'string' ? args.comando : current.command, name = typeof args.nome === 'string' ? args.nome : current.name
+    store.setRepo(projectId, repo.id, { command, name, applicable })
     if (run.cardId) run.notify({ type: 'card' })
-    return { ok: true, text: saved ? `Test command saved for the project: ${saved}. The user runs it from "Testes automatizados" in the Changes panel.` : 'Test command cleared.' }
+    return { ok: true, text: !applicable ? `Saved: "${repo.name}" has no automated tests and is skipped.` : command.trim() ? `Test command of "${repo.name}" saved${name.trim() ? ` as "${name.trim()}"` : ''}: ${command.trim()}. It runs inside that repository's folder in the card worktree, only when the card changed it.` : `Test command of "${repo.name}" cleared.` }
   }
 
   async close(): Promise<void> {

@@ -23,7 +23,7 @@ export function finishNotice(input: NoticeInput): Notice | null {
   if (input.pending.changes > 0) return { title: tm().notifier.changeAwaitingApproval, body: name }
   if (input.pending.questions > 0) return { title: tm().notifier.questionForYou, body: name }
   if (input.status === 'failed') {
-    const what = input.purpose === 'planning' ? tm().notifier.planningFailed : input.purpose === 'test' ? tm().notifier.testFailed : input.purpose === 'free' || input.purpose === 'constitution' ? tm().notifier.chatFailed : tm().notifier.executionFailed
+    const what = input.purpose === 'planning' ? tm().notifier.planningFailed : input.purpose === 'test' ? tm().notifier.testFailed : input.purpose === 'free' || input.purpose === 'constitution' || input.purpose === 'conflict' || input.purpose === 'test-setup' ? tm().notifier.chatFailed : tm().notifier.executionFailed
     return { title: what, body: input.error ? `${name} — ${clip(input.error, 100)}` : name }
   }
   if (input.purpose === 'execution') return { title: tm().notifier.executionDone, body: name }

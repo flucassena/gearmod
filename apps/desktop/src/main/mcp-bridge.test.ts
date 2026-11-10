@@ -68,23 +68,32 @@ describe('GearMod MCP server', () => {
     expect(board.documents.read(card.id, 'especificacao')).toBe('')
     expect(board.card(card.id).hasPlan).toBe(false)
   })
-  it('lets the agent read and save the project test command, shared with the Changes panel', async () => {
+  it('lets the agent read and save the test command of each project repository, shared with the project settings', async () => {
     const { board, card, project, database } = await setup()
     const quality = new QualityService(database, { get: () => undefined } as unknown as WorktreeService)
     const context = new AgentContextService(board, new SettingsRepository(database), null)
-    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, testCommand: { get: (id) => quality.testCommand(id).command, set: (id, command) => quality.setTestCommand(id, command).command, suggest: () => 'pnpm test' } })
+    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, testCommand: { repos: (id) => quality.repoCommands(id), setRepo: (id, sourceId, input) => quality.setRepoCommand(id, sourceId, input), findRepo: (id, ref) => quality.findRepo(id, ref), suggest: () => 'pnpm test' } })
     await bridge.listen(); closers.push(() => bridge.close())
     const changes: CardChange[] = []
     const client = mcpClient(bridge.register('run-cmd', card.id, (change) => changes.push(change), { id: 'chat', purpose: 'execution' }))
     expect((await client.request('tools/list')).result).toMatchObject({ tools: expect.arrayContaining([expect.objectContaining({ name: 'gearmod_test_command' })]) })
     expect((await client.call('gearmod_test_command', {})).content[0]!.text).toContain('pnpm test')
-    const saved = await client.call('gearmod_test_command', { comando: '  docker compose run --rm api pytest  ' })
+    // A single repository: repositorio can be left out.
+    const saved = await client.call('gearmod_test_command', { comando: '  npm test -- --watchAll=false  ', nome: 'Jest' })
     expect(saved.isError).toBe(false)
-    expect(quality.testCommand(project.id).command).toBe('docker compose run --rm api pytest')
+    expect(quality.repoCommands(project.id)[0]).toMatchObject({ command: 'npm test -- --watchAll=false', name: 'Jest', applicable: true })
     expect(changes).toContainEqual({ type: 'card' })
     expect((await client.call('gearmod_test_command', { comando: 'a\nb' })).isError).toBe(true)
-    await client.call('gearmod_test_command', { comando: '' })
-    expect(quality.testCommand(project.id).command).toBe('')
+
+    // Several repositories: each one has its own command, or no tests at all.
+    database.db.prepare("INSERT INTO project_sources(id, project_id, name, local_path, is_git_repository, current_branch, sort_order) VALUES ('00000000-0000-4000-8000-000000000002', ?, 'docs', ?, 1, 'dev', 9)").run(project.id, join(tmpdir(), 'docs-repo'))
+    const needsRepo = await client.call('gearmod_test_command', { comando: 'pnpm test' })
+    expect(needsRepo.isError).toBe(true); expect(needsRepo.content[0]!.text).toContain('"docs"')
+    expect((await client.call('gearmod_test_command', { repositorio: 'nope', comando: 'x' })).isError).toBe(true)
+    expect((await client.call('gearmod_test_command', { repositorio: 'DOCS', aplicavel: false })).isError).toBe(false)
+    expect(quality.repoCommands(project.id).find((repo) => repo.repo === 'docs')).toMatchObject({ applicable: false, command: '' })
+    const listed = (await client.call('gearmod_test_command', {})).content[0]!.text
+    expect(listed).toContain('"Jest" — npm test -- --watchAll=false'); expect(listed).toContain('docs: no automated tests')
   })
   it('proposes the Constitution without writing before approval', async () => {
     const { board, card, project, database } = await setup()

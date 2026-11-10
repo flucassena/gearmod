@@ -24,6 +24,8 @@ export function attachmentNote(paths: string[]): string {
 }
 
 type AgentChoice = { model?: string | null; effort?: Effort | null; mode?: PermissionMode }
+/** The project's automated-tests chat: always runs the gearmod-test-command skill, for every repository of the project. */
+const testSetupLead = "This is the project's automated-tests chat. Use the gearmod-test-command skill (load it with gearmod_read_skill if it is not available) and set up the test command of each repository of the project.\n\n"
 type Job = { run: Run; chatId: string; prompt: string; planning: boolean; notice?: string; attachments?: string[]; automatic?: boolean; choice?: AgentChoice; cwd?: string }
 
 export class AgentOrchestrator {
@@ -72,11 +74,11 @@ export class AgentOrchestrator {
     if (input.attachments?.length && !attachments.length) throw new Error(tm().orchestrator.noAttachmentsFound)
     if (attachments.length) input = { ...input, attachments, prompt: `${input.prompt}\n\n${attachmentNote(attachments)}` }
     if (!context.profile.enabled) throw new Error(tm().orchestrator.agentRemoved(context.profile.label))
-    const projectChat = context.chat.purpose === 'free' || context.chat.purpose === 'constitution' || context.chat.purpose === 'conflict'
+    const projectChat = context.chat.purpose === 'free' || context.chat.purpose === 'constitution' || context.chat.purpose === 'conflict' || context.chat.purpose === 'test-setup'
     if (input.planning && context.chat.purpose !== 'planning' && !projectChat) throw new Error(tm().orchestrator.usePlanningChat)
     // The Constitution never changes files (runs like planning, read-only). Free chat changes files when the chosen mode is not plan mode.
     if (context.chat.purpose === 'constitution') input = { ...input, planning: true }
-    if (context.chat.purpose !== 'free' && context.chat.purpose !== 'conflict') input = { ...input, choice: undefined }
+    if (context.chat.purpose !== 'free' && context.chat.purpose !== 'conflict' && context.chat.purpose !== 'test-setup') input = { ...input, choice: undefined }
     this.conversations.addMessage(input.notice ? { chatId: input.chatId, role: 'system', body: input.notice, status: 'complete' } : { chatId: input.chatId, role: 'user', body: input.prompt, status: 'complete' })
     const run = this.conversations.createRun({ cardId: context.cardId, chatId: input.chatId, profileId: context.profile.id })
     const full = this.active >= this.limit()
@@ -153,7 +155,7 @@ export class AgentOrchestrator {
       }
     }
     try {
-      const free = context.chat.purpose === 'free' || context.chat.purpose === 'conflict', constitution = context.chat.purpose === 'constitution'
+      const testSetup = context.chat.purpose === 'test-setup', free = context.chat.purpose === 'free' || context.chat.purpose === 'conflict' || testSetup, constitution = context.chat.purpose === 'constitution'
       // The card's planning already uses the same worktree that will be reused in the run.
       // Projects without Git can still be planned in read-only mode.
       let worktree = null
@@ -182,11 +184,12 @@ export class AgentOrchestrator {
       publish({ type: 'gearmod/run-started', payload: { cardId: context.cardId, chatId: job.chatId, planning: job.planning } })
       if (context.chat.purpose === 'free') this.conversations.setTitleIfEmpty(job.chatId, titleFromPrompt(job.prompt))
       if (constitution) this.conversations.setTitleIfEmpty(job.chatId, 'Constituição')
+      if (testSetup) this.conversations.setTitleIfEmpty(job.chatId, 'Testes automatizados')
       const purpose = free || constitution ? null : context.chat.purpose as AgentPurpose
       const config = context.cardId && purpose ? this.configs?.resolve(context.cardId, context.profile.id, purpose) : undefined
       if (config && purpose) this.configs?.recordUse(config, purpose)
       const mcp = this.writeback?.begin(job.run.id, context.cardId, (type, payload) => publish({ type, payload }), { id: context.chat.id, purpose: context.chat.purpose })
-      const prompt = this.agentContext ? await (constitution ? this.agentContext.constitutionPrompt(context.chat.projectId, job.prompt, context.chat.skill) : free || !context.cardId ? this.agentContext.freePrompt(job.prompt, context.chat.projectId, !job.planning, context.chat.skill) : this.agentContext.prompt(context.cardId, job.prompt, job.planning, context.chat.skill)) : job.prompt
+      const prompt = this.agentContext ? await (constitution ? this.agentContext.constitutionPrompt(context.chat.projectId, job.prompt, context.chat.skill) : free || !context.cardId ? this.agentContext.freePrompt(testSetup ? `${testSetupLead}${job.prompt}` : job.prompt, context.chat.projectId, !job.planning, context.chat.skill) : this.agentContext.prompt(context.cardId, job.prompt, job.planning, context.chat.skill)) : job.prompt
       try { this.conversations.recordRunMeta(job.run.id, { purpose: context.chat.purpose, provider: context.profile.provider, model: config?.model ?? null, effort: config?.effort ?? null, promptChars: prompt.length }) } catch { /* metric is informational */ }
       // Registered MCP servers (global and project) for this agent; a failure to read them never takes the run down.
       let extraMcp: Awaited<ReturnType<McpRegistry['effective']>> = []
@@ -210,10 +213,10 @@ export class AgentOrchestrator {
       if (result.status === 'failed' && !result.text && result.error) this.conversations.addMessage({ chatId: job.chatId, role: 'system', body: result.error, status: 'failed' })
       this.conversations.updateRun(job.run.id, result.status, result.error, result.turnId)
       publish({ type: 'gearmod/run-completed', payload: { chatId: job.chatId, status: result.status, error: result.error } })
-      if (after.cardId && after.chat.purpose !== 'free' && after.chat.purpose !== 'constitution' && after.chat.purpose !== 'conflict' && this.harness) {
+      if (after.cardId && after.chat.purpose !== 'free' && after.chat.purpose !== 'constitution' && after.chat.purpose !== 'conflict' && after.chat.purpose !== 'test-setup' && this.harness) {
         try { (await this.harness.after({ cardId: after.cardId, runId: job.run.id, chatId: job.chatId, purpose: after.chat.purpose, status: result.status })).forEach((body) => this.conversations.addMessage({ chatId: job.chatId, role: 'system', body, status: 'failed' })) } catch { /* harness notice is best-effort */ }
       }
-      try { if (after.cardId && after.chat.purpose !== 'free' && after.chat.purpose !== 'constitution' && after.chat.purpose !== 'conflict') this.collab?.afterRun({ cardId: after.cardId, chatId: job.chatId, purpose: after.chat.purpose, status: result.status }) } catch { /* chaining is best-effort; the chat shows the notice */ }
+      try { if (after.cardId && after.chat.purpose !== 'free' && after.chat.purpose !== 'constitution' && after.chat.purpose !== 'conflict' && after.chat.purpose !== 'test-setup') this.collab?.afterRun({ cardId: after.cardId, chatId: job.chatId, purpose: after.chat.purpose, status: result.status }) } catch { /* chaining is best-effort; the chat shows the notice */ }
       try { this.onFinished?.({ cardId: after.cardId, chatId: job.chatId, runId: job.run.id, purpose: after.chat.purpose, status: result.status, error: result.error ?? null }) } catch { /* notification is best-effort */ }
     } catch (error) {
       if (this.stopping) return
@@ -226,7 +229,7 @@ export class AgentOrchestrator {
       // A run that ends in error also closes the cycle: the harness checks what changed and chaining between steps continues.
       try {
         const after = this.conversations.context(job.chatId), status = aborted ? 'interrupted' as const : 'failed' as const
-        if (after.cardId && after.chat.purpose !== 'free' && after.chat.purpose !== 'constitution' && after.chat.purpose !== 'conflict') {
+        if (after.cardId && after.chat.purpose !== 'free' && after.chat.purpose !== 'constitution' && after.chat.purpose !== 'conflict' && after.chat.purpose !== 'test-setup') {
           if (this.harness) try { (await this.harness.after({ cardId: after.cardId, runId: job.run.id, chatId: job.chatId, purpose: after.chat.purpose, status })).forEach((body) => this.conversations.addMessage({ chatId: job.chatId, role: 'system', body, status: 'failed' })) } catch { /* harness notice is best-effort */ }
           try { this.collab?.afterRun({ cardId: after.cardId, chatId: job.chatId, purpose: after.chat.purpose, status }) } catch { /* chaining is best-effort */ }
         }

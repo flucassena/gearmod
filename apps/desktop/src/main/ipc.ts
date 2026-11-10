@@ -629,9 +629,13 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     , 'worktrees:adopt': async (input: { cardId: string; path: string }) => { await services.worktrees.adopt(input.cardId, input.path); return {} }
     , 'worktrees:link': (input: { cardId: string; fromCardId: string | null }) => { services.worktrees.link(input.cardId, input.fromCardId); return {} }
     , 'tests:run': (input: { cardId: string; executable: string; args: string[] }) => services.quality.runTest(input.cardId, input.executable, input.args)
+    , 'tests:run-card': (input: { cardId: string }) => services.quality.runCard(input.cardId)
+    , 'tests:plan': async (input: { cardId: string }) => { const plan = await services.quality.plan(input.cardId); return { repos: plan.repos.map(({ path: _path, ...repo }) => repo), fallback: plan.fallback } }
+    , 'tests:repo-commands': (input: { projectId: string }) => services.quality.repoCommands(input.projectId)
+    , 'tests:set-repo-command': (input: { projectId: string; sourceId: string; command: string; name: string; applicable: boolean }) => services.quality.setRepoCommand(input.projectId, input.sourceId, input)
     , 'tests:detect-command': (input: { cardId: string }) => services.quality.detectCommand(input.cardId)
     , 'tests:command': (input: { projectId: string }) => services.quality.testCommand(input.projectId)
-    , 'tests:set-command': (input: { projectId: string; command: string }) => services.quality.setTestCommand(input.projectId, input.command)
+    , 'tests:set-command': (input: { projectId: string; command: string; name?: string }) => services.quality.setTestCommand(input.projectId, input.command, input.name)
     , 'quality:status': (input: { cardId: string }) => services.quality.status(input.cardId)
     , 'reviews:prepare-local': (input: { cardId: string }) => services.quality.prepareLocalReview(input.cardId)
     , 'git:repos': (input: { projectId: string }) => services.gitManager.repos(input.projectId)

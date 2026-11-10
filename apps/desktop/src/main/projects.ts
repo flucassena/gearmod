@@ -186,6 +186,11 @@ export class ProfileRepository {
  * Run state of the card, derived from the last run: in progress, paused (stopped by the user or interrupted),
  * finished (run completed and not yet seen) or planning.
  */
+/** Whether the card's automated tests (the Changes panel command) are running right now: its last test run is still `running`. */
+export function cardTestsRunning(db: Database.Database, cardId: string): boolean {
+  return db.prepare('SELECT status FROM test_runs WHERE card_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1').pluck().get(cardId) === 'running'
+}
+
 export function cardRunState(db: Database.Database, cardId: string): CardRunState {
   const row = db.prepare(`SELECT r.id, r.status, r.exit_reason AS exitReason, r.ended_at AS endedAt, r.profile_id AS profileId, ch.purpose, k.viewed_at AS viewedAt
     FROM runs r JOIN chats ch ON ch.id = r.chat_id JOIN cards k ON k.id = r.card_id WHERE r.card_id = ? ORDER BY r.started_at DESC, r.rowid DESC LIMIT 1`).get(cardId) as
@@ -228,7 +233,9 @@ export class ProjectRepository {
       is_git_repository AS isGitRepository, current_branch AS currentBranch, NULLIF(base_branch, '') AS baseBranch, sort_order AS sortOrder FROM project_sources WHERE project_id = ? ORDER BY sort_order`)
     // Sidebar: chats with an agent working (any step, including free chat and Constitution) and cards whose last run
     // (planning, implementation or test) finished after the last time the user opened the card.
-    const running = this.database.db.prepare(`SELECT COUNT(DISTINCT r.chat_id) AS n FROM runs r JOIN chats c ON c.id = r.chat_id WHERE c.project_id = ? AND r.status IN ('queued', 'running')`)
+    // Automated tests running count too, one per card (they run without a chat).
+    const running = this.database.db.prepare(`SELECT (SELECT COUNT(DISTINCT r.chat_id) FROM runs r JOIN chats c ON c.id = r.chat_id WHERE c.project_id = ? AND r.status IN ('queued', 'running'))
+      + (SELECT COUNT(*) FROM cards k WHERE k.project_id = ? AND k.archived_at IS NULL AND (SELECT t.status FROM test_runs t WHERE t.card_id = k.id ORDER BY t.started_at DESC, t.rowid DESC LIMIT 1) = 'running') AS n`)
     const finished = this.database.db.prepare(`SELECT COUNT(*) AS n FROM cards k WHERE k.project_id = ? AND k.archived_at IS NULL AND EXISTS (
       SELECT 1 FROM runs r WHERE r.id = (SELECT id FROM runs WHERE card_id = k.id ORDER BY started_at DESC, rowid DESC LIMIT 1)
       AND r.status = 'completed' AND r.ended_at > COALESCE(k.viewed_at, ''))`)
@@ -237,12 +244,12 @@ export class ProjectRepository {
     // Card by card, what is there for the user (the project's hover menu); a card shows once, with what matters most.
     const alerts = (projectId: string): Array<{ cardId: string; title: string; kind: keyof typeof order }> => (cards.all(projectId) as Array<{ id: string; title: string }>).flatMap((card) => {
       const state = cardRunState(this.database.db, card.id).state
-      const kind = cardWaiting(this.database.db, card.id) > 0 ? 'waiting' as const : state === 'failed' ? 'failed' as const : state === 'finished' ? 'finished' as const : state === 'running' || state === 'planning' ? 'running' as const : null
+      const kind = cardWaiting(this.database.db, card.id) > 0 ? 'waiting' as const : state === 'failed' ? 'failed' as const : state === 'finished' ? 'finished' as const : state === 'running' || state === 'planning' || cardTestsRunning(this.database.db, card.id) ? 'running' as const : null
       return kind ? [{ cardId: card.id, title: card.title, kind }] : []
     }).sort((a, b) => order[a.kind] - order[b.kind]).slice(0, 20)
     return rows.map((row) => { const types = projectCardTypes(this.database.db, row.id), list = alerts(row.id); return { ...row,
       cardTypes: types.types, customCardTypes: types.custom,
-      activity: { running: (running.get(row.id) as { n: number }).n, finished: (finished.get(row.id) as { n: number }).n, waiting: list.filter((item) => item.kind === 'waiting').length, alerts: list },
+      activity: { running: (running.get(row.id, row.id) as { n: number }).n, finished: (finished.get(row.id) as { n: number }).n, waiting: list.filter((item) => item.kind === 'waiting').length, alerts: list },
       allowedProfileIds: (allowed.all(row.id) as { profileId: string }[]).map((item) => item.profileId),
       sources: (sources.all(row.id) as Array<Omit<ProjectSource, 'isGitRepository'> & { isGitRepository: number }>).map((item) => ({ ...item, isGitRepository: Boolean(item.isGitRepository) }))
     } })
@@ -458,7 +465,7 @@ export class BoardRepository {
     const agentIds = this.database.db.prepare('SELECT profile_id FROM chats WHERE card_id = ? GROUP BY profile_id ORDER BY MIN(created_at)').pluck().all(cardId) as string[]
     // When the card uses another card's worktree, the screen shows whose it is (and offers to unlink).
     const sharedFrom = (this.database.db.prepare('SELECT o.title FROM cards c JOIN cards o ON o.id = c.worktree_card_id WHERE c.id = ?').pluck().get(cardId) as string | undefined) ?? null
-    return { ...row, acceptanceCriteria: criteria, tasks, run, hasPlan, planningOpen, workspace: workspace ? { ...workspace, sharedFrom } : null, pending: this.pendingCounts(cardId), waiting: cardWaiting(this.database.db, cardId), ...this.execSettings(cardId), agentIds, complexity: complexitySummary(this.database.db, cardId), repoIds: this.repoIds(cardId), workflow: row.workflow ?? null, sddMethod: this.sddMethod(cardId, row.workflow) }
+    return { ...row, acceptanceCriteria: criteria, tasks, run, hasPlan, planningOpen, workspace: workspace ? { ...workspace, sharedFrom } : null, pending: this.pendingCounts(cardId), testsRunning: cardTestsRunning(this.database.db, cardId), waiting: cardWaiting(this.database.db, cardId), ...this.execSettings(cardId), agentIds, complexity: complexitySummary(this.database.db, cardId), repoIds: this.repoIds(cardId), workflow: row.workflow ?? null, sddMethod: this.sddMethod(cardId, row.workflow) }
   }
 
   /** SDD method chosen along with the flow (last `workflow.selected`); only applies in the `sdd` flow. */

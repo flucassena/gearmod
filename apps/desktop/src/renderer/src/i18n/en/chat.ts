@@ -398,6 +398,7 @@ export const chat: typeof source = {
       ]
     },
     modes: {
+      'test-setup': { eyebrow: 'Automated tests', title: 'Project automated tests', chip: 'Project-wide · one command per repository', empty: "Automated tests chat: the agent looks at each repository of the project and sets up its test command (or marks that it has none). The commands run in the card worktree, only in the repositories the card changed.", placeholder: 'E.g. set up the tests of every repository…', badge: '⌘ Tests', badgeTip: 'Sets up the test commands; may create scripts in the repositories when you agree' },
       free: { eyebrow: 'Free chat', title: 'Free conversation', chip: 'No card · straight on the project', empty: 'Talk about the project or ask for a change. The agent may ask whether you prefer to create a card to document it or do it right in the chat.', placeholder: 'Chat or ask for a change…', badge: '✎ Can change files', badgeTip: 'Changes project files when you ask, according to the chosen mode' },
       constitution: { eyebrow: 'Constitution', title: 'Project Constitution', chip: 'Project-wide · does not change files', empty: 'Constitution chat: the principles every card in the project follows. Ask me to create, review or change a principle; I read the project, propose, and only save with your agreement.', placeholder: 'E.g.: create the Constitution from the project…', badge: '§ Constitution', badgeTip: 'Only writes the Constitution; does not change files or cards' }
     },
@@ -411,6 +412,7 @@ export const chat: typeof source = {
   chatsPage: {
     freeChat: 'Free chat',
     conflict: 'Conflict',
+    testSetup: 'Automated tests',
     constitution: 'Constitution',
     now: 'now',
     minutesAgo: (n: number) => `${n} min ago`,

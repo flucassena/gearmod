@@ -1,6 +1,6 @@
 import { providerLabels } from '@gearmod/contracts'
 import React, { useEffect, useState } from 'react'
-import type { AgentProbe, AgentProfile, AppTheme, Project, ProjectInspection } from '@gearmod/contracts'
+import type { AgentConfig, AgentProbe, AgentProfile, AppTheme, Project, ProjectInspection } from '@gearmod/contracts'
 import { AgentIcon } from './AgentIcon'
 import { GitMenu } from './BranchMenu'
 import { FolderGlyph } from './icons'
@@ -9,6 +9,7 @@ import { McpPanel } from './McpPanel'
 import { GitPolicyPanel } from './GitPolicyPanel'
 import { GitAccountsPanel } from './GitAccountsPanel'
 import { WorkflowPanel } from './WorkflowPanel'
+import { TestSettings } from './TestSettings'
 import { SddSettings } from './SddSettings'
 import { ToolsPanel, useToolsPending } from './ToolsPanel'
 import { ProjectIconPicker } from './ProjectIcon'
@@ -93,7 +94,7 @@ function AgentTeam({ profiles, allowed, setAllowed, probes }: { profiles: AgentP
   </div>
 }
 
-export function ProjectConfigDialog({ project, profiles, saved, renamed, openConstitutionChat, initialTab, initialFocus }: { initialFocus?: 'git-accounts'; project: Project; profiles: AgentProfile[]; saved(): void | Promise<void>; renamed?(): void; openConstitutionChat(prompt?: string): void; initialTab?: 'general' | 'git' }): React.JSX.Element {
+export function ProjectConfigDialog({ project, profiles, saved, renamed, openConstitutionChat, openTestSetupChat, initialTab, initialFocus }: { initialFocus?: 'git-accounts'; project: Project; profiles: AgentProfile[]; saved(): void | Promise<void>; renamed?(): void; openConstitutionChat(prompt?: string): void; openTestSetupChat(prompt: string, config: AgentConfig): void; initialTab?: 'general' | 'git' | 'tests' }): React.JSX.Element {
   // Opened to manage the Git accounts (e.g. "Add token" on the Git page): scrolls to them and gives a quick highlight.
   useEffect(() => {
     if (initialFocus !== 'git-accounts') return
@@ -114,7 +115,7 @@ export function ProjectConfigDialog({ project, profiles, saved, renamed, openCon
     find(); return () => window.clearTimeout(timer)
   }, [initialFocus])
   const t = useT(), tp = t.settings.project
-  const [tab, setTab] = useState<'general' | 'git' | 'workflow' | 'sdd' | 'tools' | 'theme' | 'constitution' | 'skills' | 'mcp'>(initialTab ?? 'general'), [name, setName] = useState(project.name), [icon, setIcon] = useState(project.icon), [allowed, setAllowed] = useState(project.allowedProfileIds), [editingName, setEditingName] = useState(false), [saveState, setSaveState] = useState<'idle' | 'waiting' | 'saving' | 'saved'>('idle'), [error, setError] = useState(''), [ownTheme, setOwnTheme] = useState<AppTheme | null>(() => projectTheme(project.id)), [probes, setProbes] = useState<Record<string, AgentProbe>>({})
+  const [tab, setTab] = useState<'general' | 'git' | 'workflow' | 'sdd' | 'tests' | 'tools' | 'theme' | 'constitution' | 'skills' | 'mcp'>(initialTab ?? 'general'), [name, setName] = useState(project.name), [icon, setIcon] = useState(project.icon), [allowed, setAllowed] = useState(project.allowedProfileIds), [editingName, setEditingName] = useState(false), [saveState, setSaveState] = useState<'idle' | 'waiting' | 'saving' | 'saved'>('idle'), [error, setError] = useState(''), [ownTheme, setOwnTheme] = useState<AppTheme | null>(() => projectTheme(project.id)), [probes, setProbes] = useState<Record<string, AgentProbe>>({})
   const toolsPending = useToolsPending(project.id)
   const savedIdentity = React.useRef({ name: project.name, icon: project.icon }), identity = React.useRef({ name, icon }), saveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null), saveQueue = React.useRef<Promise<void>>(Promise.resolve()), profileQueue = React.useRef<Promise<boolean>>(Promise.resolve(true)), saveVersion = React.useRef(0), profileVersion = React.useRef(0), closing = React.useRef(false)
   identity.current = { name, icon }
@@ -173,7 +174,7 @@ export function ProjectConfigDialog({ project, profiles, saved, renamed, openCon
     <header><div className="pcfg-heading"><div className="eyebrow">{tp.configure}</div><div className="pcfg-identity"><ProjectIconPicker compact name={name} icon={icon} onChange={setIcon} /><div className="pcfg-name"><h2>{editingName
       ? <input className="pcfg-name-input" value={name} autoFocus aria-label={tp.nameLabel} onFocus={(event) => event.currentTarget.select()} onChange={(event) => { setName(event.target.value); setError('') }} onBlur={stopEditingName} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} />
       : <button type="button" className="pcfg-name-edit" onClick={() => setEditingName(true)} data-tip={tp.editNameTip}><span>{name.trim() || project.name}</span><span className="pcfg-name-pencil" aria-hidden="true">✎</span></button>}</h2><small className={`pcfg-save-state ${saveState}`}>{saveLabel}</small></div></div></div><button className="x" onClick={() => void finish()} aria-label={t.common.close}>×</button></header>
-    <div className="tabs" role="tablist" style={{ marginBottom: 14 }}>{([['general', tp.tabGeneral], ['git', 'Git'], ['workflow', 'Workflow'], ['sdd', 'SDD'], ['tools', tp.tabTools], ['skills', t.settings.dialog.tabSkills], ['mcp', 'MCP']] as const).map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={`tab ${tab === value ? 'on' : ''}`} onClick={() => setTab(value)}>{label}{value === 'tools' && toolsPending && <i className="tab-dot" data-tip={tp.toolUpdateTip} />}</button>)}</div>
+    <div className="tabs" role="tablist" style={{ marginBottom: 14 }}>{([['general', tp.tabGeneral], ['git', 'Git'], ['workflow', 'Workflow'], ['sdd', 'SDD'], ['tests', t.settings.projectTests.tab], ['tools', tp.tabTools], ['skills', t.settings.dialog.tabSkills], ['mcp', 'MCP']] as const).map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={`tab ${tab === value ? 'on' : ''}`} onClick={() => setTab(value)}>{label}{value === 'tools' && toolsPending && <i className="tab-dot" data-tip={tp.toolUpdateTip} />}</button>)}</div>
     <div className={`pcfg-body ${tab === 'skills' ? 'fill' : ''}`}>{tab === 'general' ? <>
       <div className="stack pcfg-general"><section className="cx-wfcard"><ThemePicker project value={ownTheme} onChange={(value) => { setOwnTheme(value); setProjectTheme(project.id, value) }} /></section>
         <section className="cx-wfcard"><AgentTeam profiles={profiles} allowed={allowed} setAllowed={changeAllowed} probes={probes} /></section>
@@ -184,6 +185,7 @@ export function ProjectConfigDialog({ project, profiles, saved, renamed, openCon
       : tab === 'git' ? <><GitAccountsPanel projectId={project.id} openFirst={initialFocus === 'git-accounts'} /><GitPolicyPanel projectId={project.id} /></>
       : tab === 'workflow' ? <WorkflowPanel projectId={project.id} />
       : tab === 'sdd' ? <SddSettings project={project} openConstitutionChat={openConstitutionChat} onOpenReference={() => void finish()} />
+      : tab === 'tests' ? <TestSettings project={project} profiles={profiles.filter((profile) => project.allowedProfileIds.includes(profile.id))} openChat={openTestSetupChat} />
       : tab === 'tools' ? <ToolsPanel projectId={project.id} openedTerminal={() => void finish()} />
       : tab === 'mcp' ? <div className="skwrap"><McpPanel scope="project" projectId={project.id} available={['claude', 'codex']} /></div>
       : <div className="skwrap"><SkillsPanel scope="project" projectId={project.id} profiles={profiles.filter((profile) => allowed.includes(profile.id))} globalCount={0} /></div>}</div>

@@ -395,6 +395,8 @@ export const en: typeof ptBR = {
   },
   quality: {
     createWorktreeBeforeTests: 'Create the worktree before running tests',
+    noTestCommand: 'No repository of this project has a test command. Set it up in Project settings > Tests.',
+    nothingChangedToTest: 'This card did not change any repository that has automated tests. Nothing to run.',
     createWorktreeBeforeReview: 'Create the worktree before the review',
     localReviewNotFound: 'Local review not found',
   },

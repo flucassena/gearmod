@@ -361,6 +361,28 @@ export const settings = {
     allowAgents: 'Liberar agentes'
   },
 
+  projectTests: {
+    tab: 'Testes',
+    title: 'Testes automatizados',
+    intro: 'Cada repositório tem o seu comando de teste. Em “Testes automatizados”, no painel Alterações do card, o GearMod roda só os repositórios que o card alterou, cada um dentro da pasta dele na worktree do card. Repositórios sem testes ficam de fora.',
+    generate: 'Gerar comandos de testes automatizados',
+    review: 'Revisar com o agente',
+    generatePrompt: 'Configure os testes automatizados de cada repositório deste projeto.',
+    reviewPrompt: 'Revise os comandos de testes automatizados dos repositórios deste projeto e complete o que faltar.',
+    summary: (ok: number, skip: number, total: number) => `${ok} de ${total} com comando${skip ? ` · ${skip} sem testes` : ''}`,
+    repositories: 'Repositórios',
+    noRepos: 'Este projeto não tem repositórios.',
+    stateOk: 'Configurado',
+    stateSkip: 'Sem testes',
+    stateMissing: 'Sem comando',
+    hasTests: 'Tem testes',
+    hasTestsTip: 'Desligue para repositórios sem testes automatizados: eles não seguram o Done',
+    name: 'Nome',
+    namePlaceholder: 'ex.: Jest, Pytest',
+    command: 'Comando',
+    commandPlaceholder: 'ex.: npm test -- --watchAll=false',
+    howItRuns: 'O comando roda no shell do sistema (cmd no Windows) na pasta do repositório dentro da worktree do card. Ele recebe GEARMOD_WORKTREE, GEARMOD_REPO e GEARMOD_REPO_PATH. Limite de 10 minutos; código de saída 0 passa.'
+  },
   codeIndex: {
     title: 'Índice de código',
     hint: 'Mapa das funções, classes e chamadas do projeto, guardado só neste computador. Os agentes consultam o índice antes de abrir arquivos, o que gasta menos tokens, e o editor usa para Ctrl+T, F12 e Shift+F12.',

@@ -229,7 +229,7 @@ export const cardRunStateSchema = z.object({ state: z.enum(['idle', 'planning', 
 export const cardSchema = z.object({
   id: uuid, projectId: uuid, columnId: uuid, sourceId: uuid.nullable(), type: cardTypeSchema, title: z.string(), description: z.string(),
   priority: cardPrioritySchema, orderKey: z.number(), createdAt: isoDate, updatedAt: isoDate,
-  archivedAt: isoDate.nullable(), acceptanceCriteria: z.array(criterionSchema), tasks: taskCountSchema, run: cardRunStateSchema, hasPlan: z.boolean(), planningOpen: z.boolean(), workspace: z.object({ branch: z.string(), baseRef: z.string(), path: z.string(), sharedFrom: z.string().nullable().optional() }).nullable(), pending: z.object({ changes: z.number().int().nonnegative(), questions: z.number().int().nonnegative(), commits: z.number().int().nonnegative(), toSend: z.number().int().nonnegative(), testFailures: z.number().int().nonnegative() }), execProfileId: uuid.nullable(), execModel: z.string().nullable(), agentIds: z.array(uuid), complexity: cardComplexitySchema.nullable(), repoIds: z.array(uuid).nullable(),
+  archivedAt: isoDate.nullable(), acceptanceCriteria: z.array(criterionSchema), tasks: taskCountSchema, run: cardRunStateSchema, testsRunning: z.boolean().optional(), hasPlan: z.boolean(), planningOpen: z.boolean(), workspace: z.object({ branch: z.string(), baseRef: z.string(), path: z.string(), sharedFrom: z.string().nullable().optional() }).nullable(), pending: z.object({ changes: z.number().int().nonnegative(), questions: z.number().int().nonnegative(), commits: z.number().int().nonnegative(), toSend: z.number().int().nonnegative(), testFailures: z.number().int().nonnegative() }), execProfileId: uuid.nullable(), execModel: z.string().nullable(), agentIds: z.array(uuid), complexity: cardComplexitySchema.nullable(), repoIds: z.array(uuid).nullable(),
   /** Chosen flow (`light` = short flow, a single agent) and, in SDD, the method. Null = not chosen yet. */
   workflow: workflowKindSchema.nullable(), sddMethod: cardSddMethodSchema.nullable(),
   /** How many things wait for the user on the card: questions, changes and approvals to decide, and agents asking permission right now. */
@@ -242,7 +242,7 @@ export const agentProbeSchema = z.object({
   error: z.string().nullable(), account: z.string().nullable()
 })
 /** `constitution`: project chat (no card) that writes the Constitution. */
-export const chatPurposeSchema = z.union([agentPurposeSchema, z.literal('free'), z.literal('constitution'), z.literal('conflict')])
+export const chatPurposeSchema = z.union([agentPurposeSchema, z.literal('free'), z.literal('constitution'), z.literal('conflict'), z.literal('test-setup')])
 export const chatSchema = z.object({ id: uuid, projectId: uuid, cardId: uuid.nullable(), purpose: chatPurposeSchema, title: z.string().nullable(), busy: z.boolean(), provider: z.enum(['codex', 'claude', 'gemini']), profileId: uuid, providerSessionId: z.string().nullable(), skill: skillRefSchema.nullable(), createdAt: isoDate, updatedAt: isoDate })
 /** Project Constitution: principles that apply to every card. Optional; `version` 0 = does not exist yet. */
 export const constitutionSchema = z.object({ projectId: uuid, contentMd: z.string(), version: z.number().int().nonnegative(), updatedAt: isoDate.nullable(), updatedBy: z.enum(['user', 'agent', 'system']).nullable() })
@@ -272,7 +272,11 @@ export const runEventSchema = z.object({ id: uuid, runId: uuid, seq: z.number().
 export const planSchema = z.object({ id: uuid, cardId: uuid, version: z.number().int().positive(), agentProfileId: uuid, contentMd: z.string(), status: z.enum(['draft', 'approved', 'superseded']), createdAt: isoDate, approvedAt: isoDate.nullable() })
 export const worktreeSchema = z.object({ id: uuid, cardId: uuid, repoPath: z.string(), path: z.string(), branch: z.string(), baseRef: z.string(), createdAt: isoDate, cleanupState: z.enum(['active', 'missing', 'cleanup-requested', 'removed']) })
 export const gitSnapshotSchema = z.object({ worktreeId: uuid, status: z.string(), diff: z.string(), exists: z.boolean() })
-export const testRunSchema = z.object({ id: uuid, cardId: uuid, command: z.string(), status: z.enum(['running', 'passed', 'failed']), exitCode: z.number().int().nullable(), summary: z.string(), startedAt: isoDate, endedAt: isoDate.nullable() })
+/** Result of one repository's command inside an automated test run (`skipped`: the card did not change it, or it has no tests). */
+export const testRunRepoSchema = z.object({ name: z.string(), label: z.string(), command: z.string(), status: z.enum(['running', 'passed', 'failed', 'skipped']), exitCode: z.number().int().nullable(), reason: z.string() })
+export const testRunSchema = z.object({ id: uuid, cardId: uuid, command: z.string(), status: z.enum(['running', 'passed', 'failed']), exitCode: z.number().int().nullable(), summary: z.string(), startedAt: isoDate, endedAt: isoDate.nullable(), repos: z.array(testRunRepoSchema).optional() })
+/** Automated-test setting of one project repository: its command and short name, or that it has no tests (`applicable: false`). */
+export const repoTestCommandSchema = z.object({ sourceId: uuid, repo: z.string(), path: z.string(), command: z.string(), name: z.string(), applicable: z.boolean() })
 export const reviewSchema = z.object({ id: uuid, cardId: uuid, provider: z.enum(['github', 'gitlab', 'local']), remoteUrl: z.string().nullable(), remoteId: z.string().nullable(), state: z.enum(['open', 'approved', 'merged', 'closed']), targetBranch: z.string(), sourceBranch: z.string(), updatedAt: isoDate })
 
 /** Metrics of a run, only with what the provider reports: `reported` cost comes from the agent itself; without that it is `unavailable` (never silently estimated). */
@@ -676,9 +680,13 @@ export const ipcContracts = {
   , 'worktrees:adopt': { input: z.object({ cardId: uuid, path: z.string().min(1).max(2048) }).strict(), output: z.object({}) }
   , 'worktrees:link': { input: z.object({ cardId: uuid, fromCardId: uuid.nullable() }).strict(), output: z.object({}) }
   , 'tests:run': { input: z.object({ cardId: uuid, executable: z.string().min(1).max(2048), args: z.array(z.string().max(4096)).max(100) }).strict(), output: testRunSchema }
+  , 'tests:run-card': { input: cardIdInput, output: testRunSchema }
+  , 'tests:plan': { input: cardIdInput, output: z.object({ repos: z.array(z.object({ name: z.string(), label: z.string(), command: z.string(), changed: z.boolean() })), fallback: z.string() }) }
+  , 'tests:repo-commands': { input: projectIdInput, output: z.array(repoTestCommandSchema) }
+  , 'tests:set-repo-command': { input: z.object({ projectId: uuid, sourceId: uuid, command: z.string().max(2048), name: z.string().max(60), applicable: z.boolean() }).strict(), output: z.array(repoTestCommandSchema) }
   , 'tests:detect-command': { input: cardIdInput, output: z.object({ command: z.string() }) }
-  , 'tests:command': { input: projectIdInput, output: z.object({ command: z.string() }) }
-  , 'tests:set-command': { input: z.object({ projectId: uuid, command: z.string().max(2048) }).strict(), output: z.object({ command: z.string() }) }
+  , 'tests:command': { input: projectIdInput, output: z.object({ command: z.string(), name: z.string() }) }
+  , 'tests:set-command': { input: z.object({ projectId: uuid, command: z.string().max(2048), name: z.string().max(60).optional() }).strict(), output: z.object({ command: z.string(), name: z.string() }) }
   , 'quality:status': { input: cardIdInput, output: z.object({ test: testRunSchema.nullable(), review: reviewSchema.nullable() }) }
   , 'reviews:prepare-local': { input: cardIdInput, output: reviewSchema }
   , 'reviews:approve-local': { input: z.object({ reviewId: uuid }).strict(), output: reviewSchema }
@@ -788,6 +796,8 @@ export type Plan = z.output<typeof planSchema>
 export type Worktree = z.output<typeof worktreeSchema>
 export type GitSnapshot = z.output<typeof gitSnapshotSchema>
 export type TestRun = z.output<typeof testRunSchema>
+export type TestRunRepo = z.output<typeof testRunRepoSchema>
+export type RepoTestCommand = z.output<typeof repoTestCommandSchema>
 export type Review = z.output<typeof reviewSchema>
 
 export interface GearModApi {

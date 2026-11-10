@@ -410,6 +410,25 @@ export class WorktreeService {
     return { worktreeId: worktree.id, status: snapshots.map((item) => `${item.heading}${item.status}`).join(''), diff: snapshots.map((item) => `${item.heading}${item.diff}`).join(''), exists: true }
   }
 
+  /**
+   * Repositories of the card's worktree and whether the card changed each one (commits since it left the base, or uncommitted files).
+   * A card with a single repository has no members: the worktree itself is the only one.
+   */
+  async changedRepos(cardId: string): Promise<Array<{ repoPath: string; path: string; changed: boolean }>> {
+    const worktree = this.get(cardId)
+    if (!worktree) throw new Error(withErrorCode('no-worktree', tm().worktrees.notCreatedYet))
+    const members = this.database.db.prepare(`SELECT repo_path AS repoPath, path, base_ref AS baseRef FROM worktree_members WHERE worktree_id = ? AND status = 'active' ORDER BY path`).all(worktree.id) as Array<{ repoPath: string; path: string; baseRef: string }>
+    const targets = members.length ? members : [{ repoPath: worktree.repoPath, path: worktree.path, baseRef: worktree.baseRef }]
+    return Promise.all(targets.filter((member) => existsSync(member.path)).map(async (member) => {
+      const since = await this.mergeBase(member)
+      const [status, diff] = await Promise.all([
+        this.git.run(['-C', member.path, 'status', '--porcelain']).then((result) => result.stdout.trim(), () => ''),
+        this.git.run(['-C', member.path, 'diff', '--name-only', since, 'HEAD', '--']).then((result) => result.stdout.trim(), () => '')
+      ])
+      return { repoPath: member.repoPath, path: member.path, changed: Boolean(status || diff) }
+    }))
+  }
+
   /** Card's exit point in the repository (merge-base with the base; without it, the base itself): the "before" of everything the card changed. */
   private mergeBase(member: { path: string; baseRef: string }): Promise<string> {
     return this.git.run(['-C', member.path, 'merge-base', member.baseRef, 'HEAD']).then((result) => result.stdout.trim() || member.baseRef, () => member.baseRef)

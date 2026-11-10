@@ -766,6 +766,14 @@ export const migrations: readonly Migration[] = [
       // Each repository has its own base branch: new card worktrees start from its latest version. Empty follows the current branch, as before.
       db.exec('ALTER TABLE project_sources ADD COLUMN base_branch TEXT;')
     }
+  },
+  {
+    version: 48,
+    checksum: 'sha256:gearmod-test-run-repos-v48-2026-11-09',
+    up(db) {
+      // Automated tests run one command per repository the card changed: the result of each one, as JSON.
+      db.exec("ALTER TABLE test_runs ADD COLUMN repos_json TEXT NOT NULL DEFAULT '[]';")
+    }
   }
 ]
 

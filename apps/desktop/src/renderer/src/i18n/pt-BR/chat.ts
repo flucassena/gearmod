@@ -397,6 +397,7 @@ export const chat = {
       ]
     },
     modes: {
+      'test-setup': { eyebrow: 'Testes automatizados', title: 'Testes automatizados do projeto', chip: 'Do projeto · um comando por repositório', empty: 'Chat dos testes automatizados: o agente olha cada repositório do projeto e configura o comando de teste de cada um (ou marca que não tem). Os comandos rodam na worktree do card, só nos repositórios que ele alterou.', placeholder: 'Ex.: configure os testes de todos os repositórios…', badge: '⌘ Testes', badgeTip: 'Configura os comandos de teste; pode criar scripts nos repositórios quando você concordar' },
       free: { eyebrow: 'Chat livre', title: 'Conversa livre', chip: 'Sem card · direto no projeto', empty: 'Converse sobre o projeto ou peça uma alteração. O agente pode perguntar se você prefere criar um card para documentá-la ou fazer direto no chat.', placeholder: 'Converse ou peça uma alteração…', badge: '✎ Pode alterar arquivos', badgeTip: 'Altera arquivos do projeto quando você pedir, conforme o modo escolhido' },
       constitution: { eyebrow: 'Constituição', title: 'Constituição do projeto', chip: 'Do projeto · não altera arquivos', empty: 'Chat da Constituição: os princípios que todo card do projeto respeita. Peça para criar, revisar ou mudar um princípio; eu leio o projeto, proponho e só gravo com o seu acordo.', placeholder: 'Ex.: crie a Constituição a partir do projeto…', badge: '§ Constituição', badgeTip: 'Só escreve a Constituição; não altera arquivos nem cards' }
     },
@@ -410,6 +411,7 @@ export const chat = {
   chatsPage: {
     freeChat: 'Chat livre',
     conflict: 'Conflito',
+    testSetup: 'Testes automatizados',
     constitution: 'Constituição',
     now: 'agora',
     minutesAgo: (n: number) => `há ${n} min`,

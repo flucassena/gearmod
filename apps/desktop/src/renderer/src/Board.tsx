@@ -5,8 +5,7 @@ import { useToolsPending } from './ToolsPanel'
 import React, { useEffect, useRef, useState } from 'react'
 import { shortcutEvent } from './shortcuts'
 import { createPortal } from 'react-dom'
-import { loadTestCommand } from './ChangesCard'
-import { errorCodeOf, withoutErrorCode, type AgentProfile, type AgentPurpose, type Card, type CardTypeDef, type Chat, type ProjectBoard } from '@gearmod/contracts'
+import { errorCodeOf, withoutErrorCode, type AgentConfig, type AgentProfile, type AgentPurpose, type Card, type CardTypeDef, type Chat, type ProjectBoard } from '@gearmod/contracts'
 import { AgentIcon } from './AgentIcon'
 import { CardChat } from './CardChat'
 import { CardContextMenu } from './CardContextMenu'
@@ -77,6 +76,7 @@ function CardTile({ card, types, state, agent, agents, dropLabel, dragProps, onP
     {run === 'failed' && <button type="button" className="badge paused" data-tip={t.tile.failedTip(card.run.error ?? '')} onClick={(e) => { e.stopPropagation(); onRetry() }}><span className="dot" />{t.tile.failed}</button>}
     {run === 'finished' && <button type="button" className="badge fin" onClick={(e) => { e.stopPropagation(); onChat() }}><span className="dot pulse" />{t.tile.finishedViewChat}</button>}
     {run === 'running' && <div className="running" data-purpose={card.run.purpose} role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onChat() }} onKeyDown={(e) => { if (e.key === 'Enter') onChat() }}><div className="row"><span className="spin" />{agent && <AgentIcon profile={agent} />}<span style={{ color: 'var(--muted)' }}>{card.execModel ?? ''}</span></div><span style={{ fontSize: 11, color: 'var(--accent)' }}>{card.run.purpose === 'test' ? t.tile.testingTap : t.tile.executionTap}</span></div>}
+    {run !== 'running' && card.testsRunning && <div className="running" data-purpose="test" role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onChat() }} onKeyDown={(e) => { if (e.key === 'Enter') onChat() }}><div className="row"><span className="spin" /><span style={{ fontSize: 11, color: 'var(--accent)' }}>{t.tile.autoTestsRunningTap}</span></div></div>}
     <div className="cfoot">
       <span className="ownr">{(agents.length ? agents : agent ? [agent] : []).length > 0 && <span className="agentstack">{(agents.length ? agents : [agent!]).map((profile) => <AgentIcon key={profile.id} profile={profile} />)}</span>}{!open && <span className="cnt">{card.workflow === 'light' ? t.tile.oneAgentOnly : total ? t.tile.tasksCount(done, total) : t.tile.noTasks}</span>}</span>
       <div className="btns">
@@ -170,7 +170,7 @@ function ViewDockDropPreview({ databaseEnabled }: { databaseEnabled: boolean }):
   </div>
 }
 
-export function Board({ board, profiles, history, refresh, onProjectConfig, openSettings, freeRequest, freeHandled, constitutionRequest, constitutionHandled, openTarget, targetHandled, slots }: { slots?: { view: HTMLElement | null; gear: HTMLElement | null; tray?: HTMLElement | null }; board: ProjectBoard; profiles: AgentProfile[]; history: AgentProfile[]; refresh(): Promise<void>; onProjectConfig(tab?: 'general' | 'git'): void; openSettings(): void; freeRequest?: { projectId: string; at: number }; freeHandled(): void; constitutionRequest?: { projectId: string; prompt?: string; at: number }; constitutionHandled(): void; openTarget?: { projectId: string; cardId: string | null; chatId: string | null; purpose: string | null }; targetHandled(): void }): React.JSX.Element {
+export function Board({ board, profiles, history, refresh, onProjectConfig, openSettings, freeRequest, freeHandled, constitutionRequest, constitutionHandled, openTarget, targetHandled, slots }: { slots?: { view: HTMLElement | null; gear: HTMLElement | null; tray?: HTMLElement | null }; board: ProjectBoard; profiles: AgentProfile[]; history: AgentProfile[]; refresh(): Promise<void>; onProjectConfig(tab?: 'general' | 'git'): void; openSettings(): void; freeRequest?: { projectId: string; at: number }; freeHandled(): void; constitutionRequest?: { projectId: string; prompt?: string; at: number; mode?: 'constitution' | 'test-setup'; config?: AgentConfig }; constitutionHandled(): void; openTarget?: { projectId: string; cardId: string | null; chatId: string | null; purpose: string | null }; targetHandled(): void }): React.JSX.Element {
   const t = useT().board
   const [draft, setDraft] = useState<Draft>(), [chatCard, setChatCardState] = useState<Card>(), [chatPurpose, setChatPurpose] = useState<AgentPurpose>('planning'), [starting, setStartingState] = useState<{ card: Card; purpose: 'execution' | 'test'; retry?: boolean }>(), [choosing, setChoosing] = useState<string>(), [stopping, setStopping] = useState<Card>(), [pendingCard, setPendingCard] = useState<Card>(), [assessing, setAssessing] = useState<Card>()
   /** Sends the developer each already-authorized card change that has not been sent yet. */
@@ -208,7 +208,7 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
   useEffect(() => { if (chatCard && !board.cards.some((item) => item.id === chatCard.id)) setChatCardState(undefined) }, [board.cards, chatCard])
   // Planning opened without a card: the card is only created on the first message (ensureCard); closing without writing creates nothing.
   const [draftPlan, setDraftPlan] = useState<{ columnId: string; start?: StartChoice }>(), [chatInstance, setChatInstance] = useState(0)
-  const [freeChat, setFreeChat] = useState<{ chat?: Chat; key: number; mode?: 'free' | 'constitution'; prompt?: string; docked?: boolean }>(), [openAfterRefresh, setOpenAfterRefresh] = useState<string>()
+  const [freeChat, setFreeChat] = useState<{ chat?: Chat; key: number; mode?: 'free' | 'constitution' | 'test-setup'; prompt?: string; docked?: boolean; config?: AgentConfig }>(), [openAfterRefresh, setOpenAfterRefresh] = useState<string>()
   const setChatCard = (card: Card | undefined, purpose?: AgentPurpose): void => {
     const open = (next: AgentPurpose): void => { setChatCardState(card); setDraftPlan(undefined); setFreeChat(undefined); setChatPurpose(next); setChatInstance((value) => value + 1) }
     if (!card) { setChatCardState(undefined); setDraftPlan(undefined); return }
@@ -216,7 +216,7 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
     if (card.workflow === 'light' && card.id) { const fallback = purpose ?? chatMode(board, card); void window.gearmod.invoke('chats:list', { projectId: board.project.id, cardId: card.id }).then((items) => { const steps = items.map((item) => item.purpose).filter((value): value is AgentPurpose => value === 'planning' || value === 'execution' || value === 'test'); open(steps.find((value) => value === 'execution') ?? steps[0] ?? fallback) }).catch(() => open(fallback)); return }
     open(purpose ?? chatMode(board, card))
   }
-  const openFree = (chat?: Chat): void => { setChatCardState(undefined); setFreeChat({ chat, key: Date.now(), mode: chat?.purpose === 'constitution' ? 'constitution' : 'free' }) }
+  const openFree = (chat?: Chat): void => { setChatCardState(undefined); setFreeChat({ chat, key: Date.now(), mode: chat?.purpose === 'constitution' || chat?.purpose === 'test-setup' ? chat.purpose : 'free' }) }
   // First view of the board: the planning chat open beside it (only in the main window, with an agent allowed, and nothing else open in the dock).
   const planOpened = useRef(false), hasAgent = allowed.length > 0
   useEffect(() => {
@@ -232,11 +232,13 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
   // Project Constitution tab: opens its chat (continues the last one, if any), optionally already with a request.
   useEffect(() => {
     if (!constitutionRequest || constitutionRequest.projectId !== board.project.id) return
-    const { prompt } = constitutionRequest
+    const { prompt, config } = constitutionRequest, mode = constitutionRequest.mode ?? 'constitution'
     constitutionHandled()
     void window.gearmod.invoke('chats:list', { projectId: board.project.id, cardId: null }).catch(() => [] as Chat[]).then((items) => {
       setChatsOpen(false); setChatCardState(undefined)
-      setFreeChat({ chat: items.find((item) => item.purpose === 'constitution'), key: Date.now(), mode: 'constitution', prompt })
+      const found = items.find((item) => item.purpose === mode)
+      // Another agent chosen: a new conversation with it (the previous one stays in Chats).
+      setFreeChat({ chat: config && found && found.profileId !== config.profileId ? undefined : found, key: Date.now(), mode, prompt, config })
     })
   }, [constitutionRequest, board.project.id, constitutionHandled])
   // Click on a system notification: opens the card's chat (at the right stage) or the free chat.
@@ -289,11 +291,11 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
     await refresh()
   }
   const runGateTests = async (card: Card): Promise<void> => {
-    let command = ''; try { command = await loadTestCommand(board.project.id) } catch { /* no saved command */ }
-    const parts = command.trim().split(/\s+/).filter(Boolean)
-    if (!parts.length) { setChatCard(card, 'test'); say(t.view.setTestCommand, 'notify'); return }
+    // Each changed repository runs its own command (Project settings > Tests); none configured: opens that tab.
+    let plan: { repos: unknown[]; fallback: string } = { repos: [], fallback: '' }; try { plan = await window.gearmod.invoke('tests:plan', { cardId: card.id }) } catch { /* no worktree: the run says why */ }
+    if (!plan.repos.length && !plan.fallback) { window.dispatchEvent(new CustomEvent('gearmod:open-project-config', { detail: { tab: 'tests' } })); say(t.view.setTestCommand, 'notify'); return }
     say(t.view.runningTests, 'notify')
-    void window.gearmod.invoke('tests:run', { cardId: card.id, executable: parts[0]!, args: parts.slice(1) }).then((run) => { if (run.status === 'passed') say(t.view.testsPassed); else say(t.view.testsFailed, 'error'); return refresh() }).catch((reason: unknown) => say(plainError(reason), 'error'))
+    void window.gearmod.invoke('tests:run-card', { cardId: card.id }).then((run) => { if (run.status === 'passed') say(t.view.testsPassed); else say(t.view.testsFailed, 'error'); return refresh() }).catch((reason: unknown) => say(plainError(reason), 'error'))
   }
   const dropLabel = (target: Card): string | undefined => { const dragged = board.cards.find((card) => card.id === dragId); if (!dragged || dragged.id === target.id) return undefined; return dragged.priority === target.priority ? t.view.samePriority : t.view.becomesPriority(t.priority[target.priority]) }
   const edit = (card: Card): Draft => ({ id: card.id, columnId: card.columnId, sourceId: card.sourceId, title: card.title, type: card.type, priority: card.priority, workflow: card.workflow })
@@ -348,7 +350,7 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
     {deleting && <DeleteCardDialog title={deleting.title || t.newCard} cancel={() => setDeleting(undefined)} confirm={(deleteArtifacts) => { const card = deleting; setDeleting(undefined); void window.gearmod.invoke('cards:delete', { cardId: card.id, deleteArtifacts }).then(() => { say(t.view.cardDeleted); return refresh() }).catch((reason: unknown) => say(plainError(reason), 'error')) }} />}
     </main>
     {chatCard && allowed.length === 0 && <NoAgentDialog project={board.project} profiles={profiles} close={() => setChatCard(undefined)} allowed={() => void refresh()} openSettings={() => { setChatCard(undefined); openSettings() }} />}
-    {freeChat && allowed.length > 0 && <FreeChat key={freeChat.key} docked={freeChat.docked} mode={freeChat.mode} prompt={freeChat.prompt} project={board.project} profiles={allowed} chat={freeChat.chat} close={() => { setFreeChat(undefined) }} changed={() => void refresh()} onConverted={(cardId) => { void refresh().then(() => setOpenAfterRefresh(cardId)) }} />}
+    {freeChat && allowed.length > 0 && <FreeChat key={freeChat.key} docked={freeChat.docked} mode={freeChat.mode} prompt={freeChat.prompt} startConfig={freeChat.config} project={board.project} profiles={allowed} chat={freeChat.chat} close={() => { setFreeChat(undefined) }} changed={() => void refresh()} onConverted={(cardId) => { void refresh().then(() => setOpenAfterRefresh(cardId)) }} />}
     {freeChat && allowed.length === 0 && <NoAgentDialog project={board.project} profiles={profiles} close={() => setFreeChat(undefined)} allowed={() => void refresh()} openSettings={() => { setFreeChat(undefined); openSettings() }} />}
     {draftPlan && allowed.length === 0 && <NoAgentDialog project={board.project} profiles={profiles} close={() => setDraftPlan(undefined)} allowed={() => void refresh()} openSettings={() => { setDraftPlan(undefined); openSettings() }} />}
     {(chatCard || draftPlan) && allowed.length > 0 && <CardChat key={`chat-${chatInstance}-${chatPurpose}`} project={board.project} card={chatCard ? fresh(chatCard) : draftCard(board, draftPlan!.columnId)} board={board} profiles={history} columnLabel={chatCard ? columnLabel(chatCard) : board.columns.find((column) => column.id === draftPlan?.columnId)?.label ?? ''} mode={chatPurpose} onSwitch={setChatPurpose} close={() => { setChatCard(undefined); setDraftPlan(undefined); setGitCardId(undefined) }} openEdit={(card) => setDraft(edit(card))} openChat={(card) => setChatCard(card)} initialView={gitCardId === chatCard?.id ? 'git' : 'chat'} openRules={() => onProjectConfig('git')} openGraph={(id) => { setChatCardState(undefined); setGitCardId(undefined); setChatsOpen(false); setGitOpen(true); setGitFocus({ cardId: id, at: Date.now() }) }}

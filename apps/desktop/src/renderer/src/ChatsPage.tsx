@@ -6,7 +6,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { plainError } from './NoticeDialog'
 import { tr, useT } from './i18n'
 
-const label = (chat: Chat): string => chat.purpose === 'free' ? tr().chat.chatsPage.freeChat : chat.purpose === 'constitution' ? tr().chat.chatsPage.constitution : chat.purpose === 'conflict' ? tr().chat.chatsPage.conflict : tr().chat.steps[chat.purpose]
+const label = (chat: Chat): string => chat.purpose === 'free' ? tr().chat.chatsPage.freeChat : chat.purpose === 'constitution' ? tr().chat.chatsPage.constitution : chat.purpose === 'conflict' ? tr().chat.chatsPage.conflict : chat.purpose === 'test-setup' ? tr().chat.chatsPage.testSetup : tr().chat.steps[chat.purpose]
 
 const ago = (iso: string): string => {
   const minutes = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000))
@@ -42,7 +42,7 @@ export function ChatsPage({ board, openCard, openCardEditor, openFree, deleted, 
       {error && <p className="error">{error}</p>}
       {filter === 'archived' ? <>{archived.filter((card) => (card.title || p.untitled).toLowerCase().includes(query.trim().toLowerCase())).map((card) => <div className="cpitem" key={card.id}><span className="cpico"><ArchiveIcon /></span><span className="cpmain"><b>{card.title || p.untitled}</b><span className="cpmeta">{p.archivedCard}</span></span><button type="button" className="mini secondary" disabled={restoring === card.id} onClick={() => { setRestoring(card.id); setError(''); void window.gearmod.invoke('cards:restore', { cardId: card.id }).then(() => changed()).catch((reason: unknown) => setError(plainError(reason))).finally(() => setRestoring(undefined)) }}>{p.restore}</button></div>)}{!archived.some((card) => (card.title || p.untitled).toLowerCase().includes(query.trim().toLowerCase())) && <div className="emptyBox cpempty">{query ? p.noArchivedFound : p.noArchived}</div>}</> : <>{rows.map(({ chat, card }) => <button type="button" className={`cpitem ${current === chat.id ? 'on' : ''}`} key={chat.id} onClick={() => (!chat.cardId ? openFree(chat) : card && openCard(card, chat.purpose as AgentPurpose))} onContextMenu={(event) => { event.preventDefault(); setMenu({ chat, x: event.clientX, y: event.clientY }) }}>
         <span className="cpico"><ChatIcon /></span>
-        <span className="cpmain"><b>{chat.purpose === 'constitution' ? p.projectConstitution : chat.purpose === 'free' ? chat.title || p.freeConversation : chat.purpose === 'conflict' ? chat.title || p.conflict : card?.title || t.chat.tile.newCard}</b>
+        <span className="cpmain"><b>{chat.purpose === 'constitution' ? p.projectConstitution : chat.purpose === 'free' ? chat.title || p.freeConversation : chat.purpose === 'conflict' ? chat.title || p.conflict : chat.purpose === 'test-setup' ? label(chat) : card?.title || t.chat.tile.newCard}</b>
           <span className="cpmeta"><em className={`cpchip ${card ? '' : 'free'}`}>{label(chat)}</em>{!!card && <span>{board.columns.find((column) => column.id === card.columnId)?.label}</span>}<span>{ago(chat.updatedAt)}</span></span></span>
         {chat.busy && <span className="spin sm" aria-label={p.running} />}
       </button>)}

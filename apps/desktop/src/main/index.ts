@@ -113,7 +113,7 @@ const runProject = ({ cardId, chatId }: { cardId: string | null; chatId: string 
 const codeRoots = (run: { cardId: string | null; chatId: string }): string[] => projectCodeRoots({ projectId: runProject(run), cardId: run.cardId })
 const codeIndexSettings = new CodeIndexSettings(database)
 const codeEnabled = (run: { cardId: string | null; chatId: string }): boolean => codeIndexSettings.enabled(runProject(run))
-const quality = new QualityService(database, worktrees)
+const quality = new QualityService(database, worktrees, (cardId) => pushEvent('gearmod/card-updated', { cardId }))
 const pluginDir = join(app.isPackaged ? process.resourcesPath : app.getAppPath(), app.isPackaged ? 'gearmod-plugin' : 'resources/gearmod-plugin')
 const approvals = new ApprovalService(database)
 const policy = new PolicyEngine(database)
@@ -151,7 +151,7 @@ const appIcon = join(app.isPackaged ? process.resourcesPath : app.getAppPath(), 
 const mcpServerScript = join(app.isPackaged ? process.resourcesPath : app.getAppPath(), app.isPackaged ? 'gearmod-mcp' : 'resources/gearmod-mcp', 'server.mjs')
 const collab = new CollaborationService(database, board, conversations, agentConfigs, (cardId) => { BrowserWindow.getAllWindows().forEach((window) => window.webContents.send('runs:event-pushed', { runId: '', eventType: 'gearmod/card-updated', payload: { cardId, type: 'document' } })); watchWaiting(cardId) }, checklists)
 // S05, behind the flag (default off until soak, Q-05): an immediate agent move becomes a pending approval request.
-const mcpBridge = new McpBridge({ board, context: agentContext, serverScript: mcpServerScript, testCommand: { get: (projectId) => quality.testCommand(projectId).command, set: (projectId, command) => quality.setTestCommand(projectId, command).command, suggest: (cardId) => quality.detectCommand(cardId).command }, collab, conversations, constitution, checklists, git: gitManager, history, approvals, policy, sddResolver, sddWriter, planReady: (cardId) => exportPlanArtifacts(history, board, cardId), prepareWorktree: (cardId) => worktrees.prepare(cardId), trimWorktree: async (cardId, keep) => {
+const mcpBridge = new McpBridge({ board, context: agentContext, serverScript: mcpServerScript, testCommand: { repos: (projectId) => quality.repoCommands(projectId), setRepo: (projectId, sourceId, input) => quality.setRepoCommand(projectId, sourceId, input), findRepo: (projectId, ref) => quality.findRepo(projectId, ref), suggest: (cardId) => quality.detectCommand(cardId).command }, collab, conversations, constitution, checklists, git: gitManager, history, approvals, policy, sddResolver, sddWriter, planReady: (cardId) => exportPlanArtifacts(history, board, cardId), prepareWorktree: (cardId) => worktrees.prepare(cardId), trimWorktree: async (cardId, keep) => {
   // The SDD repository never leaves: the card's documents live in it.
   const card = board.card(cardId), sdd = await sddResolver.locate({ projectId: card.projectId, cardId }).then((location) => location.sourceId, () => null)
   return worktrees.trim(cardId, sdd ? [...new Set([...keep, sdd])] : keep)
@@ -187,7 +187,7 @@ const orchestrator = new AgentOrchestrator(conversations, { codex: new CodexAppS
 }, worktrees, () => settings.get().execucoesSimultaneas ?? recommendedConcurrency(), agentContext, writeback, agentConfigs, usage, collab, (info) => {
   if (info.cardId) void cardUsageExport.export(info.cardId).catch(() => console.error('Falha ao exportar consumo do card.'))
   // Run-end event (metrics and implementation/verification reports in the card artifacts folder).
-  if (info.cardId && info.purpose !== 'free' && info.purpose !== 'constitution') { try { history.runFinished({ cardId: info.cardId, runId: info.runId, chatId: info.chatId, purpose: info.purpose, status: info.status }) } catch { /* artifact is best-effort */ } }
+  if (info.cardId && info.purpose !== 'free' && info.purpose !== 'constitution' && info.purpose !== 'conflict' && info.purpose !== 'test-setup') { try { history.runFinished({ cardId: info.cardId, runId: info.runId, chatId: info.chatId, purpose: info.purpose, status: info.status }) } catch { /* artifact is best-effort */ } }
   // System notification when an agent finishes (only with the app out of focus); the click opens the card chat or the free chat.
   const card = info.cardId ? board.card(info.cardId) : null
   const title = card?.title || conversations.listChats(conversations.projectOf(info.chatId)).find((chat) => chat.id === info.chatId)?.title || ''
@@ -270,6 +270,7 @@ async function openDatabase(): Promise<void> {
     await backups.create(db, `schema-upgrade-${from}-to-${to}`)
   })
   conversations.reconcileInterrupted()
+  quality.reconcileInterrupted()
   // Runs deleted from SQLite may still exist in the card's versioned history; the (run_id, seq) key makes recovery idempotent.
   for (const project of projects.list()) for (const card of board.get(project.id).cards) {
     try { usageLedger.importHistory(card.id, history.artifactsDir(card.id)) } catch { /* history on disk is optional */ }
