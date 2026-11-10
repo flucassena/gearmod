@@ -168,3 +168,61 @@ export const ActivityIcon = make(<path d="M3 10h3l2-5 4 10 2-5h3" />, { view: '0
 export const WindowIcon = make(<><rect x="2.5" y="3" width="15" height="14" rx="2.5" /><path d="M3 7h14" />{dot(5, 5, .7)}{dot(7, 5, .7)}</>, { view: '0 0 20 20' })
 /** Settings. */
 export const GearIcon = make(<><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></>)
+
+/* Pull requests (list, detail, pipelines, new request). */
+/** A pull/merge request: the PR mode, the "Pull requests" section, the "Aberto" state, creating one. */
+export const PullRequestIcon = make(<><circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8" /><path d="M18 16v-6a3 3 0 0 0-3-3h-4" /><path d="m13 5-2 2 2 2" /></>)
+/** Merge a pull request (the merge button and its options). */
+export const MergeIcon = make(<><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="13" r="2" /><path d="M6 7v10" /><path d="M6 7c0 4 4 6 10 6" /></>)
+/** React to a comment (opens the 👍/👎 choice). */
+export const SmileIcon = make(<><circle cx="12" cy="12" r="9" /><path d="M8.5 14.2a4.5 4.5 0 0 0 7 0" />{dot(9.2, 9.8, 1.1)}{dot(14.8, 9.8, 1.1)}</>)
+/** Resolve or reopen a review thread (a check leaving an open circle). */
+export const ResolveIcon = make(<><path d="M20.5 11A8.5 8.5 0 1 1 15 4" /><path d="m8.5 11.5 3 3L21 5" /></>)
+/** Like (thumbs up) on a pull request. */
+export const ThumbUpIcon = make(<><path d="M7 10v10" /><path d="M4 10h3v10H4a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z" /><path d="m7 10 3.7-6.2a1.6 1.6 0 0 1 2.9 1.2L12.8 9H18a2 2 0 0 1 2 2.3l-1.2 6.9A2 2 0 0 1 16.8 20H7" /></>)
+/** Dislike (thumbs down) on a pull request. */
+export const ThumbDownIcon = make(<g transform="rotate(180 12 12)"><path d="M7 10v10" /><path d="M4 10h3v10H4a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z" /><path d="m7 10 3.7-6.2a1.6 1.6 0 0 1 2.9 1.2L12.8 9H18a2 2 0 0 1 2 2.3l-1.2 6.9A2 2 0 0 1 16.8 20H7" /></g>)
+/** Approval of a pull request: approve, who approved, reviewers. */
+export const ApproverIcon = make(<><circle cx="10" cy="8" r="4" /><path d="M3 20c0-3.5 3-6 7-6 1.3 0 2.5.3 3.5.8" /><path d="m15 18 2 2 4-4" /></>)
+/** A person: the assignee of a pull request. */
+export const PersonIcon = make(<><circle cx="12" cy="8" r="4" /><path d="M4 20c0-3.8 3.6-6 8-6s8 2.2 8 6" /></>)
+/** A milestone of the project. */
+export const MilestoneIcon = make(<><path d="M12 3v18" /><path d="M12 5h6l2 2.5-2 2.5h-6" /><path d="M12 12H6l-2 2.5L6 17h6" /></>)
+/** A label of the project (pull requests, issues). */
+export const LabelIcon = make(<><path d="M3 12V4.5A1.5 1.5 0 0 1 4.5 3H12l9 9-9 9Z" />{dot(7.5, 7.5, 1.3)}</>)
+/** Show or hide the side panel (the file tree of the changes). */
+export const SidePanelIcon = make(<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /><path d="M5.5 8h1M5.5 11h1" /></>)
+/** Files shown as a tree grouped by folder (the list view is ListIcon). */
+export const TreeViewIcon = make(<><path d="M6 4v12a2 2 0 0 0 2 2h4" /><path d="M6 9h6" /><rect x="13" y="6.5" width="7" height="5" rx="1.2" /><rect x="13" y="15.5" width="7" height="5" rx="1.2" /></>)
+/** Markdown toolbar: bold. */
+export const BoldIcon = make(<><path d="M7 5h6a3.5 3.5 0 0 1 0 7H7z" /><path d="M7 12h7a3.5 3.5 0 0 1 0 7H7z" /></>)
+/** Markdown toolbar: italic. */
+export const ItalicIcon = make(<path d="M10 5h8M6 19h8M14 5l-4 14" />)
+/** Markdown toolbar: strikethrough. */
+export const StrikeIcon = make(<><path d="M16 7.5C15.4 6 13.9 5 12 5c-2.5 0-4 1.3-4 3 0 1.4.9 2.3 2.8 3" /><path d="M4 12h16" /><path d="M15.6 14.5c.3.5.4 1 .4 1.5 0 1.8-1.7 3-4 3-2 0-3.6-.9-4.2-2.4" /></>)
+/** Markdown toolbar: quote. */
+export const QuoteIcon = make(<><path d="M5 6v12" /><path d="M9 8h10M9 12h10M9 16h6" /></>)
+/** Markdown toolbar: link. */
+export const LinkIcon = make(<><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></>)
+/** Markdown toolbar: bulleted list. */
+export const BulletListIcon = make(<>{dot(5, 7, 1.2)}{dot(5, 12, 1.2)}{dot(5, 17, 1.2)}<path d="M9 7h10M9 12h10M9 17h10" /></>)
+/** Markdown toolbar: numbered list. */
+export const NumberedListIcon = make(<><path d="M4.5 5.5h1v4" /><path d="M4.2 14.6a1.2 1.2 0 0 1 2.1.9L4.2 18.5h2.3" /><path d="M10 7h10M10 12h10M10 17h10" /></>)
+/** Markdown toolbar: task list. */
+export const TaskListIcon = make(<><path d="m3.5 7 1.5 1.5 3-3" /><path d="m3.5 16 1.5 1.5 3-3" /><path d="M11 7h9M11 16.5h9" /></>)
+/** Markdown toolbar: table. */
+export const TableIcon = make(<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 10h18M3 15h18M10 4v16" /></>)
+/** Attach a file to a text (uploaded to the host). */
+export const PaperclipIcon = make(<path d="m20 11-8 8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.7 16.7a1.7 1.7 0 0 1-2.4-2.4L15 6.6" />)
+/** Pipeline or job status: passed. */
+export const StatusSuccessIcon = make(<><circle cx="12" cy="12" r="9" /><path d="m8.5 12.3 2.4 2.4 4.6-5" /></>)
+/** Pipeline or job status: failed. */
+export const StatusFailedIcon = make(<><circle cx="12" cy="12" r="9" /><path d="m9.2 9.2 5.6 5.6m0-5.6-5.6 5.6" /></>)
+/** Pipeline or job status: running (spin the element around it, not the svg). Also "sending…" on buttons. */
+export const StatusRunningIcon = make(<><circle cx="12" cy="12" r="9" opacity=".3" /><path d="M12 3a9 9 0 0 1 9 9" /></>)
+/** Pipeline or job status: waiting to run. */
+export const StatusPendingIcon = make(<circle cx="12" cy="12" r="9" strokeDasharray="3.2 3.2" />)
+/** Pipeline or job status: canceled or skipped. */
+export const StatusCanceledIcon = make(<><circle cx="12" cy="12" r="9" /><path d="m8.5 15.5 7-7" /></>)
+/** Pipeline or job status: waiting for someone to start it (manual). */
+export const StatusManualIcon = make(<><circle cx="12" cy="12" r="9" /><path d="M10 8.5v7l5.5-3.5z" /></>)

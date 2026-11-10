@@ -57,7 +57,7 @@ export function assignLanes(rows: ReadonlyArray<{ hash: string; parents: readonl
 const globToRegExp = (pattern: string): RegExp => new RegExp(`^${pattern.trim().replace(/[.+^${}()|[\]\\?]/g, '\\$&').replace(/\*/g, '.*')}$`)
 
 /** The agent's commit rule for a branch: the first matching exception wins; otherwise the project default applies. */
-export function resolveRule(policy: GitPolicy, branch: string): { rule: GitRule; why: string } {
+export function resolveRule(policy: Pick<GitPolicy, 'def' | 'rules'>, branch: string): { rule: GitRule; why: string } {
   const found = policy.rules.find((item) => item.pattern.trim() && globToRegExp(item.pattern).test(branch))
   return found ? { rule: found.rule, why: tm().git.branchException(found.pattern.trim()) } : { rule: policy.def, why: tm().git.projectDefault }
 }
@@ -342,8 +342,8 @@ export class GitManager {
     return structuredClone(defaultGitPolicy)
   }
 
-  setPolicy(projectId: string, policy: GitPolicy): GitPolicy {
-    const clean = gitPolicySchema.parse({ def: policy.def, rules: policy.rules.map((item) => ({ pattern: item.pattern.trim(), rule: item.rule })).filter((item) => item.pattern) })
+  setPolicy(projectId: string, policy: Omit<GitPolicy, 'mergeMethod'> & { mergeMethod?: GitPolicy['mergeMethod'] }): GitPolicy {
+    const clean = gitPolicySchema.parse({ def: policy.def, mergeMethod: policy.mergeMethod, rules: policy.rules.map((item) => ({ pattern: item.pattern.trim(), rule: item.rule })).filter((item) => item.pattern) })
     if (!this.database.db.prepare('UPDATE projects SET git_policy = ? WHERE id = ?').run(JSON.stringify(clean), projectId).changes) throw new Error(tm().common.projectNotFound)
     return clean
   }

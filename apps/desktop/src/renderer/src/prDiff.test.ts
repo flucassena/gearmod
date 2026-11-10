@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { splitDiff } from './prDiff'
+import { pairRows, parseFileDiff, splitDiff } from './prDiff'
 
 describe('splitDiff', () => {
   it('splits per file and reads the status from git markers or from the hunk header', () => {
@@ -15,5 +15,40 @@ describe('splitDiff', () => {
     expect(files.get('novo.ts')?.status).toBe('A')
     expect(files.get('api.py')?.status).toBe('A')
     expect(files.get('old.py')).toEqual({ status: 'D', lines: ['@@ -1,2 +0,0 @@', '-a', '-b'] })
+  })
+})
+
+describe('parseFileDiff', () => {
+  const lines = ['@@ -1,3 +1,3 @@', ' a', '-b', '+B', '+C', ' d', '\\ No newline at end of file', '@@ -10,2 +11,2 @@', ' x', '-y', '+z']
+  it('numbers old and new lines and counts positions like GitLab', () => {
+    const rows = parseFileDiff(lines)
+    expect(rows.map((r) => r.kind)).toEqual(['hunk', 'ctx', 'del', 'add', 'add', 'ctx', 'hunk', 'ctx', 'del', 'add'])
+    expect(rows[1]).toMatchObject({ oldLine: 1, newLine: 1, oldPos: 1, newPos: 1 })
+    expect(rows[2]).toMatchObject({ oldLine: 2, newLine: null, oldPos: 2, newPos: 2 })
+    expect(rows[3]).toMatchObject({ oldLine: null, newLine: 2, oldPos: 3, newPos: 2 })
+    expect(rows[4]).toMatchObject({ oldLine: null, newLine: 3, oldPos: 3, newPos: 3 })
+    expect(rows[5]).toMatchObject({ oldLine: 3, newLine: 4 })
+  })
+  it('restarts counters in each hunk and tags the hunk index', () => {
+    const rows = parseFileDiff(lines)
+    expect(rows[7]).toMatchObject({ oldLine: 10, newLine: 11, hunk: 1 })
+    expect(rows[9]).toMatchObject({ kind: 'add', newLine: 12, hunk: 1 })
+  })
+  it('handles a new file and a deleted file', () => {
+    expect(parseFileDiff(['@@ -0,0 +1,2 @@', '+a', '+b']).map((r) => r.newLine)).toEqual([null, 1, 2])
+    expect(parseFileDiff(['@@ -1,2 +0,0 @@', '-a', '-b']).map((r) => r.oldLine)).toEqual([null, 1, 2])
+    expect(parseFileDiff([])).toEqual([])
+  })
+})
+
+describe('pairRows', () => {
+  it('puts removals next to additions and context on both sides', () => {
+    const pairs = pairRows(parseFileDiff(['@@ -1,3 +1,4 @@', ' a', '-b', '-c', '+B', '+C', '+D', ' e']))
+    expect(pairs.map((p) => [p.hunk ? 'h' : p.left?.text ?? '-', p.right?.text ?? '-'])).toEqual([['h', '-'], ['a', 'a'], ['b', 'B'], ['c', 'C'], ['-', 'D'], ['e', 'e']])
+  })
+  it('leaves the right side empty for a pure removal', () => {
+    const pairs = pairRows(parseFileDiff(['@@ -1,1 +0,0 @@', '-a']))
+    expect(pairs[1]).toMatchObject({ right: null })
+    expect(pairs[1]?.left?.text).toBe('a')
   })
 })

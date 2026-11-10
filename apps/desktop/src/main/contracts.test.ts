@@ -46,4 +46,27 @@ describe('IPC contracts', () => {
     expect(ipcContracts['settings:update'].input.safeParse({ temasPersonalizados: many }).success).toBe(false)
     expect(ipcContracts['settings:update'].input.safeParse({ temasPersonalizados: many.slice(0, 20) }).success).toBe(true)
   })
+  it('validates the PR review channels', () => {
+    const sourceId = ids.projectId
+    const point = { oldLine: null, newLine: 3, oldPos: 2, newPos: 3 }
+    const line = { sourceId, number: 1, body: 'x', path: 'a.ts', oldPath: 'a.ts', headSha: 'abc123', baseSha: null, startSha: null, start: point, end: point }
+    const c = ipcContracts['prs:line-comment'].input
+    expect(c.safeParse(line).success).toBe(true)
+    expect(c.safeParse({ ...line, body: ' ' }).success).toBe(false)
+    expect(c.safeParse({ ...line, headSha: 'zzz' }).success).toBe(false)
+    expect(c.safeParse({ ...line, path: '../x' }).success).toBe(false)
+    expect(c.safeParse({ ...line, path: '-x' }).success).toBe(false)
+    expect(c.safeParse({ ...line, start: { ...point, newLine: null } }).success).toBe(false)
+    expect(ipcContracts['prs:checks'].input.safeParse({ sourceId, numbers: Array.from({ length: 21 }, (_, n) => n + 1) }).success).toBe(false)
+    expect(ipcContracts['prs:checks'].input.safeParse({ sourceId, numbers: [] }).success).toBe(false)
+    expect(ipcContracts['prs:react'].input.safeParse({ sourceId, number: 1, kind: 'heart' }).success).toBe(false)
+    expect(ipcContracts['prs:react'].input.safeParse({ sourceId, number: 1, kind: 'up' }).success).toBe(true)
+    expect(ipcContracts['prs:reply'].input.safeParse({ sourceId, number: 1, threadId: '', body: 'x' }).success).toBe(false)
+    expect(ipcContracts['prs:merge'].input.safeParse({ sourceId, number: 1, method: 'rebase', deleteSourceBranch: false, message: null }).success).toBe(true)
+    expect(ipcContracts['prs:merge'].input.safeParse({ sourceId, number: 1, method: 'ff', deleteSourceBranch: false, message: null }).success).toBe(false)
+    expect(ipcContracts['prs:merge'].input.safeParse({ sourceId, number: 1, method: 'squash', deleteSourceBranch: false, message: null, extra: 1 }).success).toBe(false)
+    expect(ipcContracts['prs:list'].input.safeParse({ sourceId, state: 'merged' }).success).toBe(true)
+    expect(ipcContracts['prs:list'].input.safeParse({ sourceId, state: 'x' }).success).toBe(false)
+    expect(ipcContracts['prs:create'].input.safeParse({ sourceId, head: 'a', base: 'b', title: 't', body: '', draft: false, squash: true }).success).toBe(true)
+  })
 })

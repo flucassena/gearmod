@@ -75,6 +75,14 @@
 /* Legend: a row of "marker + label" explaining colors. */
 .ds-legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;color:var(--muted);font-size:12px}
 .ds-legend>span{display:inline-flex;align-items:center;gap:6px}.ds-legend b{color:var(--text);font-weight:600}
+/* Status icon (pipeline, job, check): the icon in the tone of its state (passed success, failed danger, running info, waiting/canceled neutral, manual warning). */
+.ds-status{display:inline-grid;place-items:center;flex:none;line-height:0}
+/* Something running (a status, "sending…" on a button). The box around the icon turns, not the <svg>: svg.ico has transform-box:view-box,
+   which makes Chromium turn the outer svg off-center. --ds-phase (a negative delay from the clock, set once when it appears) keeps every
+   spinner on screen in step, so one that is redrawn doesn't jump back to the start. */
+.ds-spin{display:inline-grid;place-items:center;flex:none;line-height:0;animation:ds-spin 1s linear infinite;animation-delay:var(--ds-phase,0s)}
+@keyframes ds-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.ds-spin{animation-duration:3s}}
 
 /* Tone application for chips, counts, dots and notes (neutral by default). */
 :is(.ds-chip,.ds-count,.ds-dot,.ds-note){--tone:var(--tone-neutral);--tone-bg:var(--tone-neutral-bg);--tone-line:var(--tone-neutral-line)}

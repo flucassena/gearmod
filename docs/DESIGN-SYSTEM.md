@@ -58,6 +58,8 @@ Toda peça `.ds-*` começa neutra; acrescente `.tone-info`, `.tone-success`, `.t
 | `.ds-legend` | linha de "marcador + texto" explicando cores | |
 | `.ds-opt` (ou `.cx-opt`) | cartão de escolha. `.on` = escolhido pelo usuário (success); `.rec` = recomendado pela IA (info, com ✦) | |
 | `.ds-aimark` (ou `.cx-aimark`) | o ✦ da IA no canto do cartão recomendado; `.ds-aimark.inline` no meio do texto | |
+| `.ds-status` | ícone de status (pipeline, job, check) no tom do estado com `.tone-text.tone-*`: passou success, falhou danger, rodando info, manual warning, pendente/cancelada neutro (`StatusIcon` em `prUi.tsx`) | `<span class="ds-status tone-text tone-success"><StatusSuccessIcon/></span>` |
+| `.ds-spin` | algo rodando ("rodando", "Comentando…"). Gira a caixa em volta do ícone, nunca o `<svg>` (o `svg.ico` tem `transform-box: view-box` e o Chromium gira fora do centro); `--ds-phase` (delay negativo pelo relógio, fixado quando aparece) mantém o giro no lugar quando a tela redesenha (`Spinner` em `prUi.tsx`) | `<span class="ds-spin"><StatusRunningIcon/></span>` |
 
 Classes que já existiam e seguem o sistema (use-as em vez de criar outra):
 
