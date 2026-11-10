@@ -168,6 +168,7 @@ export const ptBR = {
     installGh: 'instale o GitHub CLI (gh) e faça gh auth login',
     prCliNoUrl: 'o CLI não devolveu o endereço do PR',
     nothingToCommitInPlan: 'Não há alterações para commitar (nos arquivos informados).',
+    amendBlocked: (why: string) => `Não dá para fazer amend: ${why}.`,
     commitRequestNotFound: 'Pedido de commit não encontrado',
     stashSaved: 'Alterações guardadas no stash.',
     stashSavedWithNew: (count: number) => `Alterações guardadas no stash (inclusive ${count} arquivo${count === 1 ? '' : 's'} novo${count === 1 ? '' : 's'}, que ${count === 1 ? 'saiu' : 'saíram'} da pasta).`,

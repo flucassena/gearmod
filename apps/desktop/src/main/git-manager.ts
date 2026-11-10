@@ -20,7 +20,7 @@ export interface CliRunner { run(command: string, args: string[], cwd: string): 
 const execCli = promisify(execFile)
 export const nativeCli: CliRunner = { run: async (command, args, cwd) => (await execCli(command, args, { cwd, timeout: 120_000, windowsHide: true, maxBuffer: 4 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GH_PROMPT_DISABLED: '1' } })).stdout }
 interface Target { dir: string; branch: string | null; baseRef: string | null }
-interface RequestRow { id: string; cardId: string; sourceId: string; repoName: string; message: string; files: string; status: GitRequest['status']; profileId: string | null; hash: string | null; error: string | null; createdAt: string; approvalId: string | null }
+interface RequestRow { id: string; cardId: string; sourceId: string; repoName: string; message: string; files: string; status: GitRequest['status']; profileId: string | null; hash: string | null; error: string | null; createdAt: string; approvalId: string | null; amend?: number }
 
 /** Maximum size of the copies made for a discard (above that, the discard works but cannot be undone). */
 const maxDiscardBackup = 100 * 1024 * 1024
@@ -352,8 +352,8 @@ export class GitManager {
     if (!card || !wt) return null
     const { rule } = this.ruleFor(card.projectId, wt.branch)
     if (rule === 'never') return `Do not commit on this branch (${wt.branch}): leave the changes in the worktree, the user does the committing. Do not run git commit.`
-    if (rule === 'auto') return 'When you close each task, commit with the gearmod_request_commit tool (short message in the language given in `idioma`, imperative mood). Do not run git commit directly.'
-    return 'To commit, ask with the gearmod_request_commit tool (message and files): the user authorizes it on the card. Do not run git commit directly.'
+    if (rule === 'auto') return 'When you close each task, commit with the gearmod_request_commit tool (short message in the language given in `idioma`, imperative mood; amend: true folds changes into the last commit of this branch). Do not run git commit (or git commit --amend) directly.'
+    return 'To commit, ask with the gearmod_request_commit tool (message and files): the user authorizes it on the card. To fold changes into the last commit of this branch, use the same tool with amend: true. Do not run git commit (or git commit --amend) directly.'
   }
 
   private latestWorktree(cardId: string): { id: string; branch: string } | undefined {
@@ -1339,26 +1339,41 @@ ${diff}`
 
   // ---------- agent commit requests ----------
   private toRequest(row: RequestRow): GitRequest {
-    return { id: row.id, cardId: row.cardId, sourceId: row.sourceId, repoName: row.repoName, message: row.message, files: JSON.parse(row.files) as string[], status: row.status, agentProfileId: row.profileId, hash: row.hash, error: row.error, createdAt: row.createdAt }
+    return { id: row.id, cardId: row.cardId, sourceId: row.sourceId, repoName: row.repoName, message: row.message, files: JSON.parse(row.files) as string[], status: row.status, agentProfileId: row.profileId, hash: row.hash, error: row.error, createdAt: row.createdAt, amend: Boolean(row.amend) }
   }
 
   /** The card's pending requests and the 10 most recent already decided (the chat shows the result). */
   requests(cardId: string): GitRequest[] {
-    const sql = 'SELECT id, card_id AS cardId, source_id AS sourceId, repo_name AS repoName, message, files, status, profile_id AS profileId, hash, error, created_at AS createdAt FROM git_commit_requests'
+    const sql = 'SELECT id, card_id AS cardId, source_id AS sourceId, repo_name AS repoName, message, files, status, profile_id AS profileId, hash, error, created_at AS createdAt, amend FROM git_commit_requests'
     const pending = this.database.db.prepare(`${sql} WHERE card_id = ? AND status = 'pending' ORDER BY created_at`).all(cardId) as RequestRow[]
     const decided = (this.database.db.prepare(`${sql} WHERE card_id = ? AND status != 'pending' ORDER BY created_at DESC LIMIT 10`).all(cardId) as RequestRow[]).reverse()
     return [...decided, ...pending].map((row) => this.toRequest(row))
   }
 
   /** Agent tool: follows the branch rule (never / ask / automatic). Returns the text for the agent. */
-  async agentCommit(input: { cardId: string; chatId: string; message: string; files?: string[]; repo?: string }): Promise<{ rule: GitRule; text: string }> {
+  /**
+   * Amend only rewrites a commit nobody else has: the card branch's own last commit, not pushed and not in another branch.
+   * Returns why it cannot, or null.
+   */
+  private async amendBlocked(dir: string): Promise<string | null> {
+    const head = (await this.tryRun(dir, ['rev-parse', '--verify', 'HEAD']))?.trim()
+    if (!head) return 'there is no commit to amend yet'
+    const current = (await this.tryRun(dir, ['rev-parse', '--abbrev-ref', 'HEAD']))?.trim() ?? ''
+    const remote = (await this.tryRun(dir, ['branch', '-r', '--contains', 'HEAD', '--format=%(refname:short)']))?.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) ?? []
+    if (remote.length) return `the last commit was already pushed (${remote.slice(0, 2).join(', ')}); make a new commit instead`
+    const local = (await this.tryRun(dir, ['branch', '--contains', 'HEAD', '--format=%(refname:short)']))?.split(/\r?\n/).map((line) => line.trim()).filter((name) => name && name !== current) ?? []
+    if (local.length) return `the last commit is also in ${local.slice(0, 2).join(', ')}; make a new commit instead`
+    return null
+  }
+
+  async agentCommit(input: { cardId: string; chatId: string; message: string; files?: string[]; repo?: string; amend?: boolean }): Promise<{ rule: GitRule; text: string }> {
     const card = this.database.db.prepare('SELECT project_id AS projectId FROM cards WHERE id = ?').get(input.cardId) as { projectId: string } | undefined
     const wt = this.latestWorktree(input.cardId)
     if (!card || !wt) throw new Error('This card has no worktree yet; there is nothing to commit.')
     const { rule, why } = this.ruleFor(card.projectId, wt.branch)
     if (rule === 'never') throw new Error(`Agent commits are turned off on branch ${wt.branch} (${why}). Leave the changes in the worktree: the user does the committing.`)
     const message = input.message.trim()
-    if (!message || message.length > 2000) throw new Error('mensagem must be a text of 1 to 2000 characters (first line = summary)')
+    if ((!message && !input.amend) || message.length > 2000) throw new Error('mensagem must be a text of 1 to 2000 characters (first line = summary)')
     const profileId = (this.database.db.prepare('SELECT profile_id AS profileId FROM chats WHERE id = ?').get(input.chatId) as { profileId: string } | undefined)?.profileId ?? null
     const wanted = input.files?.map((item) => item.replace(/\\/g, '/').replace(/^\.\//, ''))
     const sources = this.database.db.prepare('SELECT id, project_id AS projectId, name, local_path AS path FROM project_sources WHERE project_id = ?').all(card.projectId) as Source[]
@@ -1370,36 +1385,42 @@ ${diff}`
       const all = [...new Set((await this.listChanges(member.path)).map((file) => file.path))]
       const paths = wanted ? all.filter((path) => wanted.includes(path)) : all
       if (paths.length) plan.push({ source, dir: member.path, paths })
+      // Amend with only a new message: the repository named (or the only one) with nothing to add.
+      else if (input.amend && message && !wanted && input.repo) plan.push({ source, dir: member.path, paths: [] })
     }
     if (!plan.length) throw new Error(tm().git.nothingToCommitInPlan)
+    if (input.amend) for (const item of plan) {
+      const blocked = await this.amendBlocked(item.dir)
+      if (blocked) throw new Error(`Cannot amend in ${item.source.name}: ${blocked}.`)
+    }
     // S13: a secret in what is about to be committed blocks the agent's commit (automatic or on request); the user decides on the Git page.
     const found = (await Promise.all(plan.map(async (item) => (await scanForSecrets(item.dir, item.paths)).map((hit) => `${hit.path}:${hit.line}`)))).flat()
     if (found.length) throw new Error(tm().git.secretsFound(found.slice(0, 5).join(', ')))
     if (rule === 'auto') {
       const done: string[] = []
       for (const item of plan) {
-        const hash = await this.commitAt(item.dir, { message, paths: item.paths })
+        const hash = await this.commitAt(item.dir, { message, paths: item.paths, amend: input.amend })
         if (profileId) this.database.db.prepare('INSERT OR REPLACE INTO git_commit_agents(repo_path, hash, profile_id) VALUES (?, ?, ?)').run(item.source.path, hash, profileId)
-        done.push(`${item.source.name} (${hash.slice(0, 7)}, ${item.paths.length} file${item.paths.length > 1 ? 's' : ''})`)
+        done.push(`${item.source.name} (${hash.slice(0, 7)}, ${item.paths.length} file${item.paths.length === 1 ? '' : 's'})`)
       }
-      return { rule, text: `Commit done (automatic rule): ${done.join('; ')}.` }
+      return { rule, text: `${input.amend ? 'Amend' : 'Commit'} done (automatic rule): ${done.join('; ')}.` }
     }
-    const insert = this.database.db.prepare(`INSERT INTO git_commit_requests(id, card_id, source_id, repo_name, repo_path, chat_id, profile_id, message, files, status, approval_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`)
+    const insert = this.database.db.prepare(`INSERT INTO git_commit_requests(id, card_id, source_id, repo_name, repo_path, chat_id, profile_id, message, files, status, approval_id, created_at, amend) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`)
     const drop = this.database.db.prepare(`DELETE FROM git_commit_requests WHERE card_id = ? AND source_id = ? AND status = 'pending'`)
     for (const item of plan) {
       const requestId = randomUUID()
       // Unified audit (S06): the commit request also becomes an approval_record; the decision UX remains the card's (`decide`).
-      const approval = this.approvals.request({ kind: 'git-commit', subjectRef: requestId, payload: { message, files: item.paths, repo: item.source.name }, requestedActor: 'agent', cardId: input.cardId, projectId: card.projectId })
+      const approval = this.approvals.request({ kind: 'git-commit', subjectRef: requestId, payload: { message, files: item.paths, repo: item.source.name, amend: Boolean(input.amend) }, requestedActor: 'agent', cardId: input.cardId, projectId: card.projectId })
       this.database.db.transaction(() => {
         drop.run(input.cardId, item.source.id)
-        insert.run(requestId, input.cardId, item.source.id, item.source.name, item.source.path, input.chatId, profileId, message, JSON.stringify(item.paths), approval.id, new Date().toISOString())
+        insert.run(requestId, input.cardId, item.source.id, item.source.name, item.source.path, input.chatId, profileId, message, JSON.stringify(item.paths), approval.id, new Date().toISOString(), input.amend ? 1 : 0)
       })()
     }
-    return { rule, text: `Commit request registered (${plan.map((item) => item.source.name).join(', ')}). The user authorizes it on the card; this branch's rule is to ask for permission. Do NOT run git commit. Continue with whatever does not depend on the commit.` }
+    return { rule, text: `${input.amend ? 'Amend' : 'Commit'} request registered (${plan.map((item) => item.source.name).join(', ')}). The user authorizes it on the card; this branch's rule is to ask for permission. Do NOT run git commit. Continue with whatever does not depend on the commit.` }
   }
 
   async decide(requestId: string, decision: 'allow' | 'deny', message?: string): Promise<GitRequest> {
-    const row = this.database.db.prepare('SELECT id, card_id AS cardId, source_id AS sourceId, repo_name AS repoName, message, files, status, profile_id AS profileId, hash, error, created_at AS createdAt, approval_id AS approvalId FROM git_commit_requests WHERE id = ?').get(requestId) as RequestRow | undefined
+    const row = this.database.db.prepare('SELECT id, card_id AS cardId, source_id AS sourceId, repo_name AS repoName, message, files, status, profile_id AS profileId, hash, error, created_at AS createdAt, approval_id AS approvalId, amend FROM git_commit_requests WHERE id = ?').get(requestId) as RequestRow | undefined
     if (!row) throw new Error(tm().git.commitRequestNotFound)
     if (row.status !== 'pending') return this.toRequest(row)
     // Unified audit (S06): the card's decision also closes the approval_record, without changing this flow's UX.
@@ -1412,9 +1433,11 @@ ${diff}`
     try {
       const source = this.source(row.sourceId), target = await this.target(source, row.cardId)
       const current = new Set((await this.listChanges(target.dir)).map((file) => file.path))
-      const paths = (JSON.parse(row.files) as string[]).filter((path) => current.has(path))
-      if (!paths.length) throw new Error('Os arquivos do pedido já não têm alterações.')
-      const hash = await this.commitAt(target.dir, { message: message?.trim() || row.message, paths })
+      const asked = JSON.parse(row.files) as string[], paths = asked.filter((path) => current.has(path))
+      // An amend that only changes the message has no files.
+      if (!paths.length && !(row.amend && !asked.length)) throw new Error('Os arquivos do pedido já não têm alterações.')
+      if (row.amend) { const blocked = await this.amendBlocked(target.dir); if (blocked) throw new Error(tm().git.amendBlocked(blocked)) }
+      const hash = await this.commitAt(target.dir, { message: message?.trim() || row.message, paths, amend: Boolean(row.amend) })
       if (row.profileId) this.database.db.prepare('INSERT OR REPLACE INTO git_commit_agents(repo_path, hash, profile_id) VALUES (?, ?, ?)').run(source.path, hash, row.profileId)
       return finish('done', { hash })
     } catch (error) {

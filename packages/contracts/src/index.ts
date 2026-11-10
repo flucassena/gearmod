@@ -395,7 +395,9 @@ export type PullRequestDetail = z.output<typeof pullRequestDetailSchema>
 export const gitChangesSchema = z.object({ branch: z.string().nullable(), files: z.array(gitChangeSchema), lastMessage: z.string() })
 export const gitRequestSchema = z.object({
   id: uuid, cardId: uuid, sourceId: uuid, repoName: z.string(), message: z.string(), files: z.array(z.string()), status: z.enum(['pending', 'done', 'denied', 'failed']),
-  agentProfileId: uuid.nullable(), hash: z.string().nullable(), error: z.string().nullable(), createdAt: isoDate
+  agentProfileId: uuid.nullable(), hash: z.string().nullable(), error: z.string().nullable(), createdAt: isoDate,
+  /** The agent asked to amend the last commit of the card branch instead of creating a new one. */
+  amend: z.boolean().optional()
 })
 export const gitCardRepoSchema = z.object({
   sourceId: uuid, name: z.string(), repoPath: z.string(), worktreePath: z.string(), ahead: z.number().int().nonnegative(), behind: z.number().int().nonnegative(), published: z.boolean(), hasRemote: z.boolean(),

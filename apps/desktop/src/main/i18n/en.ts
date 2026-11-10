@@ -169,6 +169,7 @@ export const en: typeof ptBR = {
     installGh: 'install the GitHub CLI (gh) and run gh auth login',
     prCliNoUrl: 'the CLI did not return the PR address',
     nothingToCommitInPlan: 'There are no changes to commit (in the given files).',
+    amendBlocked: (why: string) => `Cannot amend: ${why}.`,
     commitRequestNotFound: 'Commit request not found',
     stashSaved: 'Changes saved to the stash.',
     stashSavedWithNew: (count: number) => `Changes saved to the stash (including ${count} new file${count === 1 ? '' : 's'}, which left the folder).`,

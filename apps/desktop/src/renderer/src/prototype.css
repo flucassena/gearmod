@@ -3257,3 +3257,4 @@ body:has(.overlay) .viewdock.floating{display:none}
 .cx-decisions .cx-status{padding:3px 7px;border-radius:6px}
 .cx-decisions .cx-status.approved{color:var(--cf-8fdcaa);background:color-mix(in srgb,#4ec27a 14%,transparent)}
 :root[data-theme="light"] .cx-decisions .cx-status.approved{color:#1f7a45;background:color-mix(in srgb,#2e9d5b 14%,transparent)}
+.cgamend{font:700 10px var(--mono);text-transform:uppercase;padding:2px 6px;border-radius:5px;color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 45%,transparent)}

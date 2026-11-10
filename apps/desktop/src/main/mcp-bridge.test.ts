@@ -336,7 +336,7 @@ describe('collaboration tools', () => {
     const developer = mcpClient(bridge.register('r-dev', card.id, (change) => changes.push(change), { id: dev.id, purpose: 'execution' }))
     const ok = await developer.call('gearmod_request_commit', { mensagem: 'Cria a tela', arquivos: ['a.txt'], repositorio: 'repo' })
     expect(ok).toMatchObject({ isError: false }); expect(ok.content[0]!.text).toContain('Pedido de commit registrado')
-    expect(asked).toEqual([{ cardId: card.id, chatId: dev.id, message: 'Cria a tela', files: ['a.txt'], repo: 'repo' }]); expect(changes).toEqual([{ type: 'commit' }])
+    expect(asked).toEqual([{ cardId: card.id, chatId: dev.id, message: 'Cria a tela', files: ['a.txt'], repo: 'repo', amend: false }]); expect(changes).toEqual([{ type: 'commit' }])
     expect((await developer.call('gearmod_request_commit', { mensagem: 'recusa' }))).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('desligado') }] })
     expect((await developer.call('gearmod_request_commit', {})).isError).toBe(true)
     expect((await developer.call('gearmod_request_commit', { mensagem: 'x', arquivos: 'a.txt' })).isError).toBe(true)

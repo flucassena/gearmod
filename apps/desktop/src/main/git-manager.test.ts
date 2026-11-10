@@ -427,6 +427,24 @@ describe('agent commit', () => {
     await expect(manager.agentCommit({ cardId, chatId, message: 'Nada mais' })).rejects.toThrow('Não há alterações')
     expect((await git(wt, 'log', '-1', '--format=%s')).stdout.trim()).toBe('Commit automático')
   })
+
+  it('amend: folds the files into the card branch last commit, and refuses a commit that is also in another branch', async () => {
+    const { manager, cardId, chatId, wt } = await setup()
+    await writeFile(join(wt, 'x.txt'), 'x\n')
+    // The branch still points to the base commit (also in main): nothing of its own to amend.
+    await expect(manager.agentCommit({ cardId, chatId, message: '', files: ['x.txt'], amend: true })).rejects.toThrow(/Cannot amend/)
+    await manager.agentCommit({ cardId, chatId, message: 'Cria x', files: ['x.txt'] })
+    await manager.decide(manager.requests(cardId).find((item) => item.status === 'pending')!.id, 'allow')
+    const count = (await git(wt, 'rev-list', '--count', 'HEAD')).stdout.trim()
+    await writeFile(join(wt, 'y.txt'), 'y\n')
+    await manager.agentCommit({ cardId, chatId, message: '', files: ['y.txt'], amend: true })
+    const request = manager.requests(cardId).find((item) => item.status === 'pending')!
+    expect(request).toMatchObject({ amend: true, files: ['y.txt'] })
+    expect((await manager.decide(request.id, 'allow')).status).toBe('done')
+    expect((await git(wt, 'rev-list', '--count', 'HEAD')).stdout.trim()).toBe(count)
+    expect((await git(wt, 'log', '-1', '--format=%s')).stdout.trim()).toBe('Cria x')
+    expect((await git(wt, 'show', '--name-only', '--format=', 'HEAD')).stdout.trim().split('\n').sort()).toEqual(['x.txt', 'y.txt'])
+  })
 })
 
 describe('secret in the agent commit (S13)', () => {

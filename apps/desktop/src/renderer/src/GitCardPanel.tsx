@@ -35,11 +35,11 @@ export function CommitAsk({ request, agent, branch, ruleWhy, onDecided, openGit,
     try { onDecided(await window.gearmod.invoke('git:request-decide', { requestId: request.id, decision, message: decision === 'allow' && message.trim() !== request.message ? message.trim() : undefined })) } catch (reason) { setError(plainError(reason)) } finally { setBusy(false) }
   }
   return <div className={variant === 'chat' ? 'cask' : 'cgprop'}>
-    <div className="cgprop-h">{agent && <AgentIcon profile={agent} size="sm" tip={false} />}<b>{variant === 'chat' ? t.wantsCommit(branch) : t.agentWantsCommit(agent?.label ?? t.theAgent)}</b><small>{variant === 'chat' ? t.asksPermission(ruleWhy ?? t.projectRule) : shortAgo(request.createdAt)}</small></div>
-    {editing ? <textarea className="autogrow" value={message} onChange={(e) => setMessage(e.target.value)} aria-label={t.commitMessage} /> : <p className="cgprop-msg">{request.message}</p>}
-    <div className="cgnote">{t.filesInRepo(request.files.length, request.repoName, request.files.slice(0, 4).map((file) => file.split('/').pop()).join(', ') + (request.files.length > 4 ? '…' : ''))}</div>
+    <div className="cgprop-h">{agent && <AgentIcon profile={agent} size="sm" tip={false} />}<b>{request.amend ? (variant === 'chat' ? t.wantsAmend(branch) : t.agentWantsAmend(agent?.label ?? t.theAgent)) : variant === 'chat' ? t.wantsCommit(branch) : t.agentWantsCommit(agent?.label ?? t.theAgent)}</b>{request.amend && <span className="cgamend" data-tip={t.amendTip}>amend</span>}<small>{variant === 'chat' ? t.asksPermission(ruleWhy ?? t.projectRule) : shortAgo(request.createdAt)}</small></div>
+    {editing ? <textarea className="autogrow" value={message} onChange={(e) => setMessage(e.target.value)} aria-label={t.commitMessage} /> : <p className="cgprop-msg">{request.message || t.keepsMessage}</p>}
+    <div className="cgnote">{request.files.length ? t.filesInRepo(request.files.length, request.repoName, request.files.slice(0, 4).map((file) => file.split('/').pop()).join(', ') + (request.files.length > 4 ? '…' : '')) : t.onlyMessage(request.repoName)}</div>
     {error && <p className="error">{error}</p>}
-    <div className="cgrow"><button type="button" className="mini" disabled={busy || !message.trim()} onClick={() => void decide('allow')}>{t.authorizeCommit}</button>
+    <div className="cgrow"><button type="button" className="mini" disabled={busy || (!message.trim() && !request.amend)} onClick={() => void decide('allow')}>{request.amend ? t.authorizeAmend : t.authorizeCommit}</button>
       {!editing && <button type="button" className="mini secondary" onClick={() => setEditing(true)}>{t.editMessage}</button>}
       {openGit && <button type="button" className="mini secondary" onClick={openGit}>{t.seeInGit}</button>}<span className="grow1" />
       <button type="button" className="mini secondary" disabled={busy} onClick={() => void decide('deny')}>{t.deny}</button></div></div>
@@ -51,7 +51,7 @@ export function CommitAsks({ cardId, branch, profiles, openGit }: { cardId: stri
   const { items, reload } = useGitRequests(cardId), [results, setResults] = useState<GitRequest[]>([])
   const pending = items.filter((item) => item.status === 'pending')
   if (!pending.length && !results.length) return null
-  return <>{results.map((item) => <div className="msg sys" key={item.id}>{item.status === 'done' ? t.commitAuthorized(item.message.split('\n')[0] ?? '') : item.status === 'failed' ? t.commitNotDone(item.error ?? undefined) : t.commitDenied}</div>)}
+  return <>{results.map((item) => <div className="msg sys" key={item.id}>{item.status === 'done' ? (item.amend ? t.amendAuthorized(item.message.split('\n')[0] ?? '') : t.commitAuthorized(item.message.split('\n')[0] ?? '')) : item.status === 'failed' ? t.commitNotDone(item.error ?? undefined) : t.commitDenied}</div>)}
     {pending.map((item) => <CommitAsk key={item.id} request={item} variant="chat" branch={branch} agent={profiles.find((profile) => profile.id === item.agentProfileId)} onDecided={(done) => { setResults((current) => [...current, done]); void reload() }} openGit={openGit} />)}</>
 }
 

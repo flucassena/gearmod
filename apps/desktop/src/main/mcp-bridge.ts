@@ -367,11 +367,12 @@ export class McpBridge {
     if (!this.deps.git) return { ok: false, error: 'GearMod Git is not available' }
     if (run.purpose !== 'execution' || !run.cardId) return { ok: false, error: 'This tool is for the developer (implementation stage).' }
     const denied = this.policyDenied(run, 'commit'); if (denied) return { ok: false, error: denied }
-    if (typeof args.mensagem !== 'string') return { ok: false, error: 'provide the commit mensagem' }
+    if (args.amend !== undefined && typeof args.amend !== 'boolean') return { ok: false, error: 'amend must be true or false' }
+    if (typeof args.mensagem !== 'string' && !args.amend) return { ok: false, error: 'provide the commit mensagem' }
     if (args.arquivos !== undefined && (!Array.isArray(args.arquivos) || args.arquivos.some((item) => typeof item !== 'string'))) return { ok: false, error: 'arquivos must be a list of paths' }
     if (args.repositorio !== undefined && typeof args.repositorio !== 'string') return { ok: false, error: 'repositorio must be a text' }
     try {
-      const result = await this.deps.git.agentCommit({ cardId: run.cardId, chatId: run.chatId, message: args.mensagem, files: args.arquivos as string[] | undefined, repo: args.repositorio as string | undefined })
+      const result = await this.deps.git.agentCommit({ cardId: run.cardId, chatId: run.chatId, message: typeof args.mensagem === 'string' ? args.mensagem : '', files: args.arquivos as string[] | undefined, repo: args.repositorio as string | undefined, amend: args.amend === true })
       run.notify({ type: 'commit' })
       return { ok: true, text: result.text }
     } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) } }

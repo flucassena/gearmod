@@ -774,6 +774,14 @@ export const migrations: readonly Migration[] = [
       // Automated tests run one command per repository the card changed: the result of each one, as JSON.
       db.exec("ALTER TABLE test_runs ADD COLUMN repos_json TEXT NOT NULL DEFAULT '[]';")
     }
+  },
+  {
+    version: 49,
+    checksum: 'sha256:gearmod-commit-request-amend-v49-2026-11-09',
+    up(db) {
+      // An agent commit request can amend the last commit of the card branch instead of creating a new one.
+      db.exec('ALTER TABLE git_commit_requests ADD COLUMN amend INTEGER NOT NULL DEFAULT 0;')
+    }
   }
 ]
 
