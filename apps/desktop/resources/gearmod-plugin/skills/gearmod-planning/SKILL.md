@@ -21,7 +21,7 @@ Every turn carries a context block with:
 
 ## First: discovery and complexity
 
-Before any document, follow the `gearmod-discovery` skill: understand, explore the code read-only, record the understanding, assess complexity (`gearmod_assess_complexity`) and confirm the flow with the user (`gearmod_choose_workflow`). If the context already carries an assessment and a chosen flow, do not redo them: reassess only for a real trigger.
+Before any document, follow the `gearmod-discovery` skill: understand, explore the code read-only, record the understanding, ask the questions that change the estimate and wait for the answers, assess complexity (`gearmod_assess_complexity`) and confirm the flow with the user (`gearmod_choose_workflow`). If the context already carries an assessment and a chosen flow, do not redo them: reassess only for a real trigger.
 
 The chosen flow decides what comes next:
 

@@ -1,6 +1,6 @@
 ---
 name: gearmod-discovery
-description: Discovery of a request in GearMod (discovery-intake). Use at the start of the free chat or of a card's planning to understand the request, explore the code read-only, record the understanding, assess complexity on six dimensions and recommend the flow (short, light spec or SDD).
+description: Discovery of a request in GearMod (discovery-intake). Use at the start of the free chat or of a card's planning to understand the request, explore the code read-only, record the understanding, clear the doubts that change the estimate, assess complexity on six dimensions and recommend the flow (short, light spec or SDD).
 ---
 
 # Request discovery (GearMod)
@@ -12,8 +12,7 @@ Goal: turn an informal conversation into requirements clear enough to plan or im
 ## 1. Understand
 
 - Identify the goal, the problem/motivation, what is in and what is out, constraints and implicit requirements (security, performance, compatibility, existing data).
-- Ask only what changes the outcome: up to 3 questions per message, using the `gearmod-perguntas` block when there are options.
-- Do not assume technical details the code can answer: explore before asking.
+- Do not assume technical details the code can answer: explore before asking. The questions come in step 4, after exploring.
 
 ## 2. Explore the code (cheap and read-only)
 
@@ -28,9 +27,23 @@ Goal: turn an informal conversation into requirements clear enough to plan or im
 
 Call `gearmod_record_understanding` with goal, motivation, scope, exclusions, acceptance criteria, open items, technical context (real paths) and `prontidao` (`pronto` or `precisa_esclarecer`; "ready" or "needs clarification"). Call it again only when something relevant changes.
 
+Use `precisa_esclarecer` while any doubt that would change a complexity score is still open, and list those doubts in `pendencias`. Use `pronto` only when nothing left would move the score.
+
 Decisions the user makes in the chat: `gearmod_record_decision` with `origem: "usuario"`. Your own recommendations: `origem: "agente"` (the user approves them on the card). To replace a decision, use `substitui`.
 
-## 4. Assess complexity
+## 4. Clear the doubts that change the estimate
+
+Before assessing, look at the open items with the exploration in hand and keep only the ones whose answer would move a score: what is in or out of scope (escopo), which contracts or data change (acoplamento), behaviour still undefined (incerteza), destructive or irreversible actions, data, security (risco), and how it will be checked (validacao). Questions the code answers, or that only matter while writing the Specification, do not belong here.
+
+- If any are left, ask them: up to 3 per message, concrete and grounded in what you found in the code, using the `gearmod-perguntas` block when there are options. Then stop and wait for the answer. Do not assess and do not propose the flow in the same message.
+- Record the answers that are decisions (`gearmod_record_decision`, `origem: "usuario"`) and call `gearmod_record_understanding` again.
+- At most two rounds of questions. If something is still open after that, record `prontidao: "pronto"`, keep the doubt in `pendencias` and let it show in the uncertainty score and its justification.
+- If the user asks to estimate now or does not want questions, skip them and assess with `preliminar: true` and `confianca: "baixa"`.
+- If nothing changes the score, go straight to the assessment.
+
+The app enforces this: while the understanding is `precisa_esclarecer`, it only accepts a preliminary assessment.
+
+## 5. Assess complexity
 
 Call `gearmod_assess_complexity` with a score from 0 to 3 per dimension and an objective justification (a verifiable fact, not internal reasoning). The dimension names are the keys the app expects; keep them as written (the English gloss is in parentheses):
 
@@ -48,7 +61,7 @@ Call `gearmod_assess_complexity` with a score from 0 to 3 per dimension and an o
 - Provide evidence (`file`, `commit`, `message`, `test`, `api`...) with path/line.
 - Reassess only with a real `gatilho` (`requirements-changed`, `new-dependency`, `risk`, `architecture`, `scope`, `failures`). The app rejects assessments identical to the current one.
 
-## 5. Recommend the flow
+## 6. Recommend the flow
 
 The app returns the score and the recommended flow. Right after it, call `gearmod_choose_workflow` with the flow you recommend (`confirmado_pelo_usuario: false`). The app shows the user, in the chat, the score table, the points bar and the flow options with yours marked; the user picks there. Do not ask which flow in the chat (no `gearmod_ask_user` for this): at most one or two sentences with the points, the level and the main reason. The options the user sees:
 

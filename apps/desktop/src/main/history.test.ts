@@ -259,6 +259,14 @@ describe('MCP tools and context', () => {
     const token = bridge.register('00000000-0000-4000-8000-000000000001', card.id, (change) => changes.push(change.type), { id: '00000000-0000-4000-8000-000000000002', purpose: 'planning' }).env.GEARMOD_TOKEN!
     const call = (tool: string, args: Record<string, unknown>) => (bridge as unknown as { handle(token: string, tool: string, args: Record<string, unknown>): { ok: boolean; text?: string; error?: string } }).handle(token, tool, args)
     expect(call('gearmod_assess_complexity', { notas: { escopo: 4 }, confianca: 'alta', motivo: 'x' })).toMatchObject({ ok: false })
+    // With open questions the full assessment waits for the answers; a preliminary one still goes through.
+    const understanding = { objetivo: 'Avisar pedidos novos', pendencias: ['Vale para iOS?'] }
+    expect(call('gearmod_record_understanding', { ...understanding, prontidao: 'precisa_esclarecer' })).toMatchObject({ ok: true })
+    const notes = { escopo: 1, acoplamento: 0, incerteza: 2, risco: 0, novidade: 0, validacao: 1 }
+    const blocked = call('gearmod_assess_complexity', { notas: notes, confianca: 'media', motivo: 'Discovery inicial' })
+    expect(blocked).toMatchObject({ ok: false }); expect(blocked.error).toContain('Vale para iOS?')
+    expect(call('gearmod_assess_complexity', { notas: notes, confianca: 'baixa', preliminar: true, motivo: 'Usuário pediu estimativa já' })).toMatchObject({ ok: true })
+    expect(call('gearmod_record_understanding', { ...understanding, pendencias: [], prontidao: 'pronto' })).toMatchObject({ ok: true })
     const first = call('gearmod_assess_complexity', { notas: { escopo: 1, acoplamento: 0, incerteza: 1, risco: 0, novidade: 0, validacao: 1 }, justificativas: { escopo: 'Um componente' }, confianca: 'media', motivo: 'Discovery inicial', evidencias: [{ tipo: 'file', referencia: 'src/App.tsx', linha: 10 }] })
     expect(first).toMatchObject({ ok: true }); expect(first.text).toContain('5 points')
     expect(call('gearmod_choose_workflow', { fluxo: 'light', confirmado_pelo_usuario: false })).toMatchObject({ ok: true })
@@ -278,7 +286,7 @@ describe('MCP tools and context', () => {
     expect(history.history(card.id)).toMatchObject({ recommendedSddMethod: 'speckit', sddMethod: null })
     expect(changes.filter((type) => type === 'card').length).toBeGreaterThanOrEqual(4)
     const block = await context.block(card.id)
-    expect(block).toContain('Complexity v2: 14 points, média')
+    expect(block).toContain('Complexity v3: 14 points, média')
     expect(block).toContain('chosen workflow: light')
     expect(block).toContain('[agent recommendation, not approved] Usar FCM')
   })

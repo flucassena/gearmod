@@ -314,6 +314,9 @@ export class McpBridge {
         if (!trigger.success) return { ok: false, error: `gatilho must be one of: ${assessmentTriggerSchema.options.filter((item) => item !== 'user-correction').join(', ')}` }
         if (trigger.data === 'user-correction') return { ok: false, error: 'The user\'s correction is made by the user, on the card assessment screen.' }
         if (typeof args.motivo !== 'string' || !args.motivo.trim()) return { ok: false, error: 'provide the motivo (why assess now)' }
+        // Questions come before the estimate: while the understanding still needs clarifying, only a preliminary assessment goes through.
+        const brief = history.discovery(cardId)
+        if (args.preliminar !== true && brief?.prontidao === 'precisa-esclarecer') return { ok: false, error: `The understanding still needs clarification${brief.pendencias.length ? ` (open items: ${brief.pendencias.join('; ')})` : ''}. Ask the user the questions that change the score (up to 3, with the gearmod-perguntas block) and stop. When the answers settle it, call gearmod_record_understanding with prontidao "pronto" (keep any leftover doubt in pendencias) and assess then. If the user asked to estimate now, send preliminar: true and confianca "baixa".` }
         const justifications = Object.fromEntries(Object.entries((args.justificativas ?? {}) as Record<string, unknown>).filter(([key, value]) => (complexityDimensions as readonly string[]).includes(key) && typeof value === 'string').map(([key, value]) => [key, (value as string).trim()]))
         const { assessment, previous } = history.assess({ cardId: cardId, scores: scores.data, justifications, confidence, preliminary: args.preliminar === true, criticalRisks: strings(args.riscos_criticos), evidence: evidence(args.evidencias), trigger: trigger.data, reason: args.motivo, source })
         run.notify({ type: 'card' })
