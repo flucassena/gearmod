@@ -306,6 +306,10 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
   const gearControl = <button type="button" className={slots?.gear ? 'ibtn tip tb-gearbtn' : 'iconbtn'} data-tip={t.view.configureProject} aria-label={t.view.configureProject} onClick={() => onProjectConfig()}>{toolsPending && <i className="gear-dot" aria-hidden="true" />}{slots?.gear ? <SettingsIcon /> : '⚙'}</button>
   const currentView: ProjectView = gitOpen ? 'git' : dbOpen ? 'db' : chatsOpen ? 'chats' : 'board'
   const selectView = (value: ProjectView): void => { setDraft(undefined); window.dispatchEvent(new Event('gearmod:select-view')); setChatsOpen(value === 'chats'); setGitOpen(value === 'git'); setDbOpen(value === 'db') }
+  // Click on the project already open in the sidebar: back to the board as when the project opens (closes the card chat).
+  const goHome = useRef<() => void>(() => undefined)
+  goHome.current = () => { selectView('board'); setChatCardState(undefined); setDraftPlan(undefined); setFreeChat(hasAgent && !pop ? { key: Date.now(), docked: true } : undefined) }
+  useEffect(() => { const home = (): void => goHome.current(); window.addEventListener('gearmod:project-home', home); return () => window.removeEventListener('gearmod:project-home', home) }, [])
   // View shortcuts (Ctrl+1..4, Ctrl+Tab/Ctrl+Shift+Tab) and project settings (Ctrl+,).
   const viewKeys = useRef({ currentView, selectView, onProjectConfig, databaseEnabled }); viewKeys.current = { currentView, selectView, onProjectConfig, databaseEnabled }
   useEffect(() => {
