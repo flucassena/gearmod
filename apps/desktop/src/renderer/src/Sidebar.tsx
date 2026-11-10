@@ -199,9 +199,11 @@ export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onO
       <button className="secondary newproj" onClick={onNew}>{t.shell.sidebar.newProject}</button>
       <nav className="projs" onDragOver={(e) => { if (drag) e.preventDefault() }} onDrop={(e) => { e.preventDefault(); drop() }}>{ordered.map((project, index) => {
         const { running, finished } = project.activity, waiting = project.activity.waiting ?? 0, git = project.sources.filter((source) => source.isGitRepository).length
-        // Everything at once (it used to show only the first): who needs the user, what finished, what is running.
-        const parts = [waiting ? <span className="swait" key="w">{t.shell.sidebar.waitingCount(waiting)}</span> : null, finished ? <span className="sfin" key="f">{t.shell.sidebar.finishedCount(finished)}</span> : null, running ? <span className="srun" key="r">{t.shell.sidebar.running(running)}</span> : null].filter(Boolean)
-        const sub = parts.length ? <small className="salerts">{parts.flatMap((part, i) => i ? [<span key={`s${i}`} className="ssep"> · </span>, part] : [part])}</small> : <small>{git ? t.shell.sidebar.repositories(git) : t.shell.sidebar.folderWithoutGit}</small>
+        // One status only, the most important (needs you > finished > running), so the row never overflows;
+        // the full list is in the tooltip and in the alerts that open on hover.
+        const parts = [waiting ? { kind: 'wait', text: t.shell.sidebar.waitingCount(waiting) } : null, finished ? { kind: 'fin', text: t.shell.sidebar.finishedCount(finished) } : null, running ? { kind: 'run', text: t.shell.sidebar.running(running) } : null].filter((part) => part !== null)
+        const top = parts[0], more = parts.length - 1
+        const sub = top ? <small className="salerts" data-tip={parts.map((part) => part.text).join(' · ')}><span className={`s${top.kind}`}>{top.text}</span>{more > 0 && <span className="ssep"> +{more}</span>}</small> : <small>{git ? t.shell.sidebar.repositories(git) : t.shell.sidebar.folderWithoutGit}</small>
         return <div className={`projrow ${drag?.id === project.id ? 'dragging' : ''}`} key={project.id} draggable
           onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setMenu(undefined); setDrag({ id: project.id, over: index }) }}
           onDragOver={(e) => {
@@ -216,7 +218,7 @@ export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onO
           onDragEnd={() => setDrag(undefined)}
           onContextMenu={(e) => { e.preventDefault(); setPeek(undefined); setMenu({ project, x: e.clientX, y: e.clientY }) }}
           onMouseEnter={(e) => showPeek(project, e.currentTarget)} onMouseLeave={hidePeek}>
-          <button type="button" className={`proj ${selected === project.id ? 'on' : ''} ${finished ? 'fin' : ''} ${running ? 'busy' : ''} ${waiting ? 'wait' : ''}`} onClick={() => onSelect(project.id)}><ProjectAvatar name={project.name} icon={project.icon} /><span title={project.name}>{project.name}{sub}</span>{running > 0 && <span className="spin sm" data-tip={t.shell.sidebar.runningTip} />}{waiting > 0 ? <b className="pdot wait" data-tip={t.shell.sidebar.waitingTip} /> : finished > 0 && <b className="pdot" data-tip={t.shell.sidebar.finishedTip} />}</button>
+          <button type="button" className={`proj ${selected === project.id ? 'on' : ''} ${finished ? 'fin' : ''} ${running ? 'busy' : ''} ${waiting ? 'wait' : ''}`} onClick={() => onSelect(project.id)}><ProjectAvatar name={project.name} icon={project.icon} /><span title={project.name}>{project.name}{sub}</span>{waiting > 0 ? <b className="pdot wait" data-tip={t.shell.sidebar.waitingTip} /> : finished > 0 ? <b className="pdot" data-tip={t.shell.sidebar.finishedTip} /> : running > 0 && <span className="spin sm" data-tip={t.shell.sidebar.runningTip} />}</button>
           <button type="button" className="projnew tip" data-tip={t.shell.sidebar.newFreeChatTip} aria-label={t.shell.sidebar.newFreeChatIn(project.name)} onClick={() => onNewChat(project.id)}><PlusIcon /></button></div>
       })}</nav>
       <VoiceInstallCard />
