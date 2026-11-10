@@ -798,6 +798,18 @@ export const migrations: readonly Migration[] = [
       // The simple/medium/complex limits each assessment was scored with (null for the ones before this version).
       db.exec('ALTER TABLE card_assessments ADD COLUMN limits_json TEXT;')
     }
+  },
+  {
+    version: 52,
+    checksum: 'sha256:gearmod-card-attachments-v52-2026-11-10',
+    up(db) {
+      // Card attachments: the app keeps its own copy of each file (relative_path inside the attachments folder); the same content is not kept twice per card.
+      db.exec(`ALTER TABLE card_attachments ADD COLUMN source TEXT NOT NULL DEFAULT 'manual';
+      ALTER TABLE card_attachments ADD COLUMN source_message_id TEXT;
+      ALTER TABLE card_attachments ADD COLUMN original_path TEXT;
+      CREATE UNIQUE INDEX card_attachments_card_checksum ON card_attachments(card_id, checksum);
+      CREATE INDEX card_attachments_card ON card_attachments(card_id, created_at);`)
+    }
   }
 ]
 

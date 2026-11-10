@@ -61,8 +61,11 @@ import type { UpdateService } from './updater'
 import type { StorageService } from './storage'
 import type { LineCommentInput } from './pr-positions'
 import type { CreateInput } from './pr-actions'
+import { CardAttachmentRepository } from './card-attachments'
 
 /** Attachment types the chat may open in the system's app: documents, spreadsheets, text, images. */
+/** What the system would run when opened: never opened from the app, not even from a card's attachments folder. */
+const runnableFile = /^\.(exe|msi|msix|appx|bat|cmd|com|scr|pif|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|lnk|reg|jar|dll|cpl|msc|gadget|application|url)$/i
 const openableAttachment = /^\.(pdf|docx?|dotx?|xlsx?|xlsm|csv|tsv|pptx?|odt|ods|odp|rtf|txt|md|json|jsonl|log|xml|ya?ml|png|jpe?g|gif|webp|bmp|svg|ico)$/i
 const imageMime: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' }
 
@@ -134,6 +137,8 @@ interface Services {
   appVersion: string
   updates: UpdateService
   storage: StorageService
+  /** Card attachments; when absent, one is created over the same database and attachments folder (tests). */
+  cardAttachments?: CardAttachmentRepository
   about(): Promise<import('@gearmod/contracts').AppAbout>
   dataDir: string
   reopen(): Promise<void>
@@ -173,6 +178,8 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     if (worktree && existsSync(worktree.path)) return [...new Set([worktree.path, ...services.worktrees.repositories(cardId!).filter((repo) => repo.status === 'active').map((repo) => repo.path)])]
     return [...new Set([project.localPath, ...project.sources.map((source) => source.localPath)])]
   }
+  // What the file viewer may read: the workspace plus the card's own attachment copies (the tree, search and writes stay inside the workspace).
+  const viewRoots = (input: { projectId: string; cardId: string | null }): string[] => { const roots = workspaceRoots(input); return input.cardId ? [...roots, cardAttachments.cardDir(input.cardId)] : roots }
   // workspaceRoots checks that the card belongs to the project before the index opens any folder
   const code = editorCodeQueries(services.codeIndex, (context) => { const roots = workspaceRoots(context); return services.codeRoots?.(context) ?? roots }, services.codeIndexSettings)
   const applyingConstitution = new Set<string>()
@@ -198,6 +205,8 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
       return services.approvals.consume(id, approval.opHash)
     } finally { applyingConstitution.delete(id) }
   }
+  const cardAttachments = services.cardAttachments ?? new CardAttachmentRepository(services.database, services.backups.attachmentsDir)
+  const trashCopy = async (path: string): Promise<void> => { if (!services.trashItem) throw new Error(tm().ipc.trashUnavailable); await services.trashItem(path) }
   const handlers: Record<IpcChannel, Handler> = {
     'db:feature-enabled': () => process.env.GEARMOD_DATABASE_EXPERIMENTAL !== '0',
     'db:connections:list': (input: { projectId: string }) => db().list(input.projectId),
@@ -298,18 +307,21 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'workspace:comment': async (input: { projectId: string; cardId: string | null; text: string }) => { if (!services.commentFile) throw new Error(tm().ipc.chatUnavailable); services.commentFile(input); return {} },
     'workspace:attach': async (input: { projectId: string; cardId: string | null; path: string }) => { const path = await allowedPath(workspaceRoots(input), input.path); if (!statSync(path).isFile()) throw new Error(tm().ipc.chooseFileToAttach); if (!services.attachFile) throw new Error(tm().ipc.chatUnavailable); services.attachFile({ ...input, path }); return {} },
     'workspace:terminal': async (input: { projectId: string; cardId: string | null; path: string }) => { const path = await allowedPath(workspaceRoots(input), input.path), cwd = statSync(path).isDirectory() ? path : dirname(path), id = services.terminals.open(cwd); return { id, cwd, shell: services.terminals.info(id).shell } },
-    'workspace:image': async (input: { projectId: string; cardId: string | null; path: string }) => { const path = await allowedPath(workspaceRoots(input), input.path), mime = imageMime[extname(path).toLowerCase()]; if (!mime || statSync(path).size > 20_000_000) throw new Error(tm().ipc.imagePreviewLimit); return `data:${mime};base64,${readFileSync(path).toString('base64')}` },
+    'workspace:image': async (input: { projectId: string; cardId: string | null; path: string }) => { const path = await allowedPath(viewRoots(input), input.path), mime = imageMime[extname(path).toLowerCase()]; if (!mime || statSync(path).size > 20_000_000) throw new Error(tm().ipc.imagePreviewLimit); return `data:${mime};base64,${readFileSync(path).toString('base64')}` },
     'workspace:roots': async (input: { projectId: string; cardId: string | null }) => {
       const worktree = input.cardId ? services.worktrees.get(input.cardId) : null, cards = services.board.get(input.projectId).cards, paths = workspaceRoots(input)
-      return Promise.all(paths.map(async (path) => {
+      const attachments = input.cardId ? cardAttachments.cardDir(input.cardId) : null
+      const attachmentsRoot = attachments && existsSync(attachments) ? [{ path: attachments, name: tm().ipc.cardAttachmentsRoot, branch: null, worktree: false, primary: true, cardId: input.cardId, cardTitle: cards.find((item) => item.id === input.cardId)?.title || null }] : []
+      const roots = await Promise.all(paths.map(async (path) => {
         const branch = worktree?.branch ?? await services.git.currentBranch(path)
         const card = input.cardId ? cards.find((item) => item.id === input.cardId) : branch ? cards.find((item) => !item.archivedAt && item.workspace?.branch === branch) : undefined
         const primary = !paths.some((parent) => parent !== path && relative(parent, path) !== '' && !relative(parent, path).startsWith('..') && !isAbsolute(relative(parent, path)))
         return { path, name: basename(path), branch, worktree: Boolean(worktree), primary, cardId: card?.id ?? null, cardTitle: card?.title || null }
       }))
+      return [...roots, ...attachmentsRoot]
     },
-    'workspace:list': (input: { projectId: string; cardId: string | null; path: string }) => listProjectDirectory(workspaceRoots(input), input.path),
-    'workspace:watch': async (input: { projectId: string; cardId: string | null; watchId: string; paths: string[] }) => { const roots = workspaceRoots(input), allowed = await Promise.all(input.paths.map((path) => allowedPath(roots, path).catch(() => null))); services.fileWatch.watch(input.watchId, allowed.filter((path): path is string => path !== null)); return {} },
+    'workspace:list': (input: { projectId: string; cardId: string | null; path: string }) => listProjectDirectory(viewRoots(input), input.path),
+    'workspace:watch': async (input: { projectId: string; cardId: string | null; watchId: string; paths: string[] }) => { const roots = viewRoots(input), allowed = await Promise.all(input.paths.map((path) => allowedPath(roots, path).catch(() => null))); services.fileWatch.watch(input.watchId, allowed.filter((path): path is string => path !== null)); return {} },
     'workspace:create': (input: { projectId: string; cardId: string | null; parent: string; name: string; kind: 'file' | 'folder' }) => createProjectItem(workspaceRoots(input), input.parent, input.name, input.kind),
     'workspace:rename': (input: { projectId: string; cardId: string | null; path: string; name: string }) => renameProjectItem(workspaceRoots(input), input.path, input.name),
     'workspace:trash': async (input: { projectId: string; cardId: string | null; path: string }) => { const path = await trashablePath(workspaceRoots(input), input.path); if (!services.trashItem) throw new Error(tm().ipc.trashUnavailable); await services.trashItem(path); return {} },
@@ -317,13 +329,26 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'workspace:save-image': (input: { projectId: string; cardId: string | null; markdownPath: string; data: string; mime: string }) => saveMarkdownImage(workspaceRoots(input), input.markdownPath, input.data, input.mime),
     'workspace:resolve-references': (input: { projectId: string; cardId: string | null; markdownPath?: string; targets: string[] }) => resolveProjectReferences(workspaceRoots(input), input.targets, input.markdownPath),
     'workspace:search': (input: { projectId: string; cardId: string | null; query: string; fuzzy?: boolean | undefined }) => searchProjectFiles(workspaceRoots(input), input.query, input.fuzzy),
-    'workspace:read': (input: { projectId: string; cardId: string | null; path: string }) => readProjectFile(workspaceRoots(input), input.path, true),
-    'workspace:versions': (input: { projectId: string; cardId: string | null; path: string }) => fileVersions(workspaceRoots(input), input.path, { git: nativeGit, baseFor: (top) => input.cardId ? services.worktrees.baseFor(input.cardId, top) : Promise.resolve(null) }),
+    'workspace:read': (input: { projectId: string; cardId: string | null; path: string }) => readProjectFile(viewRoots(input), input.path, true),
+    'workspace:versions': (input: { projectId: string; cardId: string | null; path: string }) => fileVersions(viewRoots(input), input.path, { git: nativeGit, baseFor: (top) => input.cardId ? services.worktrees.baseFor(input.cardId, top) : Promise.resolve(null) }),
     'workspace:write': (input: { projectId: string; cardId: string | null; path: string; content: string; expected: string }) => writeProjectFile(workspaceRoots(input), input.path, input.content, input.expected),
     'windows:return-file': (input: { projectId: string; cardId: string | null; path: string }) => { workspaceRoots(input); services.returnFile?.(input); return {} },
     'app:about': () => services.about(),
     'storage:list': () => services.storage.list(),
     'storage:remove': (input: { id: string }) => services.storage.remove(input.id),
+    'storage:card-attachments-done': () => cardAttachments.doneSummary(),
+    'storage:clear-card-attachments-done': () => cardAttachments.clearDone(trashCopy),
+    'cards:attachments': (input: { cardId: string }) => { services.board.card(input.cardId); return cardAttachments.list(input.cardId) },
+    'cards:attachments-add': async (input: { cardId: string; paths: string[] }) => {
+      services.board.card(input.cardId)
+      const added = [], failed: { name: string; reason: string }[] = []
+      for (const path of input.paths) {
+        try { added.push(await cardAttachments.addFromPath(input.cardId, path, 'manual')) } catch (error) { failed.push({ name: basename(path), reason: error instanceof Error ? error.message : tm().ipc.attachmentCopyFailed }) }
+      }
+      return { added, failed }
+    },
+    'cards:attachments-add-pasted': (input: { cardId: string; name: string; base64: string }) => { services.board.card(input.cardId); return cardAttachments.addFromBuffer(input.cardId, input.name, Buffer.from(input.base64, 'base64')) },
+    'cards:attachments-remove': (input: { cardId: string; ids: string[] }) => { services.board.card(input.cardId); return cardAttachments.remove(input.cardId, input.ids, trashCopy) },
     'updates:state': () => services.updates.get(),
     'updates:check': () => services.updates.check(),
     'updates:install': () => services.updates.install(),
@@ -536,9 +561,15 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     },
     // Opens an attachment from the chat in the system's default app. Only documents and images that exist: never executables or scripts, which the system would run.
     'files:open': async (input: { path: string }) => {
-      if (!isLocalAbsolutePath(input.path) || !openableAttachment.test(extname(input.path))) throw new Error(tm().ipc.fileNotAllowed)
+      // The app's own copies of a card's attachments open in the system's default app whatever the type (a video, an archive...), except what the system would run;
+      // anything else (chat attachments) stays limited to documents and images.
+      const cardCopies = resolve(services.backups.attachmentsDir, 'cards'), insideCopies = isLocalAbsolutePath(input.path) && !relative(cardCopies, resolve(input.path)).startsWith('..') && !isAbsolute(relative(cardCopies, resolve(input.path)))
+      const ext = extname(input.path)
+      if (!isLocalAbsolutePath(input.path) || (insideCopies ? runnableFile.test(ext) : !openableAttachment.test(ext))) throw new Error(tm().ipc.fileNotAllowed)
       try { if (!statSync(input.path).isFile()) throw new Error() } catch { throw new Error(tm().ipc.fileNotFound) }
-      await services.openPath(input.path); return { opened: true as const }
+      // `openPath` creates the folder first (it is meant for folders): on a file it fails with EEXIST.
+      if (services.openFileExternal) await services.openFileExternal(input.path, 'default'); else await services.openPath(input.path)
+      return { opened: true as const }
     },
     // A file pasted from the clipboard (screenshot, copied image) has no path: it goes to the app's attachments folder and the agent reads it from there.
     'files:save-pasted': (input: { name: string; base64: string }) => {
@@ -572,7 +603,10 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
           await services.trashItem(path)
         }
       }
-      return { deleted: services.board.delete(input.cardId) }
+      const deleted = services.board.delete(input.cardId)
+      // The card's attachment copies go to the trash with it (the rows left through ON DELETE CASCADE).
+      if (deleted) { const dir = cardAttachments.cardDir(input.cardId); if (existsSync(dir)) { try { await trashCopy(dir) } catch { /* the folder stays; nothing is lost */ } } }
+      return { deleted }
     },
     'cards:set-repos': (input: { cardId: string; sourceIds: string[] | null }) => services.board.setRepos(input.cardId, input.sourceIds),
     'git:create-prs': (input: { cardId: string; draft: boolean; title?: string; body?: string; sourceId?: string }) => services.gitManager.createPullRequests(input.cardId, input),

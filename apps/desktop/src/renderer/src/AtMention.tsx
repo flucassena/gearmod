@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
+import type { CardAttachment } from '@gearmod/contracts'
 import { rankPaths } from './editor/quickOpen'
+import { combineMentions, type MentionEntry } from './cardAttachmentsLogic'
 import { useT } from './i18n'
 import { FileIcon, FolderGlyph } from './icons'
 
@@ -9,17 +11,20 @@ const maxHits = 8
 /**
  * "@" in the message field: opens the list of project files (or the card's worktree), filtered by what comes after the "@".
  * Choosing one replaces the fragment with `@relative/path ` in the text, which the agent understands as a file reference.
+ * In a card chat (`attach` given), the card's attachments come first: choosing one removes the fragment and adds the file to the next message.
  */
-export function useAtMention({ projectId, cardId, input, setInput }: { projectId: string; cardId: string | null; input: string; setInput(value: string): void }) {
+export function useAtMention({ projectId, cardId, input, setInput, attach }: { projectId: string; cardId: string | null; input: string; setInput(value: string): void; attach?(path: string): void }) {
   const t = useT()
   const area = useRef<HTMLTextAreaElement>(null), roots = useRef<string[]>([]), latest = useRef(0)
-  const [caret, setCaret] = useState(0), [hits, setHits] = useState<Hit[]>([]), [index, setIndex] = useState(0), [closedAt, setClosedAt] = useState(-1)
+  const [caret, setCaret] = useState(0), [hits, setHits] = useState<Hit[]>([]), [cardFiles, setCardFiles] = useState<CardAttachment[]>([]), [index, setIndex] = useState(0), [closedAt, setClosedAt] = useState(-1)
   const found = /(^|\s)@([^\s@]*)$/.exec(input.slice(0, caret)), query = found ? found[2]! : null, start = found ? caret - found[2]!.length - 1 : -1
-  const open = query !== null && closedAt !== start && hits.length > 0
+  const entries: MentionEntry[] = query === null ? [] : combineMentions(query, attach ? cardFiles : [], hits.map((hit) => ({ path: hit.path, relative: hit.relative, name: hit.name, directory: hit.directory })), maxHits)
+  const open = query !== null && closedAt !== start && entries.length > 0
 
   useEffect(() => { roots.current = [] }, [projectId, cardId])
   useEffect(() => {
-    if (query === null) { setHits([]); if (closedAt !== -1) setClosedAt(-1); return }
+    if (query === null) { setHits([]); setCardFiles([]); if (closedAt !== -1) setClosedAt(-1); return }
+    if (attach && cardId) void window.gearmod.invoke('cards:attachments', { cardId }).then(setCardFiles).catch(() => setCardFiles([]))
     const ticket = ++latest.current
     const timer = window.setTimeout(() => {
       void (async () => {
@@ -38,26 +43,40 @@ export function useAtMention({ projectId, cardId, input, setInput }: { projectId
       })().catch(() => { if (ticket === latest.current) setHits([]) })
     }, query ? 120 : 0)
     return () => window.clearTimeout(timer)
-  }, [projectId, cardId, query])
+  }, [projectId, cardId, query, Boolean(attach)])
 
   const pick = (hit: Hit): void => {
     const text = `@${hit.relative}${hit.directory ? '/' : ' '}`, next = input.slice(0, start) + text + input.slice(caret), position = start + text.length
     setInput(next); setCaret(position)
     window.requestAnimationFrame(() => { const element = area.current; if (element) { element.focus(); element.setSelectionRange(position, position) } })
   }
+  const pickCard = (attachment: CardAttachment): void => {
+    // The "@..." fragment leaves the text (the file goes as an attachment of the next message, not as a path in the text).
+    const before = input.slice(0, start), after = input.slice(caret), next = before.endsWith(' ') && after.startsWith(' ') ? before + after.slice(1) : before + after
+    setInput(next); setCaret(start); attach?.(attachment.path)
+    window.requestAnimationFrame(() => { const element = area.current; if (element) { element.focus(); element.setSelectionRange(start, start) } })
+  }
+  const choose = (entry: MentionEntry): void => { if (entry.kind === 'card') pickCard(entry.attachment); else pick(entry.hit) }
   /** Returns true when the key belonged to the list (arrows, Enter/Tab to choose, Esc to close): the caller must not send the message. */
   const keyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
     if (!open || event.nativeEvent.isComposing) return false
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setIndex((value) => (value + (event.key === 'ArrowDown' ? 1 : hits.length - 1)) % hits.length); return true }
-    if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); const hit = hits[index]; if (hit) pick(hit); return true }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setIndex((value) => (value + (event.key === 'ArrowDown' ? 1 : entries.length - 1)) % entries.length); return true }
+    if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); const entry = entries[index]; if (entry) choose(entry); return true }
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setClosedAt(start); return true }
     return false
   }
   const menu = open ? <div className="atmenu" role="listbox" aria-label={t.chat.atMention.projectFiles} onMouseDown={(event) => event.preventDefault()}>
-    {hits.map((hit, position) => <button type="button" role="option" aria-selected={position === index} key={hit.path} className={`atitem ${position === index ? 'on' : ''}`} data-tip={hit.relative} onMouseEnter={() => setIndex(position)} onClick={() => pick(hit)}>
+    {entries.map((entry, position) => entry.kind === 'card' ? <React.Fragment key={entry.attachment.id}>
+      {position === 0 && <div className="atsection">{t.chat.atMention.cardAttachments}</div>}
+      <button type="button" role="option" aria-selected={position === index} className={`atitem ${position === index ? 'on' : ''}`} data-tip={entry.attachment.fileName} onMouseEnter={() => setIndex(position)} onClick={() => choose(entry)}>
+        <FileIcon />
+        <span className="atname">{entry.attachment.fileName}</span><span className="atpath" />
+      </button></React.Fragment> : (() => { const hit = entry.hit; return <React.Fragment key={hit.path}>
+      {position > 0 && entries[position - 1]!.kind === 'card' && <div className="atsection">{t.chat.atMention.projectFiles}</div>}
+      <button type="button" role="option" aria-selected={position === index} className={`atitem ${position === index ? 'on' : ''}`} data-tip={hit.relative} onMouseEnter={() => setIndex(position)} onClick={() => choose(entry)}>
       {hit.directory ? <FolderGlyph /> : <FileIcon />}
       <span className="atname">{hit.name}</span><span className="atpath">{hit.relative.includes('/') ? hit.relative.slice(0, hit.relative.length - hit.name.length - 1) : ''}</span>
-    </button>)}
+    </button></React.Fragment> })())}
   </div> : null
   return {
     menu, keyDown, ref: area,

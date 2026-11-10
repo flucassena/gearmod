@@ -130,7 +130,7 @@ export const settings = {
   },
 
   storage: {
-    title: 'Ferramentas e espaço em disco',
+    title: 'Ferramentas e espaço',
     intro: 'O que o GearMod guarda neste computador e quanto espaço cada coisa ocupa. Você pode remover o que é antigo ou que não usa mais; ferramentas e modelos são baixados de novo quando forem necessários.',
     measuring: 'Medindo…',
     measuringLabel: 'Medindo o espaço',
@@ -179,7 +179,13 @@ export const settings = {
     clearBackups: 'Limpar backups',
     clearBackupsTitle: (count: number) => count === 1 ? 'Apagar o backup?' : `Apagar os ${count} backups?`,
     clearBackupsText: (count: number, size: string) => `${count === 1 ? 'O backup é apagado' : `Os ${count} backups são apagados`} (${size}) e não há como recuperá-los. Seus cards, chats e anexos atuais não são afetados.`,
-    backupsCleared: (count: number, size: string) => `${count === 1 ? '1 backup removido' : `${count} backups removidos`} · ${size} liberados`
+    backupsCleared: (count: number, size: string) => `${count === 1 ? '1 backup removido' : `${count} backups removidos`} · ${size} liberados`,
+    clearDoneAttachments: 'Limpar anexos de cards em Done',
+    clearDoneAttachmentsInfo: (cards: number, files: number, size: string) => `${cards === 1 ? '1 card' : `${cards} cards`} em Done · ${files === 1 ? '1 arquivo' : `${files} arquivos`} · ${size}`,
+    clearDoneAttachmentsTitle: 'Limpar os anexos dos cards em Done?',
+    clearDoneAttachmentsText: (cards: number, files: number, size: string) => `${files === 1 ? '1 arquivo' : `${files} arquivos`} (${size}) de ${cards === 1 ? '1 card' : `${cards} cards`} em Done ${files === 1 ? 'vai' : 'vão'} para a Lixeira. Os arquivos originais que você anexou não são tocados e os cards fora de Done não mudam.`,
+    clearDoneAttachmentsNone: 'Nenhum card em Done tem anexos guardados.',
+    doneAttachmentsCleared: (files: number, size: string, failed: number) => `${files === 1 ? '1 anexo removido' : `${files} anexos removidos`} · ${size} liberados${failed ? ` · ${failed} não puderam ir para a Lixeira` : ''}`
   },
   about: {
     version: (value: string) => `Versão ${value}`,

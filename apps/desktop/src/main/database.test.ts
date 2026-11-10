@@ -27,6 +27,22 @@ describe('AppDatabase', () => {
     second.close()
   })
 
+  it('migration 52 adds the card attachment columns and the per-card content index', async () => {
+    const root = await tempRoot()
+    const database = new AppDatabase(join(root, 'gearmod.sqlite'), '0.1.0')
+    await database.open()
+    const columns = (database.db.prepare('PRAGMA table_info(card_attachments)').all() as { name: string }[]).map((column) => column.name)
+    expect(columns).toEqual(expect.arrayContaining(['source', 'source_message_id', 'original_path']))
+    const indexes = (database.db.prepare('PRAGMA index_list(card_attachments)').all() as { name: string; unique: number }[])
+    expect(indexes.find((index) => index.name === 'card_attachments_card_checksum')?.unique).toBe(1)
+    expect(indexes.some((index) => index.name === 'card_attachments_card')).toBe(true)
+    database.db.pragma('foreign_keys = OFF')
+    const insert = database.db.prepare(`INSERT INTO card_attachments(id, card_id, file_name, relative_path, size_bytes, checksum, created_at) VALUES (?, 'c1', 'a.txt', 'cards/c1/a.txt', 1, 'sha256:x', '2026-01-01')`)
+    insert.run('a1')
+    expect(() => insert.run('a2')).toThrow(/UNIQUE/)
+    database.close()
+  })
+
   it('rolls back the complete migration batch when an upgrade fails', async () => {
     const root = await tempRoot()
     const path = join(root, 'gearmod.sqlite')

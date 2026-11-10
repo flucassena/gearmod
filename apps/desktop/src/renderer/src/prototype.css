@@ -3509,3 +3509,52 @@ span.cgamend{font:700 10px var(--mono);text-transform:uppercase;padding:2px 6px;
 /* Ink that stays readable over --accent: black on light accents, white on dark ones (any theme or custom color). */
 :root{--on-accent:#fff;--on-accent:oklch(from var(--accent) clamp(0, (0.68 - l) * 1000, 1) 0 0)}
 .tl-split{position:relative;display:inline-flex}.tl-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:240px;display:grid;gap:2px;padding:6px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);box-shadow:0 12px 36px rgba(0,0,0,.45)}.tl-menu button{display:block;text-align:left;padding:8px 10px;border-radius:7px;background:transparent;color:var(--text);font-size:13px}.tl-menu button:hover{background:color-mix(in srgb,var(--accent) 18%,transparent);filter:none}
+/* Card attachments: folder view in the editor's middle area and the "@" section */
+.atsection{padding:5px 10px 3px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.storage-done{display:flex;align-items:center;gap:10px;margin:0 0 8px;flex-wrap:wrap}
+.cafolder{position:relative;display:flex;flex-direction:column;gap:12px;min-height:0;flex:1;overflow:auto;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.cafolder.dragging{outline:2px dashed var(--accent);outline-offset:-4px;border-radius:8px}
+.cafolder-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.cafolder-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cafolder-tools .danger-text{color:var(--danger)}
+.pane-mid>.cafolder{grid-row:1 / -1}
+.cafolder-empty{flex:1;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center;border:2px dashed var(--border);border-radius:12px;color:var(--muted)}
+.cafolder-empty b{color:var(--text);font-size:14px}.cafolder-empty span{font-size:12.5px}
+.cafolder-drop{position:absolute;inset:0;display:grid;place-items:center;background:color-mix(in srgb, var(--accent) 14%, var(--surface));border:2px dashed var(--accent);font-weight:700;pointer-events:none;border-radius:8px}
+.cagrid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px}
+.cafile{position:relative;display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--g2b);border-radius:8px;background:var(--g14)}
+.cafile.on{border-color:var(--accent);background:var(--accent-bg)}
+.cafile.gone .cafile-open{opacity:.55}
+.cafile-ck{position:absolute;top:8px;left:8px;z-index:1}
+.cafile-open{all:unset;display:flex;flex-direction:column;gap:4px;cursor:pointer;min-width:0}
+.cafile-thumb{display:grid;place-items:center;height:96px;border-radius:6px;background:var(--g1f,rgba(127,127,127,.12));overflow:hidden}
+.cafile-thumb img{max-width:100%;max-height:100%;object-fit:contain}
+.cafile-ext{font-weight:700;font-size:15px;color:var(--muted)}
+.cafile-name{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cafile-meta{color:var(--muted);font-size:11px}
+.cafile-actions{display:flex;align-items:center;justify-content:space-between;gap:6px}
+
+/* Attachments in the documents list: one slim line, plus a row of tiny previews when there are files. */
+.docbtn.atdoc{gap:6px;padding:8px 12px}
+.atdoc-line{display:flex;align-items:center;gap:8px;min-width:0}
+.atdoc-line svg{width:15px;height:15px;flex:none;color:var(--muted)}
+.atdoc-row{display:flex;align-items:center;gap:4px}
+.atdoc-row em{font-style:normal;font-size:11px;color:var(--muted);margin-left:2px}
+.at-mini{display:grid;place-items:center;width:22px;height:22px;border-radius:5px;overflow:hidden;background:var(--surface-3);border:1px solid var(--border);flex:none}
+.at-mini img{width:100%;height:100%;object-fit:cover}
+.at-mini b{font-size:8px;font-weight:700;color:var(--muted)}
+
+/* Attachments: file type icons instead of extension text, and a list view */
+.cafile-thumb .filetype{width:40px;height:40px;margin:0;stroke-width:1.2}
+.cafile-ext{font-size:11px;margin-top:4px}
+.cafile-thumb:has(.filetype){align-content:center;justify-items:center;gap:0}
+.at-mini .filetype{width:14px;height:14px;margin:0}
+.calist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.cafile.row{flex-direction:row;align-items:center;gap:10px;padding:6px 10px}
+.cafile.row .cafile-ck{position:static;flex:none}
+.cafile.row .cafile-open{flex:1;flex-direction:row;align-items:center;gap:10px}
+.cafile.row .cafile-thumb{width:34px;height:34px;flex:none}
+.cafile.row .cafile-thumb .filetype{width:20px;height:20px}
+.cafile.row .cafile-name{flex:1;min-width:0}
+.cafile.row .cafile-meta{flex:none}
+.cafile.row .cafile-actions{flex:none;gap:8px}

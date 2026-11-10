@@ -189,7 +189,7 @@ export function CardChat({ project, card, board, profiles, columnLabel, mode, cl
   const agentState = useAgentConfig(card.id, mode, usable, chat?.profileId)
   const attach = useAttachments({ projectId: project.id, cardId: card.id || null })
   const replies = useChatReplies()
-  const mention = useAtMention({ projectId: project.id, cardId: card.id || null, input, setInput })
+  const mention = useAtMention({ projectId: project.id, cardId: card.id || null, input, setInput, attach: card.id ? (path: string) => attach.add([path]) : undefined })
   useContextText({ projectId: project.id, cardId: card.id || null }, (text) => setInput((value) => (value.trim() ? `${value.replace(/\s+$/, '')}\n\n${text}` : text)))
   const dictation = useDictation(useCallback((text: string) => setInput((value) => `${value}${value && !/\s$/.test(value) ? ' ' : ''}${text}`), []), card.title || undefined)
   const voiceReady = Boolean(dictation.status?.modelInstalled && dictation.status.engineInstalled)

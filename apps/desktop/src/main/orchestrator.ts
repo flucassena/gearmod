@@ -15,12 +15,16 @@ import { isSpecKitImplementRequest, SpecKitImplementBlocked } from './spec-tools
 import type { SpecKitRuntime } from './speckit'
 import type { McpRegistry } from './mcp-registry'
 import { tm } from './i18n'
+import type { CardAttachmentRepository } from './card-attachments'
 import { ptBR } from './i18n/pt-BR'
 import { en } from './i18n/en'
 
+/** Start of the block that accompanies a message with attachments; kept in Portuguese on purpose (see below). */
+export const attachmentNoteMarker = 'Arquivos anexados (leia antes de responder; são contexto deste pedido):\n'
+
 /** Block that accompanies a message with attachments: the agent reads those files as context. Kept in Portuguese on purpose: the renderer (Attachments.tsx) recognizes this marker to hide the block. */
 export function attachmentNote(paths: string[]): string {
-  return `Arquivos anexados (leia antes de responder; são contexto deste pedido):\n${paths.map((path) => `- ${path}`).join('\n')}`
+  return `${attachmentNoteMarker}${paths.map((path) => `- ${path}`).join('\n')}`
 }
 
 type AgentChoice = { model?: string | null; effort?: Effort | null; mode?: PermissionMode }
@@ -53,7 +57,9 @@ export class AgentOrchestrator {
     private readonly ledger?: { recordRun(runId: string, usage: { input: number; cached: number; output: number; costUsd?: number } | undefined, partial?: boolean): void; recordDelta?(runId: string, usage: { input: number; cached: number; output: number }): void },
     private readonly profiles?: { recordBillingHint(id: string, hint: string): void },
     private readonly speckit?: Pick<SpecKitRuntime, 'assertCanStart' | 'prepare' | 'prepareImplementation' | 'afterRun' | 'denies'>,
-    private readonly mcpServers?: Pick<McpRegistry, 'effective'>
+    private readonly mcpServers?: Pick<McpRegistry, 'effective'>,
+    /** Keeps a copy of the files sent in card chats in the card's attachments folder. */
+    private readonly cardAttachments?: Pick<CardAttachmentRepository, 'addFromPath'>
   ) {}
 
   /** Run limits (time, budget, attempts) and notices after the run; optional for tests. */
@@ -81,13 +87,21 @@ export class AgentOrchestrator {
     // The Constitution never changes files (runs like planning, read-only). Free chat changes files when the chosen mode is not plan mode.
     if (context.chat.purpose === 'constitution') input = { ...input, planning: true }
     if (context.chat.purpose !== 'free' && context.chat.purpose !== 'conflict' && context.chat.purpose !== 'test-setup') input = { ...input, choice: undefined }
-    this.conversations.addMessage(input.notice ? { chatId: input.chatId, role: 'system', body: input.notice, status: 'complete' } : { chatId: input.chatId, role: 'user', body: input.prompt, status: 'complete' })
+    const message = this.conversations.addMessage(input.notice ? { chatId: input.chatId, role: 'system', body: input.notice, status: 'complete' } : { chatId: input.chatId, role: 'user', body: input.prompt, status: 'complete' })
+    // Card chat: the files go to the card's folder in the background (large files must not delay the run; a failure is only logged).
+    if (context.cardId && attachments.length && !input.notice) this.registerCardAttachments(context.cardId, attachments, message.id)
     const run = this.conversations.createRun({ cardId: context.cardId, chatId: input.chatId, profileId: context.profile.id })
     const full = this.active >= this.limit()
     this.queue.push({ run, ...input }); this.pump()
     // User request that did not fit: it stays in the queue and the screen asks whether to run anyway or change the limit. Automatic resumes wait silently.
     if (full && !input.automatic) this.emit({ runId: run.id, eventType: 'gearmod/run-queued', payload: { chatId: input.chatId, cardId: context.cardId, active: this.active, limit: this.limit() } })
     return run
+  }
+
+  private registerCardAttachments(cardId: string, paths: string[], messageId: string): void {
+    const repo = this.cardAttachments
+    if (!repo) return
+    void (async () => { for (const path of paths) { try { await repo.addFromPath(cardId, path, 'chat', messageId) } catch (error) { console.error('Falha ao guardar o anexo do card:', error instanceof Error ? error.message : error) } } })()
   }
 
   private limit(): number { return Math.max(1, typeof this.concurrency === 'function' ? this.concurrency() : this.concurrency) }

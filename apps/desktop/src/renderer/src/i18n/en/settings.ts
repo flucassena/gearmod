@@ -131,7 +131,7 @@ export const settings: typeof source = {
   },
 
   storage: {
-    title: 'Tools and disk space',
+    title: 'Tools and space',
     intro: 'What GearMod keeps on this computer and how much space each thing takes. You can remove what is old or that you no longer use; tools and models are downloaded again when they are needed.',
     measuring: 'Measuring…',
     measuringLabel: 'Measuring the space',
@@ -180,7 +180,13 @@ export const settings: typeof source = {
     clearBackups: 'Clear backups',
     clearBackupsTitle: (count) => count === 1 ? 'Delete the backup?' : `Delete the ${count} backups?`,
     clearBackupsText: (count, size) => `${count === 1 ? 'The backup is deleted' : `The ${count} backups are deleted`} (${size}) and cannot be recovered. Your current cards, chats and attachments are not affected.`,
-    backupsCleared: (count, size) => `${count === 1 ? '1 backup removed' : `${count} backups removed`} · ${size} freed`
+    backupsCleared: (count, size) => `${count === 1 ? '1 backup removed' : `${count} backups removed`} · ${size} freed`,
+    clearDoneAttachments: 'Clear attachments of cards in Done',
+    clearDoneAttachmentsInfo: (cards, files, size) => `${cards === 1 ? '1 card' : `${cards} cards`} in Done · ${files === 1 ? '1 file' : `${files} files`} · ${size}`,
+    clearDoneAttachmentsTitle: 'Clear the attachments of cards in Done?',
+    clearDoneAttachmentsText: (cards, files, size) => `${files === 1 ? '1 file' : `${files} files`} (${size}) from ${cards === 1 ? '1 card' : `${cards} cards`} in Done will be sent to the trash. The original files you attached are not touched and cards outside Done do not change.`,
+    clearDoneAttachmentsNone: 'No card in Done has stored attachments.',
+    doneAttachmentsCleared: (files, size, failed) => `${files === 1 ? '1 attachment removed' : `${files} attachments removed`} · ${size} freed${failed ? ` · ${failed} could not go to the trash` : ''}`
   },
   about: {
     version: (value: string) => `Version ${value}`,

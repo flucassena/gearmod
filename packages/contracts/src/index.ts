@@ -51,6 +51,9 @@ export const storageSnapshotSchema = z.object({ entries: z.array(storageEntrySch
 export type StorageKind = z.output<typeof storageKindSchema>
 export type StorageEntry = z.output<typeof storageEntrySchema>
 export type StorageSnapshot = z.output<typeof storageSnapshotSchema>
+export const cardAttachmentSchema = z.object({ id: z.string().uuid(), cardId: z.string().uuid(), fileName: z.string(), path: z.string(), mediaType: z.string().nullable(), sizeBytes: z.number().nonnegative(), source: z.enum(['chat', 'manual', 'import']), createdAt: z.string(), available: z.boolean() }).strict()
+export type CardAttachment = z.output<typeof cardAttachmentSchema>
+const cardAttachmentsDoneSchema = z.object({ cards: z.number().int().nonnegative(), files: z.number().int().nonnegative(), bytes: z.number().nonnegative() }).strict()
 export const appAboutSchema = z.object({ name: z.string(), version: z.string(), author: z.string(), authorEmail: z.string().nullable(), license: z.string(), homepage: z.string(), buildDate: z.string().nullable(), electron: z.string(), chromium: z.string(), node: z.string(), v8: z.string(), system: z.string(), dataDir: z.string() })
 export type AppAbout = z.output<typeof appAboutSchema>
 
@@ -781,6 +784,12 @@ export const ipcContracts = {
   , 'files:open': { input: z.object({ path: z.string().max(2048) }).strict(), output: z.object({ opened: z.literal(true) }) }
   , 'files:choose': { input: z.undefined(), output: z.array(z.string()) }
   , 'files:save-pasted': { input: z.object({ name: z.string().max(200), base64: z.string().max(40_000_000) }).strict(), output: z.string() }
+  , 'cards:attachments': { input: z.object({ cardId: uuid }).strict(), output: z.array(cardAttachmentSchema) }
+  , 'cards:attachments-add': { input: z.object({ cardId: uuid, paths: z.array(z.string().max(4096)).max(20) }).strict(), output: z.object({ added: z.array(cardAttachmentSchema), failed: z.array(z.object({ name: z.string(), reason: z.string() }).strict()) }).strict() }
+  , 'cards:attachments-add-pasted': { input: z.object({ cardId: uuid, name: z.string().max(200), base64: z.string().max(40_000_000) }).strict(), output: cardAttachmentSchema }
+  , 'cards:attachments-remove': { input: z.object({ cardId: uuid, ids: z.array(uuid).min(1).max(500) }).strict(), output: z.object({ removed: z.array(z.string()), failed: z.array(z.object({ id: z.string(), reason: z.string() }).strict()) }).strict() }
+  , 'storage:card-attachments-done': { input: z.undefined(), output: cardAttachmentsDoneSchema }
+  , 'storage:clear-card-attachments-done': { input: z.undefined(), output: cardAttachmentsDoneSchema.extend({ failed: z.number().int().nonnegative() }).strict() }
   , 'agents:cancel': { input: z.object({ runId: uuid }).strict(), output: z.object({ cancelled: z.boolean() }) }
   , 'agents:run-now': { input: z.object({ runId: uuid }).strict(), output: z.object({ started: z.boolean() }) }
   , 'agents:capacity': { input: z.undefined(), output: runCapacitySchema }

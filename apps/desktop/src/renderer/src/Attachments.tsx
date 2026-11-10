@@ -4,6 +4,7 @@ import { CloseIcon, PlusIcon } from './icons'
 import { toast } from './toasts'
 import { plainError } from './NoticeDialog'
 import { tr, useT } from './i18n'
+import { notifyCardAttachments } from './cardAttachmentsLogic'
 
 const fileName = (path: string): string => path.split(/[\\/]/).pop() || path
 type ContextTarget = { projectId: string; cardId: string | null }
@@ -45,7 +46,12 @@ export function useAttachments(target?: ContextTarget): { files: string[]; add(p
     return () => { listeners.delete(receive) }
   }, [target?.projectId, target?.cardId, add])
   const remove = (path: string): void => update(ref.current.filter((item) => item !== path))
-  const take = (): string[] => { const taken = ref.current; update([]); return taken }
+  // A message with attachments left: the main process copies them into the card's folder in the background, so the folder reloads a bit later.
+  const take = (): string[] => {
+    const taken = ref.current; update([])
+    if (taken.length && target?.cardId) { const cardId = target.cardId; for (const delay of [600, 3000, 12000]) window.setTimeout(() => notifyCardAttachments(cardId), delay) }
+    return taken
+  }
   const choose = async (): Promise<void> => { try { add(await window.gearmod.invoke('files:choose', undefined)) } catch (reason) { toast.error(tr().chat.attachments.attachFailed, plainError(reason)) } }
   // Ctrl+V: files copied in Explorer go in by path; pasted images (screenshots) are saved in the app's attachments folder.
   const paste = async (files: File[]): Promise<void> => {
@@ -107,7 +113,7 @@ function AttachmentCard({ path, remove }: { path: string; remove?(path: string):
 }
 
 /** Preview of an attached image over the whole window: closes with Esc, a click outside the image or the × button. */
-function ImagePreview({ src, name, onClose }: { src: string; name: string; onClose(): void }): React.JSX.Element {
+export function ImagePreview({ src, name, onClose }: { src: string; name: string; onClose(): void }): React.JSX.Element {
   const t = useT().chat.attachments
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') { event.stopPropagation(); onClose() } }

@@ -18,6 +18,7 @@ import { ModelMenu, effortLabel, useAgentConfig, permissionModeText } from './Mo
 import { AssessmentDialog, ComplexityBadge } from './Assessment'
 import { RepoChooser } from './Delivery'
 import { DocHistory } from './DocHistory'
+import { AttachmentsDocButton, AttachmentsFolder, useCardAttachments } from './CardAttachments'
 import { Select } from './Select'
 import { cardTypeOptions } from './CardTypes'
 import { useEscape } from './useEscape'
@@ -57,6 +58,7 @@ export function CardEditor({ projectId, sources, profiles, cardTypes, draft: sta
   const waiting = (k: CardDocumentKind): number => k === 'mudancas' ? (pending?.changes ?? 0) + (pending?.toSend ?? 0) : k === 'duvidas' ? pending?.questions ?? 0 : 0
   const shownKinds = cardDocumentKinds.filter((k) => k === 'resumo' || k === kind || waiting(k) > 0 || texts[k].trim() || original[k].trim())
   const hiddenKinds = cardDocumentKinds.filter((k) => !shownKinds.includes(k) && !systemKinds.includes(k))
+  const [attView, setAttView] = useState(false), cardAtt = useCardAttachments(start.id)
   const [testsView, setTestsView] = useState(false), [checklistData, setChecklistData] = useState<CardChecklist>()
   const checklist = checklistData?.contentMd ?? ''
   useEffect(() => {
@@ -180,7 +182,7 @@ export function CardEditor({ projectId, sources, profiles, cardTypes, draft: sta
           {gitSources.length === 0 && <p className="hint">{t.noGit}</p>}
         </div></div>
         <div className="stack pane-mid" style={{ minWidth: 0 }}>
-          {testsView && checklist.trim() ? <><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span className="sectitle">{t.testsByTester}</span></div><div className="md descarea">{checklistData && <TestChecklist data={checklistData} />}</div></> : <>
+          {attView && d.id ? <AttachmentsFolder projectId={projectId} cardId={d.id} data={cardAtt} viewed={close} /> : testsView && checklist.trim() ? <><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span className="sectitle">{t.testsByTester}</span></div><div className="md descarea">{checklistData && <TestChecklist data={checklistData} />}</div></> : <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span className="sectitle">{small ? t.whatToDo : labels[kind]} · {systemKinds.includes(kind) ? t.generatedBySystem : 'Markdown'}</span>
             <div className="tabs">{d.id && !systemKinds.includes(kind) && <button type="button" className={`ibtn tip ${versions ? 'on' : ''}`} data-tip={versions ? t.closeHistory : t.versionHistory} aria-label={t.versionHistory} aria-pressed={Boolean(versions)} onClick={() => (versions ? setVersions(undefined) : void showVersions())}><HistoryIcon /></button>}
               <button type="button" className={`ibtn tip ${wide ? 'on' : ''}`} data-tip={wide ? t.showSideColumns : t.expandHidesColumns} aria-label={wide ? t.collapseDocument : t.expandDocument} aria-pressed={wide} onClick={() => setWide(!wide)}>{wide ? <CollapseIcon /> : <ExpandIcon />}</button>
@@ -194,9 +196,10 @@ export function CardEditor({ projectId, sources, profiles, cardTypes, draft: sta
           <span className="sectitle">{t.documents}</span>
           {shownKinds.map((k) => { const value = texts[k], tasks = k === 'tasks' ? topLevel(value) : null, status = tasks ? (tasks.total ? `${tasks.done}/${tasks.total}` : t.empty) : value.trim() ? t.written : t.empty
             const ask = waiting(k)
-            return <button type="button" key={k} className={`docbtn ${kind === k && !testsView ? 'on' : ''} ${value.trim() || ask ? '' : 'empty'} ${ask ? 'ask' : ''}`} data-tip={ask ? t.awaitingAuthorization : undefined} onClick={() => { setTestsView(false); setKind(k); if (ask) onPending?.() }}><span className="dn">{labels[k]}{dirty(k) && <i className="dirtyDot" aria-label={t.changed} />}</span><span className="ds">{ask ? <><span className="dot pulse" />{k === 'mudancas' ? t.toAuthorize(ask) : t.toAnswer(ask)}</> : status}</span>{tasks && tasks.total > 0 && <span className="dprog"><i style={{ width: `${Math.round((tasks.done / tasks.total) * 100)}%` }} /></span>}</button> })}
-          {checklist.trim() && <button type="button" className={`docbtn ${testsView ? 'on' : ''}`} onClick={() => setTestsView(true)}><span className="dn">{t.tests}</span><span className="ds">{testItems ? `${testDone}/${testItems}` : t.written}</span>{testItems > 0 && <span className="dprog"><i style={{ width: `${Math.round((testDone / testItems) * 100)}%` }} /></span>}</button>}
-          {hiddenKinds.length > 0 && <div className="docadd">{addingDoc ? hiddenKinds.map((k) => <button type="button" key={k} className="mini secondary" onClick={() => { setAddingDoc(false); setKind(k); setMode('write') }}>{labels[k]}</button>)
+            return <button type="button" key={k} className={`docbtn ${kind === k && !testsView && !attView ? 'on' : ''} ${value.trim() || ask ? '' : 'empty'} ${ask ? 'ask' : ''}`} data-tip={ask ? t.awaitingAuthorization : undefined} onClick={() => { setTestsView(false); setAttView(false); setKind(k); if (ask) onPending?.() }}><span className="dn">{labels[k]}{dirty(k) && <i className="dirtyDot" aria-label={t.changed} />}</span><span className="ds">{ask ? <><span className="dot pulse" />{k === 'mudancas' ? t.toAuthorize(ask) : t.toAnswer(ask)}</> : status}</span>{tasks && tasks.total > 0 && <span className="dprog"><i style={{ width: `${Math.round((tasks.done / tasks.total) * 100)}%` }} /></span>}</button> })}
+          {checklist.trim() && <button type="button" className={`docbtn ${testsView ? 'on' : ''}`} onClick={() => { setAttView(false); setTestsView(true) }}><span className="dn">{t.tests}</span><span className="ds">{testItems ? `${testDone}/${testItems}` : t.written}</span>{testItems > 0 && <span className="dprog"><i style={{ width: `${Math.round((testDone / testItems) * 100)}%` }} /></span>}</button>}
+          {d.id && <AttachmentsDocButton items={cardAtt.items} on={attView} open={() => { setTestsView(false); setAttView(true) }} />}
+          {hiddenKinds.length > 0 && <div className="docadd">{addingDoc ? hiddenKinds.map((k) => <button type="button" key={k} className="mini secondary" onClick={() => { setAddingDoc(false); setAttView(false); setKind(k); setMode('write') }}>{labels[k]}</button>)
             : <button type="button" className="mini secondary" onClick={() => setAddingDoc(true)}>{t.addDocument}</button>}</div>}
         </div>}
       </div>

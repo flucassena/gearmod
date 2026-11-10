@@ -1,12 +1,12 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentAdapter, AgentRunOptions } from './adapters'
 import { ConversationRepository } from './conversations'
 import { AppDatabase } from './database'
 import { AgentOrchestrator } from './orchestrator'
-import { ProfileRepository, ProjectRepository } from './projects'
+import { BoardRepository, ProfileRepository, ProjectRepository } from './projects'
 import { seedProfiles } from './test-helpers'
 import type { WorktreeService } from './worktrees'
 
@@ -39,5 +39,33 @@ describe('chat attachments', () => {
     for (let i = 0; i < 50 && !conversations.listMessages(chat.id).some((message) => message.role === 'assistant'); i += 1) await new Promise((resolve) => setTimeout(resolve, 10))
     await new Promise((resolve) => setTimeout(resolve, 20))
     database.close()
+  })
+
+  it('registers the files of a card chat message in the card attachments, but not those of a free chat', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'gearmod-attach-card-')); roots.push(root)
+    const database = new AppDatabase(join(root, 'db.sqlite'), '0.1.0'); await database.open()
+    const profiles = new ProfileRepository(database, root); seedProfiles(profiles)
+    const profile = profiles.list()[0]!
+    const projects = new ProjectRepository(database, git)
+    const project = await projects.create({ name: 'P', localPath: root, baseBranch: 'dev', profileIds: [profile.id] })
+    const board = new BoardRepository(database, projects)
+    const card = board.create({ projectId: project.id, columnId: board.get(project.id).columns[0]!.id, title: 'C', description: '', type: 'task', priority: 'low', acceptanceCriteria: [] })
+    const conversations = new ConversationRepository(database)
+    const cardChat = conversations.createChat({ projectId: project.id, cardId: card.id, purpose: 'planning', profileId: profile.id })
+    const freeChat = conversations.createChat({ projectId: project.id, cardId: null, purpose: 'free', profileId: profile.id })
+    const file = join(root, 'a.md'); await writeFile(file, '# A')
+    const calls: unknown[][] = []
+    const fake = { run: async () => ({ sessionId: 's', turnId: null, text: 'ok', status: 'completed', error: null }) } as unknown as AgentAdapter
+    const repo = { addFromPath: async (...args: unknown[]) => { calls.push(args); throw new Error('copia lenta e falha') } }
+    const orchestrator = new AgentOrchestrator(conversations, { codex: fake, claude: fake, gemini: fake }, () => undefined, {} as WorktreeService, 2, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, repo)
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const run = orchestrator.start({ chatId: cardChat.id, prompt: 'oi', planning: true, attachments: [file] })
+    orchestrator.start({ chatId: freeChat.id, prompt: 'oi', planning: true, attachments: [file] })
+    expect(run.id).toBeTruthy()
+    for (let i = 0; i < 50 && !calls.length; i += 1) await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(calls).toEqual([[card.id, file, 'chat', expect.any(String)]])
+    for (let i = 0; i < 100 && conversations.listMessages(cardChat.id).filter((message) => message.role === 'assistant').length < 1; i += 1) await new Promise((resolve) => setTimeout(resolve, 10))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    quiet.mockRestore(); database.close()
   })
 })

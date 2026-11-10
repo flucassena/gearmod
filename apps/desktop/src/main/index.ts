@@ -17,6 +17,7 @@ import { promisify } from 'node:util'
 import { registerIpc } from './ipc'
 import { readAbout, UpdateService } from './updater'
 import { StorageService } from './storage'
+import { CardAttachmentRepository } from './card-attachments'
 import { boundsFor, readWindowState, writeWindowState } from './window-state'
 import { release as osRelease, version as osVersion } from 'node:os'
 import { SpecKitRuntime } from './speckit'
@@ -101,6 +102,7 @@ const board = new BoardRepository(database, projects)
 const notes = new NoteRepository(database)
 const settings = new SettingsRepository(database, () => app.getLocale())
 const conversations = new ConversationRepository(database)
+const cardAttachments = new CardAttachmentRepository(database, backups.attachmentsDir)
 const constitution = new ConstitutionRepository(database)
 const checklists = new ChecklistRepository(database)
 const worktrees = new WorktreeService(database, dataDir)
@@ -213,7 +215,7 @@ const orchestrator = new AgentOrchestrator(conversations, { codex: new CodexAppS
   if (notice) notifier.notify(notice, { projectId: card?.projectId ?? conversations.projectOf(info.chatId), cardId: info.cardId, chatId: info.chatId, purpose: info.purpose })
   // Stopped by usage limit: schedules the resume for when the limit comes back.
   void autoResume.onFinished({ ...info, profileId: conversations.context(info.chatId).profile.id }).catch(() => undefined)
-}, usageLedger, profiles, speckit, mcpRegistry)
+}, usageLedger, profiles, speckit, mcpRegistry, cardAttachments)
 const pushEvent = (eventType: string, payload: Record<string, unknown>): void => { BrowserWindow.getAllWindows().forEach((window) => window.webContents.send('runs:event-pushed', { runId: '', eventType, payload })); watchEvent(eventType, payload) }
 setLiveWaitingChats(() => orchestrator.permissions.chats())
 /**
@@ -538,13 +540,18 @@ app.whenReady().then(async () => {
   await openDatabase()
   setMainLocale(settings.get().idioma)  // only after opening the database: before that the settings cannot be read
   await mcpBridge.listen()
-  disposeIpc = registerIpc(ipcMain, { cardChanged: (cardId) => pushEvent('gearmod/card-updated', cardId ? { cardId, type: 'state' } : { type: 'state' }), updates, storage, about: () => readAbout(app.getAppPath(), appVersion, { versions: process.versions, system: `${osVersion()} ${osRelease()} (${process.arch})`, buildDate: aboutBuildDate(), dataDir }), database, speckit, pullRequests, gitAccounts, mcp: mcpRegistry, backups, notes, settings, profiles, projects, board, git, chooseDirectory, chooseFiles, agentProbes, conversations, orchestrator, worktrees, quality, executions, agentConfigs, skills, constitution, checklists, voice, usage, collab, gitManager, history, playwright, specTools, toolUpdates, approvals, sddResolver, sddWriter, dbManager, fileWatch, terminals, returnFile, codeIndex, codeRoots: projectCodeRoots, codeIndexSettings, ...fileActions, openExternal: (url) => shell.openExternal(url), setBrandColor, setTitleBarTheme: (light) => { if (process.platform === 'darwin') return; for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay(process.platform, light, titleBarHeight)) }, openWindow: openPopout, placeWindow: (placement) => { const window = BrowserWindow.getFocusedWindow(); if (window) placeWindow(window, placement) }, openPath: async (path) => { await mkdir(path, { recursive: true }); const error = await shell.openPath(path); if (error) throw new Error(error) }, chooseSkillSource, saveTextFile, appVersion, dataDir, reopen: openDatabase })
+  disposeIpc = registerIpc(ipcMain, { cardAttachments, cardChanged: (cardId) => pushEvent('gearmod/card-updated', cardId ? { cardId, type: 'state' } : { type: 'state' }), updates, storage, about: () => readAbout(app.getAppPath(), appVersion, { versions: process.versions, system: `${osVersion()} ${osRelease()} (${process.arch})`, buildDate: aboutBuildDate(), dataDir }), database, speckit, pullRequests, gitAccounts, mcp: mcpRegistry, backups, notes, settings, profiles, projects, board, git, chooseDirectory, chooseFiles, agentProbes, conversations, orchestrator, worktrees, quality, executions, agentConfigs, skills, constitution, checklists, voice, usage, collab, gitManager, history, playwright, specTools, toolUpdates, approvals, sddResolver, sddWriter, dbManager, fileWatch, terminals, returnFile, codeIndex, codeRoots: projectCodeRoots, codeIndexSettings, ...fileActions, openExternal: (url) => shell.openExternal(url), setBrandColor, setTitleBarTheme: (light) => { if (process.platform === 'darwin') return; for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay(process.platform, light, titleBarHeight)) }, openWindow: openPopout, placeWindow: (placement) => { const window = BrowserWindow.getFocusedWindow(); if (window) placeWindow(window, placement) }, openPath: async (path) => { await mkdir(path, { recursive: true }); const error = await shell.openPath(path); if (error) throw new Error(error) }, chooseSkillSource, saveTextFile, appVersion, dataDir, reopen: openDatabase })
   // No File/Edit/View/Window/Help: the top strip belongs to the app. On the Mac only the app, Edit and Window menus (copy/paste need them).
   const menu = appMenuTemplate(process.platform)
   Menu.setApplicationMenu(menu ? Menu.buildFromTemplate(menu) : null)
   if (app.isPackaged) updates.start()  // the development build does not look for releases
   createTray()
   await createWindow()
+  // Files of old card chats come into the cards' folders once, in the background (never delays the window). The flag is only written when it ends without a general error.
+  const importedKey = 'cardAttachmentsImportedV1'
+  if (!database.db.prepare('SELECT 1 FROM settings WHERE key = ?').get(importedKey)) {
+    void cardAttachments.importFromChats().then(() => database.db.prepare('INSERT OR REPLACE INTO settings(key, json_value, updated_at) VALUES (?, ?, ?)').run(importedKey, 'true', new Date().toISOString())).catch((error: unknown) => console.error('Falha ao importar anexos antigos dos cards:', error instanceof Error ? error.message : error))
+  }
   autoResume.start()  // checks every 30 s whether it is time to resume something that stopped because of a usage limit
   app.on('activate', showWindow)
 }).catch((error: unknown) => {
