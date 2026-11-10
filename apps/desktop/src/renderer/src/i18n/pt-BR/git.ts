@@ -186,6 +186,10 @@ export const git = {
     // Menus e diálogos
     folderActions: (folder: string) => `Ações da pasta ${folder}`,
     deleteAllBranches: (n: number) => `Apagar todas as ${n} branches`,
+    deleteAllRemoteBranches: (n: number) => `Apagar as ${n} branches no remoto`,
+    deleteRemoteFolderEyebrow: 'Apagar branches remotas da pasta',
+    deleteRemoteFolderTitle: (n: number, folder: string) => `Apagar ${n} branches de “${folder}” no servidor?`,
+    deleteRemoteFolderText: (names: string[]) => `Vai remover do repositório remoto (git push --delete):\n${names.join('\n')}\n\nVale para todo mundo que usa esse remoto. As cópias locais não são apagadas. Não dá para desfazer por aqui.`,
     commitActions: (hash: string) => `Ações do commit ${hash}`,
     stashActions: (name: string) => `Ações do stash ${name}`,
     renameStash: 'Renomear stash',
