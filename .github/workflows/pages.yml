@@ -1,6 +1,7 @@
 name: Pages
 
-# Publishes the landing page (site/) to GitHub Pages, with the version list in site/releases.json.
+# Publishes the landing page (site/) to GitHub Pages, with the version list in site/releases.json and the release notes
+# in site/release-notes/ (copied from release-notes/, in English and in Portuguese).
 # The page reads that file, so visitors do not depend on the GitHub API (60 requests per hour per IP without a login,
 # which a shared network runs out of). The API is only a fallback when the file is missing.
 # Runs when the page changes on main and, through release.yml, after each Release is published (a Release made with
@@ -10,7 +11,7 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ['site/**', '.github/workflows/pages.yml']
+    paths: ['site/**', 'release-notes/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -38,6 +39,11 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/releases?per_page=30" \
             --jq '[.[] | {id, name, tag_name, draft, prerelease, published_at, created_at, html_url, assets: [.assets[] | {name, size, browser_download_url}]}]' > site/releases.json
           jq -r '.[] | .tag_name + " (" + (.assets | length | tostring) + " files)"' site/releases.json
+      - name: Release notes (release-notes/<version>.md and <version>.pt-BR.md, read by the download page)
+        run: |
+          mkdir -p site/release-notes
+          cp release-notes/*.md site/release-notes/
+          ls site/release-notes
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

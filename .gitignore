@@ -24,3 +24,7 @@ coverage/
 /bench/results/
 /bench/questions/
 /bench-data/
+
+# Written by the Pages deploy
+site/releases.json
+site/release-notes/
