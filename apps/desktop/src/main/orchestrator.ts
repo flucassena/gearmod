@@ -1,5 +1,5 @@
 import { AgentPermissions } from './agent-permissions'
-import type { AgentPurpose, ChatPurpose, Effort, PermissionMode, Run } from '@gearmod/contracts'
+import type { AgentConfig, AgentPurpose, ChatPurpose, Effort, PermissionMode, Run } from '@gearmod/contracts'
 import type { AgentAdapter, AgentEvent } from './adapters'
 import type { ConversationRepository } from './conversations'
 import type { WorktreeService } from './worktrees'
@@ -34,6 +34,8 @@ export class AgentOrchestrator {
   private active = 0
   private readonly queue: Job[] = []
   private readonly controllers = new Map<string, AbortController>()
+  /** Running runs whose permission mode can change on the fly, by card and purpose. */
+  private readonly modeControls = new Map<string, { cardId: string; purpose: AgentPurpose; profileId: string; setMode(mode: PermissionMode): boolean }>()
   private harness?: RunHarness
   constructor(
     private readonly conversations: ConversationRepository,
@@ -118,6 +120,13 @@ export class AgentOrchestrator {
     const controller = this.controllers.get(runId); if (!controller) return false; controller.abort(); return true
   }
 
+  /** The card's agent configuration changed: the running runs of that purpose switch mode now, without waiting for the turn to end. */
+  changeMode(cardId: string, purpose: AgentPurpose, config: AgentConfig): number {
+    let changed = 0
+    for (const item of this.modeControls.values()) if (item.cardId === cardId && item.purpose === purpose && item.profileId === config.profileId && item.setMode(config.mode)) changed += 1
+    return changed
+  }
+
   private pump(): void {
     while (this.active < this.limit() && this.queue.length) this.launch(this.queue.shift()!)
   }
@@ -194,7 +203,7 @@ export class AgentOrchestrator {
       // Registered MCP servers (global and project) for this agent; a failure to read them never takes the run down.
       let extraMcp: Awaited<ReturnType<McpRegistry['effective']>> = []
       if (this.mcpServers) { try { extraMcp = await this.mcpServers.effective(context.chat.projectId, context.profile.provider) } catch { /* the run continues without them */ } }
-      const raw = await this.adapters[context.profile.provider].run({ cwd: runCwd, env: sk?.env ?? impl?.env, addDirs: impl?.addDirs, mcpServers: extraMcp, prompt, pluginDir: this.agentContext?.pluginDir, mcp, model: config?.model ?? job.choice?.model, effort: config?.effort ?? job.choice?.effort, mode: sk ? sk.mode : job.planning ? 'plan' : config?.mode ?? job.choice?.mode, developerInstructions: free ? this.agentContext?.freeInstructions(context.profile.provider === 'codex', !job.planning, context.chat.skill) : this.agentContext?.developerInstructions(job.planning, context.chat.skill, context.cardId, context.chat.purpose), sessionId: context.chat.providerSessionId, planning: adapterPlanning, attachments: job.attachments, profile: context.profile, signal: controller.signal, requestPermission: (kind, details, signal) => sk && this.speckit?.denies(details) ? Promise.resolve(false) : this.permissions.request({ runId: job.run.id, chatId: job.chatId, provider: context.profile.provider, kind, details }, signal ? AbortSignal.any([controller.signal, signal]) : controller.signal, publish), onEvent: publish })
+      const raw = await this.adapters[context.profile.provider].run({ cwd: runCwd, env: sk?.env ?? impl?.env, addDirs: impl?.addDirs, mcpServers: extraMcp, prompt, pluginDir: this.agentContext?.pluginDir, mcp, model: config?.model ?? job.choice?.model, effort: config?.effort ?? job.choice?.effort, mode: sk ? sk.mode : job.planning ? 'plan' : config?.mode ?? job.choice?.mode, developerInstructions: free ? this.agentContext?.freeInstructions(context.profile.provider === 'codex', !job.planning, context.chat.skill) : this.agentContext?.developerInstructions(job.planning, context.chat.skill, context.cardId, context.chat.purpose), sessionId: context.chat.providerSessionId, planning: adapterPlanning, attachments: job.attachments, profile: context.profile, signal: controller.signal, onModeControl: (setMode) => { if (context.cardId && purpose && !sk && !job.planning) this.modeControls.set(job.run.id, { cardId: context.cardId, purpose, profileId: context.profile.id, setMode }) }, requestPermission: (kind, details, signal) => sk && this.speckit?.denies(details) ? Promise.resolve(false) : this.permissions.request({ runId: job.run.id, chatId: job.chatId, provider: context.profile.provider, kind, details }, signal ? AbortSignal.any([controller.signal, signal]) : controller.signal, publish), onEvent: publish })
       if (this.stopping) return
       const result = timedOut ? { ...raw, status: 'failed' as const, error: timeoutError() } : raw
       this.conversations.updateSession(job.chatId, result.sessionId)
@@ -235,6 +244,6 @@ export class AgentOrchestrator {
         }
       } catch { /* chat removed */ }
       try { const after = this.conversations.context(job.chatId); this.onFinished?.({ cardId: after.cardId, chatId: job.chatId, runId: job.run.id, purpose: after.chat.purpose, status: aborted ? 'interrupted' : 'failed', error: message }) } catch { /* notification is best-effort */ }
-    } finally { this.permissions.closeRun(job.run.id); if (timer) clearTimeout(timer); this.controllers.delete(job.run.id) }
+    } finally { this.permissions.closeRun(job.run.id); if (timer) clearTimeout(timer); this.controllers.delete(job.run.id); this.modeControls.delete(job.run.id) }
   }
 }

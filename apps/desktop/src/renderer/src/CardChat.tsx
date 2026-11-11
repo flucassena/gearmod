@@ -2,7 +2,7 @@ import { AgentBackground } from './AgentBackground'
 import { AgentPermissions } from './AgentPermissions'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { dropToken, InputMirror, useAtMention } from './AtMention'
-import { defaultPermissionMode, permissionModes, type AgentProfile, type AgentPurpose, type Card, type Chat, type ChatMessage, type Project, type ProjectBoard, type Run, type SkillRef } from '@gearmod/contracts'
+import { defaultPermissionMode, permissionModes, type AgentProfile, type AgentPurpose, type Card, type PermissionMode, type Chat, type ChatMessage, type Project, type ProjectBoard, type Run, type SkillRef } from '@gearmod/contracts'
 import { AgentIcon } from './AgentIcon'
 import { ConfirmDialog } from './ConfirmDialog'
 import { shortcutEvent, shortcutLabel } from './shortcuts'
@@ -320,6 +320,11 @@ export function CardChat({ project, card, board, profiles, columnLabel, mode, cl
   const later = useQueuedMessage(busy, deliver)
   const execModes = provider ? permissionModes[provider].filter((item) => item.purposes.includes('execution')) : []
   const currentMode = execModes.find((item) => item.id === agentState.config?.mode)
+  // Saved right away (not only on the next message): the agent already running switches mode without waiting for the turn to end.
+  const changeMode = async (id: PermissionMode): Promise<void> => {
+    await agentState.update({ mode: id })
+    if (agentState.config) await window.gearmod.invoke('cards:set-agent-config', { cardId: card.id, purpose: mode, config: { ...agentState.config, mode: id } }).catch(() => undefined)
+  }
   const modeText = (item: (typeof execModes)[number]): { label: string; description: string } => permissionModeText(provider!, item)
   const testing = mode === 'test'
 
@@ -373,7 +378,7 @@ export function CardChat({ project, card, board, profiles, columnLabel, mode, cl
                 {!skillFilter.trim() && <button type="button" role="menuitem" className="modeopt" onClick={() => void chooseSkill(null)}><span className="mo-t"><b>{c.sddPlanning}</b><em>{c.default}</em><small>{c.system}</small></span><span className="mo-r">{!skill && <CheckIcon />}</span></button>}
                 {available.filter((item) => `${item.name} ${item.description}`.toLocaleLowerCase().includes(skillFilter.trim().toLocaleLowerCase())).map((item) => { const path = provider ? item.paths[provider]! : ''; return <button type="button" role="menuitem" key={item.id} className="modeopt" onClick={() => void chooseSkill({ name: item.name, path })}><span className="mo-t"><b>{item.name}</b><small>{item.scope === 'project' ? c.fromProject : c.global}</small></span><span className="mo-r">{skill?.path === path && <CheckIcon />}</span></button> })}</div>}</span></>
             : <span className="modewrap"><button type="button" className={`modechip ${menu === 'mode' ? 'on' : ''}`} aria-haspopup="menu" aria-expanded={menu === 'mode'} onClick={() => setMenu(menu === 'mode' ? null : 'mode')}>{currentMode ? modeText(currentMode).label : d.mode}</button>
-              {menu === 'mode' && <div className="modemenu" role="menu"><div className="mm-title">{d.mode}</div>{execModes.map((item, index) => <button type="button" role="menuitem" key={item.id} disabled={item.needsApprovalUi} data-tip={item.needsApprovalUi ? d.needsApproval : undefined} className="modeopt" onClick={() => { setMenu(null); void agentState.update({ mode: item.id }) }}><span className="mo-t"><b>{modeText(item).label}</b>{item.recommended && <em>{d.recommended}</em>}<small>{modeText(item).description}</small></span><span className="mo-r">{agentState.config?.mode === item.id ? <CheckIcon /> : index + 1}</span></button>)}</div>}</span>}
+              {menu === 'mode' && <div className="modemenu" role="menu"><div className="mm-title">{d.mode}</div>{execModes.map((item, index) => <button type="button" role="menuitem" key={item.id} disabled={item.needsApprovalUi} data-tip={item.needsApprovalUi ? d.needsApproval : undefined} className="modeopt" onClick={() => { setMenu(null); void changeMode(item.id) }}><span className="mo-t"><b>{modeText(item).label}</b>{item.recommended && <em>{d.recommended}</em>}<small>{modeText(item).description}</small></span><span className="mo-r">{agentState.config?.mode === item.id ? <CheckIcon /> : index + 1}</span></button>)}</div>}</span>}
           <div className="pick"><AgentBackground chatId={chat?.id} /><UsageRings profileId={agentState.config?.profileId ?? chat?.profileId} /><ModelMenu profiles={usable} purpose={mode} state={agentState} lockProfile={Boolean(chat)} onLockedPick={setSwitchTo} /></div>
         </div>
       </div>

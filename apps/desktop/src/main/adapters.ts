@@ -20,7 +20,7 @@ import { applyEnvPolicy } from './env-policy'
 import { tm } from './i18n'
 
 export type AgentEvent = { type: string; payload: Record<string, unknown> }
-export type AgentRunOptions = { cwd: string; addDirs?: string[]; prompt: string; sessionId: string | null; planning: boolean; profile: AgentProfile; pluginDir?: string | null; env?: Record<string, string>; mcpServers?: McpRunServer[]; mcp?: McpEndpoint; model?: string | null; effort?: Effort | null; mode?: PermissionMode; developerInstructions?: string; attachments?: string[]; signal?: AbortSignal; requestPermission?(kind: string, details: Record<string, unknown>, signal?: AbortSignal): Promise<boolean>; onEvent(event: AgentEvent): void }
+export type AgentRunOptions = { cwd: string; addDirs?: string[]; prompt: string; sessionId: string | null; planning: boolean; profile: AgentProfile; pluginDir?: string | null; env?: Record<string, string>; mcpServers?: McpRunServer[]; mcp?: McpEndpoint; model?: string | null; effort?: Effort | null; mode?: PermissionMode; developerInstructions?: string; attachments?: string[]; signal?: AbortSignal; /** The adapter hands over how to change the permission mode of the running process (only Claude can). */ onModeControl?(setMode: (mode: PermissionMode) => boolean): void; requestPermission?(kind: string, details: Record<string, unknown>, signal?: AbortSignal): Promise<boolean>; onEvent(event: AgentEvent): void }
 /** `costUsd`: only when the agent itself reports it (Claude: `total_cost_usd` from the result); never estimated here. */
 export type RunTokens = { input: number; cached: number; output: number; costUsd?: number }
 export type AgentRunResult = { sessionId: string; turnId: string | null; text: string; status: 'completed' | 'failed' | 'interrupted'; error: string | null; usage?: RunTokens; modelEffective?: string; apiKeySource?: string }
@@ -98,6 +98,9 @@ export function codexAccess(mode: PermissionMode): { sandbox: SandboxMode; appro
     default: throw new Error(tm().adapters.unsupportedCodexMode(mode))
   }
 }
+
+/** Tools that `acceptEdits` lets through without asking. */
+const claudeEditTools = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
 /** GearMod modes → Claude's `--permission-mode`. */
 export const claudePermissionMode: Record<PermissionMode, string | null> = { plan: 'plan', auto: 'auto', accept_edits: 'acceptEdits', manual: 'manual', on_request: null, read_only: null, bypass: 'bypassPermissions' }
@@ -290,11 +293,25 @@ export class ClaudeCliAdapter implements AgentAdapter {
     // Attachments outside the project folder: allow reading each one's folder.
     for (const dir of new Set([...(options.attachments ?? []).map((path) => dirname(path)), ...(options.addDirs ?? [])])) args.push('--add-dir', dir)
     const interactive = Boolean(options.requestPermission)
+    // Without this flag Claude refuses to switch to `bypassPermissions` mid-run; it only makes the switch possible, the mode stays the chosen one.
+    if (interactive && !options.planning && executionMode !== 'bypassPermissions') args.push('--allow-dangerously-skip-permissions')
     if (interactive) args.push('--input-format', 'stream-json', '--permission-prompt-tool', 'stdio')
     else args.push('--', options.prompt)
     const child = this.processes.start(options.profile.executablePath || 'claude', args, { cwd: options.cwd, env: { ...applyEnvPolicy(options.profile, process.env), CLAUDE_CONFIG_DIR: options.profile.configDir, ...options.env } })
     const approvals = new ProviderApprovals(options)
     if (!interactive) child.stdin.end()
+    // Mode changed while running: Claude takes `set_permission_mode` on stdin. GearMod also applies it itself: what was waiting and what
+    // Claude still asks for goes through when the new mode would not ask (in case Claude refuses the switch).
+    let liveMode: string | null = null
+    const coveredByMode = (tool: string): boolean => liveMode === 'bypassPermissions' || (liveMode === 'acceptEdits' && claudeEditTools.has(tool))
+    if (interactive && !options.planning) options.onModeControl?.((mode) => {
+      const next = claudePermissionMode[mode]
+      if (!next || !child.stdin.writable || child.stdin.destroyed) return false
+      liveMode = next
+      child.stdin.write(`${JSON.stringify({ type: 'control_request', request_id: `gearmod-mode-${Date.now()}`, request: { subtype: 'set_permission_mode', mode: next } })}\n`)
+      approvals.allowWhere(coveredByMode)
+      return true
+    })
     let text = '', sessionId = options.sessionId ?? '', stderr = '', apiKeySource: string | undefined
     const abort = () => { approvals.close(); child.kill() }; options.signal?.addEventListener('abort', abort, { once: true })
     child.stderr.on('data', (chunk: Buffer) => { stderr = `${stderr}${chunk.toString()}`.slice(-4000) })
@@ -312,11 +329,13 @@ export class ClaudeCliAdapter implements AgentAdapter {
         if (message.type === 'control_request' && typeof message.request_id === 'string') {
           const id = message.request_id, request = (message.request ?? {}) as JsonObject
           const respond = (allow: boolean): void => { if (!child.stdin.writable || child.stdin.destroyed) return; child.stdin.write(`${JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: id, response: allow ? { behavior: 'allow', updatedInput: request.input ?? {} } : { behavior: 'deny', message: 'Permission denied by the user or the run has ended' } } })}\n`) }
-          if (request.subtype === 'can_use_tool') approvals.ask(id, String(request.tool_name ?? 'Ferramenta'), request, respond)
+          if (request.subtype === 'can_use_tool' && coveredByMode(String(request.tool_name ?? ''))) respond(true)
+          else if (request.subtype === 'can_use_tool') approvals.ask(id, String(request.tool_name ?? 'Ferramenta'), request, respond)
           else child.stdin.write(`${JSON.stringify({ type: 'control_response', response: { subtype: 'error', request_id: id, error: 'Request not supported' } })}\n`)
           return
         }
         if (message.type === 'control_cancel_request' && typeof message.request_id === 'string') { approvals.cancel(message.request_id); return }
+        if (message.type === 'control_response') return
         if (typeof message.session_id === 'string') sessionId = message.session_id
         armIdle()
         if (message.type === 'system' && message.subtype === 'init' && typeof message.apiKeySource === 'string') apiKeySource = message.apiKeySource
@@ -380,6 +399,7 @@ function safeExecutable(command: string): string {
 /** Responses are synchronous on close, before killing the provider process; late UI replies cannot write. */
 class ProviderApprovals {
   private readonly pending = new Map<string, (allow: boolean, send?: boolean) => void>()
+  private readonly kinds = new Map<string, string>()
   private closed = false
   constructor(private readonly options: AgentRunOptions) {}
   ask(id: string, kind: string, details: JsonObject, respond: (allow: boolean) => void): void {
@@ -387,9 +407,11 @@ class ProviderApprovals {
     if (this.pending.has(id)) return
     const controller = new AbortController()
     const finish = (allow: boolean, send = true): void => { if (!this.pending.delete(id)) return; if (send) respond(allow); controller.abort() }
-    this.pending.set(id, finish)
+    this.pending.set(id, finish); this.kinds.set(id, kind)
     void this.options.requestPermission(kind, redactObject(details), controller.signal).then(finish, () => finish(false))
   }
   cancel(id: string): void { this.pending.get(id)?.(false, false) }
+  /** Approves what is waiting when the new permission mode would not have asked for it. */
+  allowWhere(allowed: (kind: string) => boolean): void { for (const [id, finish] of [...this.pending]) if (allowed(this.kinds.get(id) ?? '')) finish(true) }
   close(): void { this.closed = true; for (const finish of this.pending.values()) finish(false) }
 }

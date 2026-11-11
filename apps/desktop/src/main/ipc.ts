@@ -428,7 +428,7 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'cards:branches': (input: { cardId: string }) => services.executions.branches(input.cardId),
     'agents:options': (input: { profileId: string }) => services.agentConfigs.options(input.profileId),
     'cards:agent-config': (input: { cardId: string }) => services.agentConfigs.get(input.cardId),
-    'cards:set-agent-config': (input: { cardId: string; purpose: AgentPurpose; config: AgentConfig }) => services.agentConfigs.set(input.cardId, input.purpose, input.config),
+    'cards:set-agent-config': (input: { cardId: string; purpose: AgentPurpose; config: AgentConfig }) => { const saved = services.agentConfigs.set(input.cardId, input.purpose, input.config); services.orchestrator.changeMode(input.cardId, input.purpose, input.config); return saved },
     'cards:resume': (input: { cardId: string; purpose?: 'execution' | 'test' }) => services.executions.resume(input.cardId, input.purpose),
     'chats:reset': (input: { chatId: string }) => { services.conversations.resetChat(input.chatId); return { reset: true as const } },
     'chats:delete': (input: { chatId: string }) => { services.conversations.deleteChat(input.chatId); return { deleted: true as const } },

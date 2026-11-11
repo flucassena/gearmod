@@ -195,6 +195,33 @@ describe('interactive provider permissions', () => {
     expect(responses[0]).toMatchObject({ type: 'control_response', response: { subtype: 'success', request_id: 'c-1', response: allow ? { behavior: 'allow', updatedInput: { file_path: '/repo/a', content: 'hello' } } : { behavior: 'deny' } } })
   })
 
+  it('switches Claude permission mode mid-run and lets through the edit that was waiting', async () => {
+    const sent: Record<string, unknown>[] = []
+    let setMode!: (mode: 'accept_edits') => boolean
+    const factory: ProcessFactory = { start() { return fakeProcess((message, child) => {
+      if (message.type === 'user') { send(child, { type: 'control_request', request_id: 'c-1', request: { subtype: 'can_use_tool', tool_name: 'Edit', input: { file_path: '/repo/a' } } }); queueMicrotask(() => setMode('accept_edits')) }
+      if (message.type === 'control_request' || message.type === 'control_response') sent.push(message)
+      if (message.type === 'control_response') send(child, { type: 'result', session_id: 's', result: 'ok' })
+    }) } }
+    const result = await new ClaudeCliAdapter(factory).run({ cwd: 'C:\\repo', prompt: 'x', sessionId: null, planning: false, mode: 'manual', profile: profile('claude'), onModeControl: (set) => { setMode = set }, requestPermission: () => new Promise(() => {}), onEvent: () => {} })
+    expect(result.status).toBe('completed')
+    expect(sent[0]).toMatchObject({ type: 'control_request', request: { subtype: 'set_permission_mode', mode: 'acceptEdits' } })
+    expect(sent[1]).toMatchObject({ type: 'control_response', response: { request_id: 'c-1', response: { behavior: 'allow' } } })
+  })
+
+  it('after switching to bypass mid-run, later Claude requests go through without asking', async () => {
+    let setMode!: (mode: 'bypass') => boolean, args: string[] = [], asked = 0
+    const responses: Record<string, unknown>[] = []
+    const factory: ProcessFactory = { start(_command, received) { args = received; return fakeProcess((message, child) => {
+      if (message.type === 'user') { setMode('bypass'); send(child, { type: 'control_request', request_id: 'c-2', request: { subtype: 'can_use_tool', tool_name: 'Bash', input: { command: 'pnpm test' } } }) }
+      if (message.type === 'control_response') { responses.push(message); send(child, { type: 'result', session_id: 's', result: 'ok' }) }
+    }) } }
+    const result = await new ClaudeCliAdapter(factory).run({ cwd: 'C:\\repo', prompt: 'x', sessionId: null, planning: false, mode: 'manual', profile: profile('claude'), onModeControl: (set) => { setMode = set }, requestPermission: async () => { asked += 1; return false }, onEvent: () => {} })
+    expect(result.status).toBe('completed'); expect(asked).toBe(0)
+    expect(args).toContain('--allow-dangerously-skip-permissions')
+    expect(responses[0]).toMatchObject({ response: { request_id: 'c-2', response: { behavior: 'allow' } } })
+  })
+
   it('denies pending Claude permission before killing on cancellation; ignores late approval', async () => {
     const controller = new AbortController(), order: string[] = []
     let decide!: (allow: boolean) => void
