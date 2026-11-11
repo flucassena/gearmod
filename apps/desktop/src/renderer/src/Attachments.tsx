@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { PlusIcon } from './icons'
+import { CloseIcon, PlusIcon } from './icons'
 import { toast } from './toasts'
 import { plainError } from './NoticeDialog'
 import { tr, useT } from './i18n'
@@ -114,9 +114,12 @@ function ImagePreview({ src, name, onClose }: { src: string; name: string; onClo
     window.addEventListener('keydown', onKey, true); return () => window.removeEventListener('keydown', onKey, true)
   }, [onClose])
   return createPortal(<div className="imgpreview" role="dialog" aria-modal="true" aria-label={name} onClick={onClose}>
-    <img src={src} alt={name} onClick={(event) => event.stopPropagation()} />
+    {/* The close button sits on the image's own corner, away from the window's close button. */}
+    <div className="imgpreview-frame" onClick={(event) => event.stopPropagation()}>
+      <img src={src} alt={name} />
+      <button type="button" className="imgpreview-x" data-tip={t.close} aria-label={t.close} onClick={onClose}><CloseIcon /></button>
+    </div>
     <span className="imgpreview-name">{name}</span>
-    <button type="button" className="imgpreview-x" aria-label={t.close} onClick={onClose}>×</button>
   </div>, document.body)
 }
 
