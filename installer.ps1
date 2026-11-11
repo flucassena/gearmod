@@ -1,6 +1,8 @@
 # Builds the full GearMod NSIS installer.
 # Usage: powershell -File installer.ps1   (or .\installer.ps1 in PowerShell)
+#        -Force closes an open test build (win-unpacked) first, after waiting for any working agent to finish; without it the script stops instead.
 # Output: apps\desktop\dist\GearMod-Setup-<version>-x64.exe
+param([switch]$Force)
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
@@ -17,6 +19,9 @@ $unpacked = Join-Path $PSScriptRoot 'apps\desktop\dist\win-unpacked'
 $running = Get-Process -Name GearMod -ErrorAction SilentlyContinue |
   Where-Object { $_.Path -and $_.Path.StartsWith($unpacked, [StringComparison]::OrdinalIgnoreCase) }
 if ($running) {
+  # The test build uses the stable data: closing it would cut any agent that is working. Only with -Force.
+  if (-not $Force) { throw "The test build (win-unpacked) is open and locks the build. Close it yourself or run again with -Force (it waits for working agents, then closes)." }
+  . (Join-Path $PSScriptRoot 'scripts\wait-agents-idle.ps1'); Wait-AgentsIdle
   Write-Host "Closing $($running.Count) GearMod process(es) that were locking the build..."
   $running | Stop-Process -Force -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 2

@@ -1,9 +1,10 @@
 # Opens the TEST build (the current apps\desktop\dist\win-unpacked).
-# Usage: .\test.ps1                      opens it with the stable install's data (%APPDATA%\GearMod); closes the stable install first
+# Usage: .\test.ps1                      opens it with the stable install's data (%APPDATA%\GearMod); stops if the stable install is open
+#        .\test.ps1 -Force               same, closing an open stable install first (waits for working agents to finish)
 #        .\test.ps1 -Isolated            opens the separate "test" profile (data in %APPDATA%\GearMod-test), alongside the stable install
 #        .\test.ps1 -Isolated -CopyData  first copies the stable install's data into the test profile (overwrites the test data)
 # With the stable data, a build with a new database migration upgrades that data: the stable install only opens it again after promote.ps1.
-param([switch]$Isolated, [switch]$CopyData)
+param([switch]$Isolated, [switch]$CopyData, [switch]$Force)
 $ErrorActionPreference = 'Stop'
 $exe = Join-Path $PSScriptRoot 'apps\desktop\dist\win-unpacked\GearMod.exe'
 if (-not (Test-Path $exe)) { throw "Build not found: $exe (run build.ps1)" }
@@ -13,6 +14,8 @@ if (-not $Isolated) {
   # Same data folder means the same single-instance lock: the stable install has to be closed for the test build to open.
   $stable = Get-Process -Name GearMod -ErrorAction SilentlyContinue | Where-Object { $_.Path -and -not $_.Path.StartsWith((Split-Path $exe), [StringComparison]::OrdinalIgnoreCase) }
   if ($stable) {
+    if (-not $Force) { throw 'The stable install is open and uses the same data. Close it yourself or run again with -Force (it waits for working agents, then closes).' }
+    . (Join-Path $PSScriptRoot 'scripts\wait-agents-idle.ps1'); Wait-AgentsIdle
     Write-Host 'Closing the stable install (it uses the same data)...'
     $stable | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
