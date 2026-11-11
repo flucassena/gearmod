@@ -454,6 +454,14 @@ describe('agent commit', () => {
     expect((await git(wt, 'rev-list', '--count', 'HEAD')).stdout.trim()).toBe(count)
     expect((await git(wt, 'log', '-1', '--format=%s')).stdout.trim()).toBe('Cria x')
     expect((await git(wt, 'show', '--name-only', '--format=', 'HEAD')).stdout.trim().split('\n').sort()).toEqual(['x.txt', 'y.txt'])
+    // Only a new message, nothing changed and no repo named: the card's only repository is used.
+    await manager.agentCommit({ cardId, chatId, message: 'feature: Create x and y', amend: true })
+    const reword = manager.requests(cardId).find((item) => item.status === 'pending')!
+    expect(reword).toMatchObject({ amend: true, files: [] })
+    expect((await manager.decide(reword.id, 'allow')).status).toBe('done')
+    expect((await git(wt, 'rev-list', '--count', 'HEAD')).stdout.trim()).toBe(count)
+    expect((await git(wt, 'log', '-1', '--format=%s')).stdout.trim()).toBe('feature: Create x and y')
+    expect((await git(wt, 'show', '--name-only', '--format=', 'HEAD')).stdout.trim().split('\n').sort()).toEqual(['x.txt', 'y.txt'])
   })
 })
 

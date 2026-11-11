@@ -1378,7 +1378,7 @@ ${diff}`
     const profileId = (this.database.db.prepare('SELECT profile_id AS profileId FROM chats WHERE id = ?').get(input.chatId) as { profileId: string } | undefined)?.profileId ?? null
     const wanted = input.files?.map((item) => item.replace(/\\/g, '/').replace(/^\.\//, ''))
     const sources = this.database.db.prepare('SELECT id, project_id AS projectId, name, local_path AS path FROM project_sources WHERE project_id = ?').all(card.projectId) as Source[]
-    const plan: Array<{ source: Source; dir: string; paths: string[] }> = []
+    const plan: Array<{ source: Source; dir: string; paths: string[] }> = [], clean: Array<{ source: Source; dir: string }> = []
     for (const member of this.members(card.projectId, input.cardId)) {
       const source = sources.find((item) => same(item.path, member.repoPath))
       if (!source || !await isDir(member.path)) continue
@@ -1386,8 +1386,12 @@ ${diff}`
       const all = [...new Set((await this.listChanges(member.path)).map((file) => file.path))]
       const paths = wanted ? all.filter((path) => wanted.includes(path)) : all
       if (paths.length) plan.push({ source, dir: member.path, paths })
-      // Amend with only a new message: the repository named (or the only one) with nothing to add.
-      else if (input.amend && message && !wanted && input.repo) plan.push({ source, dir: member.path, paths: [] })
+      else clean.push({ source, dir: member.path })
+    }
+    // Amend with only a new message (nothing to add): the repository named, or the card's only repository.
+    if (!plan.length && input.amend && message && !wanted) {
+      if (clean.length === 1) plan.push({ ...clean[0]!, paths: [] })
+      else if (clean.length > 1) throw new Error(`To amend only the message, say which repository in repo: ${clean.map((item) => item.source.name).join(', ')}.`)
     }
     if (!plan.length) throw new Error(tm().git.nothingToCommitInPlan)
     if (input.amend) for (const item of plan) {
