@@ -80,7 +80,7 @@ export const chat = {
     sddSpecKit: 'SDD completo — GitHub Spec Kit',
     sddNoMethod: 'SDD completo — método não escolhido',
     workflowLight: 'Fluxo curto',
-    workflowSpec: 'Spec leve',
+    workflowSpec: 'Spec enxuta',
     workflowReason: 'O agente recomenda este fluxo para o card.',
     commitIn: (repo: string) => `Commit em ${repo}`,
     aRepository: 'um repositório',

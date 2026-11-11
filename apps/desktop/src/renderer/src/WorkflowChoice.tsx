@@ -15,19 +15,21 @@ function useLimits(projectId: string | undefined): Limits {
   return limits
 }
 
-/** Points bar: the three ranges (simple, medium, complex) and a marker where the card is. */
+/** Points bar, same look as the limits in the settings: the three ranges by name, the card's range lit, a marker with the score, and the limits under the dividers. */
 export function ScoreBar({ assessment, limits }: { assessment: Assessment; limits: Limits }): React.JSX.Element {
   const tb = useT().board
   const max = Math.max(complexityDimensions.reduce((sum, dimension) => sum + 3 * assessment.weights[dimension], 0), limits.mediumMax + 1, assessment.total)
   const at = (value: number): number => Math.min(100, Math.max(0, (value / max) * 100))
+  const simpleEnd = at(limits.simpleMax + 0.5), mediumEnd = at(limits.mediumMax + 0.5)
+  const seg = (level: Assessment['level'], width: number): React.JSX.Element => <span className={`seg ${level} ${assessment.level === level ? 'on' : ''}`} style={{ width: `${width}%` }}><b>{tb.levelLabels[level]}</b></span>
   return <div className="sbar" aria-label={`${assessment.total} / ${max}`}>
-    <div className="sbar-track">
-      <i className="simple" style={{ width: `${at(limits.simpleMax + 0.5)}%` }} />
-      <i className="medium" style={{ width: `${at(limits.mediumMax + 0.5) - at(limits.simpleMax + 0.5)}%` }} />
-      <i className="complex" style={{ flex: 1 }} />
-      <b className={`sbar-mark ${assessment.level}`} style={{ left: `${at(assessment.total)}%` }}><span>{assessment.total}</span></b>
+    <div className="cx-lbar sbar-lbar">
+      {seg('simple', simpleEnd)}
+      {seg('medium', mediumEnd - simpleEnd)}
+      {seg('complex', 100 - mediumEnd)}
+      <span className={`sbar-pin ${assessment.level}`} style={{ left: `${at(assessment.total)}%` }}><i>{assessment.preliminary ? '~' : ''}{assessment.total}</i></span>
     </div>
-    <div className="sbar-legend"><span>{tb.levelLabels.simple} 0–{limits.simpleMax}</span><span>{tb.levelLabels.medium} {limits.simpleMax + 1}–{limits.mediumMax}</span><span>{tb.levelLabels.complex} {limits.mediumMax + 1}+</span></div>
+    <div className="cx-lscale sbar-scale"><span>0</span><span className="cut" style={{ left: `${simpleEnd}%` }}>{limits.simpleMax}</span><span className="cut" style={{ left: `${mediumEnd}%` }}>{limits.mediumMax}</span><span>{max}</span></div>
   </div>
 }
 
