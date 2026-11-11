@@ -714,7 +714,9 @@ export const settings = {
     optionCodex: 'Codex e outros · .agents/skills',
     skillRepo: 'Repositório da skill',
     skillNote: 'A skill é um arquivo dentro do repositório escolhido; nada é sobrescrito se já existir.',
-    processTitle: 'Instalando o Playwright CLI'
+    processTitle: 'Instalando o Playwright CLI',
+    downloadingBrowser: 'Baixando o navegador de teste…',
+    showLog: 'Ver detalhes'
   },
 
   updates: {

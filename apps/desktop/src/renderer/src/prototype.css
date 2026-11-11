@@ -3328,3 +3328,81 @@ body:has(.overlay) .viewdock.floating{display:none}
 
 /* Work left unsent when cleaning up a card that went to Done. */
 .cleanup-risk{margin:0 0 12px;padding:10px 12px 10px 28px;border-radius:8px;font-size:13px;line-height:1.5;border:1px solid color-mix(in srgb,var(--danger) 70%,transparent);background:color-mix(in srgb,var(--danger) 12%,transparent)}
+
+/* Playwright CLI install or browser download in progress: step name and a moving bar. */
+.pw-progress{display:grid;gap:8px;margin:10px 0 2px;padding:10px 12px;border-radius:10px;border:1px solid color-mix(in srgb,var(--accent) 22%,var(--g31));background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.pw-progress-head{display:flex;align-items:center;gap:8px;min-width:0;font-size:12.5px}
+.pw-progress-head .linklike{margin-left:auto;flex:none;font-size:12px}
+.pw-progress-step{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-family:var(--mono);font-size:11.5px}
+.pw-progress .bar{height:4px}
+
+/* Worktree being deleted: inside the dialog, with a moving bar; the task keeps going if the dialog closes. */
+.wt-progress{display:grid;gap:8px;margin:0 0 12px;padding:10px 12px;border-radius:8px;border:1px solid color-mix(in srgb,var(--accent) 22%,var(--border));background:color-mix(in srgb,var(--accent) 6%,transparent);font-size:13px}
+.wt-progress-head{display:flex;align-items:center;gap:8px}
+.wt-progress small{color:var(--muted);font-size:12px}
+.wt-progress .bar{height:4px}
+
+/* Changes panel when narrow: the section title and "Stage all" stay on one line, paths end in an ellipsis, and the
+   per-file button floats over the end of the row on hover instead of taking room (it caused a horizontal scrollbar). */
+.gwsech{gap:6px;min-width:0}
+.gwtog{display:flex;align-items:center;gap:4px;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.gwsection-actions{flex:none;gap:4px}.gwall{white-space:nowrap;padding:3px 8px}
+.gwlist{overflow-x:hidden}
+.gwrow{position:relative;width:auto;min-width:0}
+.gwrow .gwp{display:block;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.gwbtn{position:absolute;right:6px;top:50%;transform:translateY(-50%);pointer-events:none;background:color-mix(in srgb, var(--accent) 7%, var(--g12))}
+.gwrow:hover .gwbtn{pointer-events:auto}
+
+/* Score bar in the chat: the settings limits look (.cx-lbar), with the card's range lit and a pin with the score. */
+.sbar-lbar{height:30px;margin:24px 0 0}
+.sbar-lbar .seg{opacity:.42;transition:opacity .15s}.sbar-lbar .seg.on{opacity:1}
+.sbar-lbar .seg b{font-size:10.5px}
+.sbar-scale{position:relative}.sbar-scale .cut{position:absolute;top:0;transform:translateX(-50%)}
+.sbar-pin{position:absolute;top:-6px;bottom:-6px;width:14px;margin-left:-7px;display:grid;place-items:center;pointer-events:none}
+.sbar-pin::before{content:'';width:4px;height:100%;border-radius:3px;background:#fff;box-shadow:0 0 0 2px #0b0b0b}
+.sbar-pin i{position:absolute;top:-24px;left:50%;transform:translateX(-50%);white-space:nowrap;font:700 11px var(--mono);font-style:normal;color:var(--text);background:var(--cb-202020);border:1px solid var(--cl-3a3a3a);border-radius:6px;padding:1px 6px}
+
+/* Assessment versions (shared side list of the Assessment and Risks tabs) */
+.cx-vtitle{margin:0 0 2px;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);opacity:.8}
+.cx-vcard{position:relative;display:grid;gap:7px;width:100%;padding:10px 12px 10px 14px;text-align:left;border-radius:11px;border:1px solid var(--border);background:var(--surface);color:var(--text);overflow:hidden;cursor:pointer;flex:none}
+.cx-vcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent}
+.cx-vcard:hover{border-color:color-mix(in srgb, var(--text) 18%, var(--border));filter:none}
+.cx-vcard.on{background:var(--surface-3);border-color:color-mix(in srgb, var(--text) 18%, var(--border))}
+.cx-vtop,.cx-vmid,.cx-vfoot{display:flex;align-items:center;gap:8px;min-width:0}
+.cx-vtop>b{font-size:14px}
+.cx-vlatest{padding:1px 7px;border-radius:999px;font-size:9.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--blue);background:color-mix(in srgb, var(--blue) 12%, var(--surface));border:1px solid color-mix(in srgb, var(--blue) 40%, transparent)}
+.cx-vscore{margin-left:auto;display:inline-flex;align-items:baseline;gap:4px;padding:1px 8px;border-radius:7px;font-weight:700;font-size:13px;border:1px solid}
+.cx-vscore small{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;opacity:.85}
+.cx-vtag{padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;color:var(--muted);background:var(--surface-3);border:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.cx-vtag.warn{color:var(--cf-f1d98a);background:var(--cb-2a2314);border-color:var(--cl-6b5a22)}
+.cx-vdelta{margin-left:auto;flex:none;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid}.cx-vdelta.down{color:var(--cf-9fdca9);background:var(--cb-17261b);border-color:var(--cl-2f6b3d)}.cx-vdelta.up{color:var(--cf-ff8f86);background:var(--cb-2a1717);border-color:var(--cl-5a3532)}
+.cx-vfoot{justify-content:space-between;font-size:11.5px;color:var(--muted)}.cx-vfoot>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cx-vrisks{flex:none;display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--cf-ff8f86)}.cx-vrisks i{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:999px;font-style:normal;font-size:10.5px;background:var(--cl-5a3532);color:#fff}
+/* Critical risks of the chosen version */
+.cx-rkhead{flex:none;display:grid;grid-template-columns:auto minmax(0,1fr);border-radius:14px;border:1px solid var(--border);background:var(--surface-2);overflow:hidden}
+.cx-rkcount{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 24px;border-right:1px solid var(--border);background:linear-gradient(180deg,var(--cb-2a1b1a),var(--cb-2a1717))}
+.cx-rkcount b{font-size:36px;line-height:1;color:var(--cf-ff8f86)}.cx-rkcount span{margin-top:3px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--cf-ff8f86) 70%, var(--text))}
+.cx-rkmeta{display:flex;flex-direction:column;justify-content:center;gap:8px;padding:12px 16px;font-size:13px}.cx-rkmeta b{color:var(--text)}
+.cx-rkdiff{display:flex;flex-wrap:wrap;gap:6px}
+.cx-rkchip{display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap;border:1px solid}
+.cx-rkchip.new{color:var(--cf-f1d98a);background:var(--cb-2a2314);border-color:var(--cl-6b5a22)}.cx-rkchip.kept{color:var(--muted);background:var(--surface-3);border-color:var(--border)}.cx-rkchip.gone{color:var(--cf-9fdca9);background:var(--cb-17261b);border-color:var(--cl-2f6b3d)}
+.cx-rklist{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.cx-rk{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:12px;padding:11px 14px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--cf-ff8f86)}
+.cx-rk p{margin:0;font-size:13.5px}
+.cx-rkn{display:grid;place-items:center;width:22px;height:22px;border-radius:7px;font-size:11.5px;font-weight:700;color:var(--cf-ff8f86);background:var(--cb-2a1717);border:1px solid var(--cl-5a3532)}
+.cx-rkgone{border:1px dashed var(--border);border-radius:10px;padding:10px 14px}.cx-rkgone h4{margin:0 0 6px;font-size:12px;font-weight:600;color:var(--cf-9fdca9)}.cx-rkgone ul{margin:0;padding-left:18px;color:var(--muted);font-size:13px}.cx-rkgone li{margin:3px 0}
+@media (max-width:900px){.cx-rkhead{grid-template-columns:1fr}.cx-rkcount{flex-direction:row;gap:10px;justify-content:flex-start;border-right:0;border-bottom:1px solid var(--border);padding:10px 14px}.cx-rk{grid-template-columns:auto minmax(0,1fr)}.cx-rk .cx-rkchip{grid-column:2;justify-self:start}}
+
+/* Complexity levels: one color per level (--lv-simple, --lv-medium, --lv-complex in :root), always in the same soft recipe:
+   text in the level color, a faint tint behind it and a half-transparent border. Every place that shows a level uses these. */
+:is(.cx-badge,.cx-pop-score,.cx-score,.cx-sum,.cx-vcard,.cx-dot).simple{--lv:var(--lv-simple)}
+:is(.cx-badge,.cx-pop-score,.cx-score,.cx-sum,.cx-vcard,.cx-dot).medium{--lv:var(--lv-medium)}
+:is(.cx-badge,.cx-pop-score,.cx-score,.cx-sum,.cx-vcard,.cx-dot).complex{--lv:var(--lv-complex)}
+:is(.cx-badge,.cx-pop-score,.cx-score,.cx-sum,.cx-vcard,.cx-rkhead){--lv-bg:color-mix(in srgb, var(--lv) 9%, var(--surface-2));--lv-line:color-mix(in srgb, var(--lv) 40%, transparent)}
+.cx-rkhead{--lv:var(--lv-complex)}
+.cx-dot:is(.simple,.medium,.complex){background:var(--lv)}
+.cx-badge:is(.simple,.medium,.complex){background:var(--lv-bg);border-color:var(--lv-line)}.cx-badge:is(.simple,.medium,.complex) b{color:var(--lv)}
+.cx-pop-score:is(.simple,.medium,.complex){color:var(--lv);background:var(--lv-bg);border-color:var(--lv-line)}
+.cx-score:is(.simple,.medium,.complex){background:var(--lv-bg);border-color:var(--lv-line)}.cx-score:is(.simple,.medium,.complex) b{color:var(--lv)}
+.cx-sum:is(.simple,.medium,.complex) .cx-sum-score{background:var(--lv-bg)}.cx-sum:is(.simple,.medium,.complex) .cx-sum-score>b{color:var(--lv)}.cx-sum:is(.simple,.medium,.complex) .cx-sum-score>span{color:color-mix(in srgb, var(--lv) 75%, var(--text))}
+.cx-vcard:is(.simple,.medium,.complex) .cx-vscore{color:var(--lv);background:var(--lv-bg);border-color:var(--lv-line)}.cx-vcard.on:is(.simple,.medium,.complex)::before{background:var(--lv)}
+.cx-rkhead .cx-rkcount{background:var(--lv-bg)}.cx-rkhead .cx-rkcount b{color:var(--lv)}.cx-rkhead .cx-rkcount span{color:color-mix(in srgb, var(--lv) 75%, var(--text))}

@@ -715,7 +715,9 @@ export const settings: typeof source = {
     optionCodex: 'Codex and others · .agents/skills',
     skillRepo: 'Skill repository',
     skillNote: 'The skill is a file inside the chosen repository; nothing is overwritten if it already exists.',
-    processTitle: 'Installing Playwright CLI'
+    processTitle: 'Installing Playwright CLI',
+    downloadingBrowser: 'Downloading the test browser…',
+    showLog: 'See details'
   },
 
   updates: {

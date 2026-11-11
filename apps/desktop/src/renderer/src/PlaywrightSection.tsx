@@ -25,13 +25,15 @@ export function PlaywrightSection({ projectId, enabled, toggle, latest }: { proj
   useEffect(() => { setVersion((current) => current || latest || 'latest') }, [latest])
   // Tells the gear/tab dot (useToolsPending) that the version in use may have changed.
   useEffect(() => { if (status) window.dispatchEvent(new CustomEvent('gearmod:playwright-changed', { detail: projectId })) }, [projectId, status?.selected, status?.versions.length])
-  const busy = useTasks().some((item) => item.key === `playwright:${projectId}` && item.state === 'running')
+  const task = useTasks().find((item) => item.key === `playwright:${projectId}` && item.state === 'running'), busy = Boolean(task)
   // The dialog shows live progress (the main process log) and can be minimized: the installation continues in the background.
   useEffect(() => {
-    if (!busy) return
+    if (!busy && !downloading) return
     const timer = window.setInterval(() => { void window.gearmod.invoke('playwright:status', { projectId }).then(setStatus).catch(() => undefined) }, 1500)
     return () => window.clearInterval(timer)
-  }, [busy, projectId])
+  }, [busy, downloading, projectId])
+  // The step running now: the last "$ command" line of the log (each step writes it before it starts).
+  const step = (status?.log ?? '').split('\n').map((line) => line.trim()).reverse().find((line) => line.startsWith('$ '))?.slice(2).trim()
   const act = async (call: () => Promise<PlaywrightStatus>): Promise<void> => { setError(''); try { setStatus(await call()) } catch (reason) { setError(plainError(reason)) } }
   const downloadBrowser = async (): Promise<void> => { setDownloading(true); await act(() => window.gearmod.invoke('playwright:install-browser', { projectId })); setDownloading(false) }
   /** The versions published on npm, newest first (also feeds the version menu). Loaded once per open; offline, the installed ones still show. */
@@ -74,6 +76,10 @@ export function PlaywrightSection({ projectId, enabled, toggle, latest }: { proj
         <span className="ch-spacer" />
         <button type="button" className="ibtn tip danger" data-tip={tw.removeVersion(item.version)} aria-label={tw.removeVersion(item.version)} disabled={busy} onClick={() => setRemoving(item.version)}><TrashIcon /></button>
       </li></ul> })() : <ul className="pw-versions"><li><div className="pw-version-pick"><VersionMenu selected={null} installed={[]} available={available} error={pickError} disabled={busy} onOpen={() => void loadVersions()} onUse={() => undefined} onInstall={(value) => { setVersion(value); setConfirming(true) }} /></div><span className="cx-muted">{tw.noVersions}</span></li></ul>}
+      {(busy || downloading) && <div className="pw-progress" role="status" aria-live="polite">
+        <div className="pw-progress-head"><span className="spin sm" /><b>{downloading ? tw.downloadingBrowser : tw.installing}</b>{step && <small className="pw-progress-step" data-tip={step}>{step}</small>}{busy && task && <button type="button" className="linklike" onClick={() => { setProcessId(task.id); setProcessOpen(true) }}>{tw.showLog}</button>}</div>
+        <div className="bar"><i /></div>
+      </div>}
       <div className="cx-offerrow pw-install-row">
         <label className="ck-line"><Checkbox checked={enabled} disabled={status.versions.length === 0} onChange={toggle} /> {tw.offer}</label>
       </div>
