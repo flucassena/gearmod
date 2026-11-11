@@ -3426,3 +3426,43 @@ body:has(.overlay) .viewdock.floating{display:none}
 .cx-sum:is(.simple,.medium,.complex) .cx-sum-score{background:var(--lv-bg)}.cx-sum:is(.simple,.medium,.complex) .cx-sum-score>b{color:var(--lv)}.cx-sum:is(.simple,.medium,.complex) .cx-sum-score>span{color:color-mix(in srgb, var(--lv) 75%, var(--text))}
 .cx-vcard:is(.simple,.medium,.complex) .cx-vscore{color:var(--lv);background:var(--lv-bg);border-color:var(--lv-line)}.cx-vcard.on:is(.simple,.medium,.complex)::before{background:var(--lv)}
 .cx-rkhead .cx-rkcount{background:var(--lv-bg)}.cx-rkhead .cx-rkcount b{color:var(--lv)}.cx-rkhead .cx-rkcount span{color:color-mix(in srgb, var(--lv) 75%, var(--text))}
+
+/* Card flow in the chat and the Complexity side card (Gear names, AI ✦ in blue, chosen in green, soft level colors). */
+.wfc-chip{gap:6px}.wfc-chip small{font-size:10.5px;opacity:.75}
+.wfc-chip.ai{color:var(--tone-info);background:var(--tone-info-bg);border-color:var(--tone-info-line)}
+.wfc-chip:is(.pick,.both){color:var(--tone-success);background:var(--tone-success-bg);border-color:var(--tone-success-line)}
+.wfc-chip.wait{color:var(--tone-warning);background:var(--tone-warning-bg);border-color:var(--tone-warning-line)}
+.wfc-body{display:grid;gap:12px;padding-top:10px;border-top:1px solid var(--border)}
+.wfc-dims>summary{cursor:pointer;font-size:12px;color:var(--muted);list-style:none;user-select:none}.wfc-dims>summary::-webkit-details-marker{display:none}
+.wfc-dims>summary::before{content:'▸ ';color:var(--muted)}.wfc-dims[open]>summary::before{content:'▾ '}.wfc-dims>.wfc-table{margin-top:6px}
+.wfc-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.cx-opt.ro:disabled{cursor:default}.cx-opt.ro:is(.on,.rec):disabled{opacity:1}
+/* Points bar in the chat and side card: the card's range lit in its soft level color, the others neutral. */
+.sbar-lbar .seg{opacity:1;color:var(--muted);background:var(--surface-2)!important;border:1px solid var(--border)}.sbar-lbar .seg+.seg{border-left:0}
+.sbar-lbar .seg.simple{--lv:var(--lv-simple)}.sbar-lbar .seg.medium{--lv:var(--lv-medium)}.sbar-lbar .seg.complex{--lv:var(--lv-complex)}
+.sbar-lbar .seg.on{color:var(--lv);background:color-mix(in srgb, var(--lv) 12%, var(--surface-2))!important;border-color:color-mix(in srgb, var(--lv) 40%, transparent)}
+.sbar-pin.simple{--lv:var(--lv-simple)}.sbar-pin.medium{--lv:var(--lv-medium)}.sbar-pin.complex{--lv:var(--lv-complex)}
+.sbar-pin::before{width:3px;background:var(--lv,var(--text));box-shadow:0 0 0 2px var(--surface)}
+.sbar-pin i{color:var(--lv,var(--text));background:color-mix(in srgb, var(--lv,var(--text)) 10%, var(--surface-2));border-color:color-mix(in srgb, var(--lv,var(--text)) 40%, transparent)}
+.cxside{gap:10px}
+.cxside-rows{display:grid;grid-template-columns:1fr;gap:6px}
+.cxside-row{display:grid;gap:3px;padding:7px 10px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2)}
+.cxside-l{display:flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cxside-v{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:13px}.cxside-v b{font-weight:600}.cxside-v small{font-size:11px;color:var(--muted);white-space:nowrap}
+.cxside-row.ai{background:var(--tone-info-bg);border-color:var(--tone-info-line)}.cxside-row.ai .cxside-l{color:var(--tone-info)}
+.cxside-row:is(.pick,.both){background:var(--tone-success-bg);border-color:var(--tone-success-line)}.cxside-row:is(.pick,.both) .cxside-v b{color:var(--tone-success)}
+.cxside-row.none .cxside-v em{color:var(--tone-warning);font-style:normal}
+.cxside-note{margin:0;font-size:12px;color:var(--tone-warning)}
+.cxside .cxside-more{justify-self:stretch;width:100%;justify-content:center;font-size:12px}
+/* Card flow: neutral card (amber border only while the flow is not chosen), full chat width, header toggles, dimensions table in its own frame. */
+.cask.wfchoice{width:100%;justify-self:stretch;box-sizing:border-box;background:var(--surface);border-color:var(--border)}
+.cask.wfchoice.pending{border-color:var(--tone-warning-line)}
+.wfchoice .wfc-mini{cursor:pointer;user-select:none}
+.wfc-tablebox{margin-top:6px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);overflow:auto}
+.wfc-tablebox .cx-table{margin:0}.wfc-tablebox .cx-table tr:last-child td{border-bottom:0}
+.wfc-table th{white-space:nowrap}.wfc-table th.num,.wfc-table td.num{text-align:center;width:1%;white-space:nowrap}
+.wfc-table td.dim{white-space:nowrap;color:var(--text)}.wfc-table td.muted{color:var(--muted)}.wfc-table td.pts{font-weight:700}
+.wfc-dims>.wfc-table{margin-top:0}
+/* The pin is the bar's last span, so round the ends by position. */
+.sbar-lbar .seg{border-radius:0}.sbar-lbar .seg:first-child{border-radius:8px 0 0 8px}.sbar-lbar .seg:nth-child(3){border-radius:0 8px 8px 0}
+.chatlog>.msg.flowrecord,.msg.sys.flowrecord{justify-self:stretch;width:100%;max-width:none}

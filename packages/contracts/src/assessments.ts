@@ -10,6 +10,8 @@ export const dimensionLabels: Record<ComplexityDimension, string> = { escopo: 'E
 export const defaultComplexityWeights: Record<ComplexityDimension, number> = { escopo: 2, acoplamento: 2, incerteza: 2, risco: 3, novidade: 1, validacao: 1 }
 /** 0–7 simple, 8–16 medium, 17+ complex (with the default weights the maximum is 33). */
 export const defaultComplexityLimits = { simpleMax: 7, mediumMax: 16 }
+/** The simple/medium/complex limits an assessment was scored with (kept with it, so a later change in the settings does not rewrite the history). */
+export const complexityLimitsSchema = z.object({ simpleMax: z.number().int().nonnegative(), mediumMax: z.number().int().nonnegative() })
 
 const score = z.number().int().min(0).max(3)
 const weight = z.number().int().min(0).max(5)
@@ -30,7 +32,7 @@ const isoDate = z.string().datetime()
 const uuid = z.string().uuid()
 export const assessmentSchema = z.object({
   id: uuid, cardId: uuid, version: z.number().int().positive(), preliminary: z.boolean(), scores: dimensionScoresSchema, weights: dimensionWeightsSchema,
-  total: z.number().int().nonnegative(), level: complexityLevelSchema, confidence: confidenceSchema, criticalRisks: z.array(z.string()), justifications: z.record(z.string(), z.string()),
+  limits: complexityLimitsSchema.nullable().default(null), total: z.number().int().nonnegative(), level: complexityLevelSchema, confidence: confidenceSchema, criticalRisks: z.array(z.string()), justifications: z.record(z.string(), z.string()),
   evidence: z.array(evidenceSchema), workflow: workflowKindSchema, trigger: assessmentTriggerSchema, reason: z.string(), actor: z.enum(['agent', 'user']),
   profileId: uuid.nullable(), provider: z.string().nullable(), model: z.string().nullable(), effort: z.string().nullable(), codeVersion: z.string().nullable(), supersedesId: uuid.nullable(), createdAt: isoDate
 })

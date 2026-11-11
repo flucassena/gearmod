@@ -790,6 +790,14 @@ export const migrations: readonly Migration[] = [
       // The user finalized the card: runs that ended before this no longer show as paused, failed or finished.
       db.exec('ALTER TABLE cards ADD COLUMN finalized_at TEXT;')
     }
+  },
+  {
+    version: 51,
+    checksum: 'sha256:gearmod-assessment-limits-v51-2026-11-11',
+    up(db) {
+      // The simple/medium/complex limits each assessment was scored with (null for the ones before this version).
+      db.exec('ALTER TABLE card_assessments ADD COLUMN limits_json TEXT;')
+    }
   }
 ]
 

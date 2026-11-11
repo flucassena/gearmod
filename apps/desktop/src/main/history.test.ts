@@ -54,6 +54,16 @@ describe('Complexity Engine', () => {
     expect(recommendedWorkflow('complex', high)).toBe('sdd')
   })
 
+  it('keeps the limits each assessment was scored with, even after the project limits change', async () => {
+    const { history, card, project } = await setup()
+    const first = assess(history, card.id, high).assessment
+    expect(first.limits).toEqual(defaultComplexityLimits)
+    history.setConfig(project.id, { ...defaultWorkflowConfig, limits: { simpleMax: 9, mediumMax: 30 } })
+    const saved = history.history(card.id).assessments[0]!
+    expect(saved.limits).toEqual(defaultComplexityLimits)
+    expect(saved.level).toBe(first.level)
+  })
+
   it('versions evaluations without overwriting, refuses repetition and stores a user correction as a new version', async () => {
     const { history, card, board } = await setup()
     const first = assess(history, card.id, low, { preliminary: true, confidence: 'low' }).assessment

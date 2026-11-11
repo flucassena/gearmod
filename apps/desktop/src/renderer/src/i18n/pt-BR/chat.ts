@@ -72,7 +72,15 @@ export const chat = {
     confirmTitle: (flow: string) => `Usar o fluxo ${flow}?`,
     confirmRecommended: 'É o fluxo que o agente recomendou. Ao confirmar, o agente continua o planejamento nesse fluxo.',
     confirmOther: (recommended: string) => `O agente recomendou ${recommended}. Ao confirmar, o agente continua o planejamento no fluxo que você escolheu.`,
-    confirmOk: 'Usar este fluxo'
+    confirmOk: 'Usar este fluxo',
+    dimensions: 'Notas das 6 dimensões',
+    waiting: 'Aguardando sua escolha',
+    followed: 'Você seguiu a recomendação da IA',
+    yourChoice: 'a escolha é sua.',
+    pickHint: 'Clique num fluxo para escolher.',
+    changeHint: 'Para trocar o fluxo, abra os detalhes da avaliação.',
+    recommendedAndChosen: 'Recomendado e escolhido',
+    notChosen: 'Ainda não escolhido'
   },
   approval: {
     switchWorkflow: (workflow: string) => `Trocar o fluxo para ${workflow}`,

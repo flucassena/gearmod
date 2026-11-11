@@ -140,41 +140,61 @@ function AssessmentView({ item, previous, latest, history, specKit, contest, cho
   </>
 }
 
-type SddMethod = 'native' | 'speckit'
+export type SddMethod = 'native' | 'speckit'
+/** A flow: the workflow and, for the full SDD, the method (null while not chosen). */
+export type FlowSel = { workflow: WorkflowKind | null; method?: SddMethod | null }
+export const gearOf = (value: WorkflowKind): number => value === 'light' ? 1 : value === 'spec' ? 2 : 3
+const sameSel = (a: FlowSel, workflow: WorkflowKind, method?: SddMethod): boolean => a.workflow === workflow && (workflow !== 'sdd' || a.method === method)
 
-/** The card's flow, grouped by gear (1 short flow, 2 lean spec, 3 the two full SDD methods): the AI recommendation, the options and a legend. */
-function FlowPicker({ item, history, specKit, locked, contest, choose }: { item: Assessment; history: CardHistory; specKit: { enabled: boolean; reason: string | null }; locked: boolean; contest(): void; choose(workflow: WorkflowKind, method?: SddMethod): void }): React.JSX.Element {
+/** Flow names in the Gear model: Fluxo curto, Spec enxuta, SDD do GearMod, GitHub Spec Kit (SDD completo while no method). */
+export function useFlowName(): (workflow: WorkflowKind, method?: SddMethod | null) => string {
   const t = useT().board.assessment
-  const { workflow, sddMethod, recommendedSddMethod, sddMethodReason } = history
-  const gearOf = (value: WorkflowKind): number => value === 'light' ? 1 : value === 'spec' ? 2 : 3
-  const name = (value: WorkflowKind, method?: SddMethod | null): string => value === 'sdd' && method ? t.methodNames[method] : t.flowTitle[value]
-  const isRec = (value: WorkflowKind, method?: SddMethod): boolean => item.workflow === value && (value !== 'sdd' || recommendedSddMethod === method)
-  const isOn = (value: WorkflowKind, method?: SddMethod): boolean => workflow === value && (value !== 'sdd' || sddMethod === method)
-  const differs = Boolean(workflow) && (workflow !== item.workflow || (workflow === 'sdd' && Boolean(sddMethod) && Boolean(recommendedSddMethod) && sddMethod !== recommendedSddMethod))
-  const reason = item.workflow === 'sdd' ? sddMethodReason : null
+  return (workflow, method) => workflow === 'sdd' && method ? t.methodNames[method] : t.flowTitle[workflow]
+}
+
+/** The flow options grouped by gear (1 short flow, 2 lean spec, 3 the two full SDD methods): ✦ marks the AI recommendation, green the chosen one. `readOnly` only shows them. */
+export function FlowGears({ recommended, chosen, specKit, locked = false, readOnly = false, busy, pick }: { recommended: FlowSel; chosen: FlowSel; specKit?: { enabled: boolean; reason: string | null }; locked?: boolean; readOnly?: boolean; busy?: string; pick?(workflow: WorkflowKind, method?: SddMethod): void }): React.JSX.Element {
+  const t = useT().board.assessment, name = useFlowName()
   const option = (value: WorkflowKind, method?: SddMethod): React.JSX.Element => {
-    const off = method === 'speckit' && !specKit.enabled
-    return <button type="button" role="radio" aria-checked={isOn(value, method)} key={method ?? value} disabled={locked || off} data-tip={locked ? t.flowLocked : off ? specKit.reason ?? undefined : undefined} className={`cx-opt ${isOn(value, method) ? 'on' : ''} ${isRec(value, method) ? 'rec' : ''}`} onClick={() => !isOn(value, method) && choose(value, method)}>
-      <span className="cx-opt-t">{name(value, method)}</span><small>{method ? t.methodShort[method] : t.flowAbout[value]}</small>{isRec(value, method) && <span className="cx-aimark" title={t.recommendedByAgent} aria-label={t.recommendedByAgent}>✦</span>}
+    const key = method ?? value, on = sameSel(chosen, value, method), rec = sameSel(recommended, value, method)
+    const off = method === 'speckit' && specKit !== undefined && !specKit.enabled
+    return <button type="button" role="radio" aria-checked={on} key={key} disabled={readOnly || locked || off || Boolean(busy)} data-tip={locked ? t.flowLocked : off ? specKit?.reason ?? undefined : undefined} className={`cx-opt ${on ? 'on' : ''} ${rec ? 'rec' : ''} ${readOnly ? 'ro' : ''}`} onClick={() => !on && pick?.(value, method)}>
+      <span className="cx-opt-t">{busy === key && <span className="spin sm" />}{name(value, method)}</span><small>{method ? t.methodShort[method] : t.flowAbout[value]}</small>{rec && <span className="cx-aimark" title={t.recommendedByAgent} aria-label={t.recommendedByAgent}>✦</span>}
     </button>
   }
   const gear = (n: number, hint: string, options: React.JSX.Element[]): React.JSX.Element => <div className={`cx-gear g${n}`} key={n}>
     <div className="cx-gear-h"><b>{t.gear(n)}</b><small>{hint}</small></div>
     <div className="cx-gear-opts">{options}</div>
   </div>
+  return <div className="cx-gears" role="radiogroup" aria-label={t.cardFlow}>
+    {gear(1, t.gearHint.light, [option('light')])}
+    {gear(2, t.gearHint.spec, [option('spec')])}
+    {gear(3, t.gearHint.sdd, [option('sdd', 'native'), option('sdd', 'speckit')])}
+  </div>
+}
+
+/** Under the options: the recommended flow, the chosen one (with its gear) and whether they differ. */
+export function FlowLegend({ recommended, chosen }: { recommended: FlowSel; chosen: FlowSel }): React.JSX.Element {
+  const t = useT().board.assessment, name = useFlowName()
+  const differs = Boolean(chosen.workflow) && (chosen.workflow !== recommended.workflow || (chosen.workflow === 'sdd' && Boolean(chosen.method) && Boolean(recommended.method) && chosen.method !== recommended.method))
+  return <div className="cx-legend">
+    {recommended.workflow && <span><span className="cx-aispark" aria-hidden="true">✦</span>{t.recommendedByAgent}: <b>{name(recommended.workflow, recommended.method)}</b> ({t.gear(gearOf(recommended.workflow))})</span>}
+    <span><i className="ok" />{t.chosenByYou}: {chosen.workflow ? <><b>{name(chosen.workflow, chosen.method)}</b> ({t.gear(gearOf(chosen.workflow))}){chosen.workflow === 'sdd' && !chosen.method && <> · {t.chooseMethod}</>}</> : t.notChosenYet}</span>
+    {chosen.workflow && (differs ? <span className="cx-warn">{t.differsFromRecommended}</span> : <span>{t.followedRecommendation}</span>)}
+  </div>
+}
+
+/** The card's flow in the assessment window: the AI recommendation, the options by gear and a legend. */
+function FlowPicker({ item, history, specKit, locked, contest, choose }: { item: Assessment; history: CardHistory; specKit: { enabled: boolean; reason: string | null }; locked: boolean; contest(): void; choose(workflow: WorkflowKind, method?: SddMethod): void }): React.JSX.Element {
+  const t = useT().board.assessment, name = useFlowName()
+  const { workflow, sddMethod, recommendedSddMethod, sddMethodReason } = history
+  const recommended: FlowSel = { workflow: item.workflow, method: recommendedSddMethod }, chosen: FlowSel = { workflow, method: sddMethod }
+  const reason = item.workflow === 'sdd' ? sddMethodReason : null
   return <div className="cx-flow cx-flowpanel">
     <div className="cx-flowhead"><b>{t.cardFlow}</b><span className="cx-flowhint">{locked ? t.flowLocked : t.cardFlowHint}</span></div>
     <div className="cx-airec"><span className="cx-airec-i" aria-hidden="true">✦</span><div><b>{t.aiRecommendation} {name(item.workflow, recommendedSddMethod)}</b>{reason ? <> — {reason}</> : null}</div></div>
-    <div className="cx-gears" role="radiogroup" aria-label={t.cardFlow}>
-      {gear(1, t.gearHint.light, [option('light')])}
-      {gear(2, t.gearHint.spec, [option('spec')])}
-      {gear(3, t.gearHint.sdd, [option('sdd', 'native'), option('sdd', 'speckit')])}
-    </div>
-    <div className="cx-legend">
-      <span><span className="cx-aispark" aria-hidden="true">✦</span>{t.recommendedByAgent}: <b>{name(item.workflow, recommendedSddMethod)}</b> ({t.gear(gearOf(item.workflow))})</span>
-      <span><i className="ok" />{t.chosenByYou}: {workflow ? <><b>{name(workflow, sddMethod)}</b> ({t.gear(gearOf(workflow))}){workflow === 'sdd' && !sddMethod && <> · {t.chooseMethod}</>}</> : t.notChosenYet}</span>
-      {differs && <span className="cx-warn">{t.differsFromRecommended}</span>}
-    </div>
+    <FlowGears recommended={recommended} chosen={chosen} specKit={specKit} locked={locked} pick={choose} />
+    <FlowLegend recommended={recommended} chosen={chosen} />
     <div className="cx-flowfoot">{locked ? <span className="cx-muted">{t.flowLockedNote}</span> : <><span className="cx-muted">{t.disagree}</span><button type="button" className="mini danger" onClick={contest}>{t.contest}</button></>}</div>
   </div>
 }

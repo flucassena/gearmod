@@ -73,7 +73,15 @@ export const chat: typeof source = {
     confirmTitle: (flow: string) => `Use the ${flow} workflow?`,
     confirmRecommended: 'This is the workflow the agent recommended. Once you confirm, the agent continues the planning in it.',
     confirmOther: (recommended: string) => `The agent recommended ${recommended}. Once you confirm, the agent continues the planning in the workflow you chose.`,
-    confirmOk: 'Use this workflow'
+    confirmOk: 'Use this workflow',
+    dimensions: 'Scores of the 6 dimensions',
+    waiting: 'Waiting for your choice',
+    followed: 'You followed the AI recommendation',
+    yourChoice: 'the choice is yours.',
+    pickHint: 'Click a workflow to choose it.',
+    changeHint: 'To change the workflow, open the assessment details.',
+    recommendedAndChosen: 'Recommended and chosen',
+    notChosen: 'Not chosen yet'
   },
   approval: {
     switchWorkflow: (workflow: string) => `Switch the workflow to ${workflow}`,

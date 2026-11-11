@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { complexityDimensions, defaultComplexityLimits, type Approval, type Assessment, type Card, type CardHistory, type WorkflowKind } from '@gearmod/contracts'
-import { AssessmentDialog, Dots, type Tab } from './Assessment'
+import { AssessmentDialog, Dots, FlowGears, FlowLegend, gearOf, useFlowName, type FlowSel, type SddMethod, type Tab } from './Assessment'
 import { ConfirmDialog } from './ConfirmDialog'
 import { plainError } from './NoticeDialog'
 import { useT } from './i18n'
-import { ChevronDownIcon, ChevronUpIcon, MinimizeIcon } from './icons'
+import { ChevronDownIcon, ChevronUpIcon } from './icons'
 
 type Limits = { simpleMax: number; mediumMax: number }
 
@@ -17,8 +17,10 @@ function useLimits(projectId: string | undefined): Limits {
 }
 
 /** Points bar, same look as the limits in the settings: the three ranges by name, the card's range lit, a marker with the score, and the limits under the dividers. */
-export function ScoreBar({ assessment, limits }: { assessment: Assessment; limits: Limits }): React.JSX.Element {
+export function ScoreBar({ assessment, limits: current }: { assessment: Assessment; limits: Limits }): React.JSX.Element {
   const tb = useT().board
+  // The limits the assessment was scored with; the project's current ones only for assessments saved before they were kept.
+  const limits = assessment.limits ?? current
   const max = Math.max(complexityDimensions.reduce((sum, dimension) => sum + 3 * assessment.weights[dimension], 0), limits.mediumMax + 1, assessment.total)
   const at = (value: number): number => Math.min(100, Math.max(0, (value / max) * 100))
   const simpleEnd = at(limits.simpleMax + 0.5), mediumEnd = at(limits.mediumMax + 0.5)
@@ -57,39 +59,53 @@ export function useAssessmentDialog(cardId: string, tab?: Tab): { open(): void; 
 const minimized = new Set<string>()
 
 type Flow = { workflow: string; method: string | null }
-type Texts = ReturnType<typeof useT>['board']['assessment']
-const flowTitle = (t: Texts, flow: Flow): string => flow.workflow === 'sdd' && (flow.method === 'native' || flow.method === 'speckit') ? `${t.flowTitle.sdd} · ${t.methodNames[flow.method]}` : flow.workflow === 'light' || flow.workflow === 'spec' || flow.workflow === 'sdd' ? t.flowTitle[flow.workflow] : flow.workflow
-const sameFlow = (a: Flow, b: Flow): boolean => a.workflow === b.workflow && (a.workflow !== 'sdd' || a.method === b.method)
+const asSel = (flow: Flow | null | undefined): FlowSel => flow && (flow.workflow === 'light' || flow.workflow === 'spec' || flow.workflow === 'sdd') ? { workflow: flow.workflow, method: flow.method === 'native' || flow.method === 'speckit' ? flow.method : null } : { workflow: null, method: null }
+const sameFlow = (a: FlowSel, b: FlowSel): boolean => a.workflow === b.workflow && (a.workflow !== 'sdd' || (a.method ?? null) === (b.method ?? null))
 
-/** Score, points bar and the table of the six dimensions. */
-function ScoreTable({ assessment, limits }: { assessment: Assessment; limits: Limits }): React.JSX.Element {
+/** Score and points bar side by side. */
+function ScoreRow({ assessment, limits }: { assessment: Assessment; limits: Limits }): React.JSX.Element {
   const tb = useT().board, t = tb.assessment
-  return <>
-    <div className="wfc-score"><div className={`cx-score ${assessment.level}`}><b>{assessment.total}</b><span>{tb.levelLabels[assessment.level]}{assessment.preliminary ? ` · ${t.preliminary}` : ''}</span></div><ScoreBar assessment={assessment} limits={limits} /></div>
-    <table className="cx-table wfc-table"><thead><tr><th>{t.dimension}</th><th>{t.score}</th><th>{t.points}</th><th>{t.justification}</th></tr></thead><tbody>
-      {complexityDimensions.map((dimension) => <tr key={dimension}><td>{tb.dimensionLabels[dimension]}</td><td><Dots value={assessment.scores[dimension]} /></td><td>{assessment.scores[dimension] * assessment.weights[dimension]}<small> ×{assessment.weights[dimension]}</small></td><td>{assessment.justifications[dimension] || <span className="cx-muted">—</span>}</td></tr>)}
-    </tbody></table>
-  </>
+  return <div className="wfc-score"><div className={`cx-score ${assessment.level}`}><b>{assessment.total}</b><span>{tb.levelLabels[assessment.level]}{assessment.preliminary ? ` · ${t.preliminary}` : ''}</span></div><ScoreBar assessment={assessment} limits={limits} /></div>
 }
 
-/** Collapsed flow card: title, level, the recommended (and chosen) flow as chips and the expand button on the right. */
-function FlowBar({ title, assessment, recommended, chosen, open, toggle }: { title: string; assessment?: Assessment; recommended?: string; chosen?: { title: string; differs: boolean }; open: boolean; toggle(): void }): React.JSX.Element {
+/** The six dimensions with notes, points and reasons; open while the flow is not chosen, so the user sees why before choosing. */
+function DimensionsTable({ assessment, open }: { assessment: Assessment; open: boolean }): React.JSX.Element {
+  const all = useT(), tb = all.board, t = tb.assessment
+  return <details className="wfc-dims" open={open}>
+    <summary>{all.chat.workflowChoice.dimensions}</summary>
+    <div className="wfc-tablebox"><table className="cx-table wfc-table"><thead><tr><th>{t.dimension}</th><th>{t.score}</th><th className="num">{t.weight}</th><th className="num">{t.points}</th><th>{t.justification}</th></tr></thead><tbody>
+      {complexityDimensions.map((dimension) => <tr key={dimension}><td className="dim">{tb.dimensionLabels[dimension]}</td><td><Dots value={assessment.scores[dimension]} /></td><td className="num muted">×{assessment.weights[dimension]}</td><td className="num pts">{assessment.scores[dimension] * assessment.weights[dimension]}</td><td>{assessment.justifications[dimension] || <span className="cx-muted">—</span>}</td></tr>)}
+    </tbody></table></div>
+  </details>
+}
+
+/** Flow chips: ✦ the AI recommendation, ✓ the chosen flow (one chip when they match), or "waiting for your choice". */
+function FlowChips({ recommended, chosen }: { recommended: FlowSel; chosen: FlowSel | null }): React.JSX.Element {
+  const all = useT(), t = all.board.assessment, w = all.chat.workflowChoice, name = useFlowName()
+  const chip = (flow: FlowSel, className: string, title: string, mark: React.ReactNode): React.JSX.Element | null => flow.workflow ? <span className={`wfc-chip ${className}`} title={title}>{mark}{name(flow.workflow, flow.method)}<small>{t.gear(gearOf(flow.workflow))}</small></span> : null
+  const spark = <span className="cx-aispark" aria-hidden="true">✦</span>
+  if (!chosen?.workflow) return <>{chip(recommended, 'ai', t.recommendedByAgent, spark)}<span className="wfc-chip wait">{w.waiting}</span></>
+  if (sameFlow(recommended, chosen)) return <>{chip(chosen, 'both', w.followed, <>{spark}✓ </>)}</>
+  return <>{chip(recommended, 'ai', t.recommendedByAgent, spark)}{chip(chosen, 'pick', t.chosenByYou, '✓ ')}</>
+}
+
+/** Flow card header: title, level, the flow chips and the expand/collapse button on the right. */
+function FlowBar({ title, assessment, recommended, chosen, open, toggle }: { title: string; assessment?: Assessment; recommended: FlowSel; chosen: FlowSel | null; open: boolean; toggle(): void }): React.JSX.Element {
   const all = useT(), tb = all.board, w = all.chat.workflowChoice
-  return <div className="wfc-mini">
+  return <div className="wfc-mini" onClick={toggle}>
     <b>{title}</b>
     {assessment && <span className={`cx-badge ${assessment.level}`}><b>{assessment.total}</b>{tb.levelLabels[assessment.level]}</span>}
-    {recommended && <span className="wfc-chip">{w.recommended(recommended)}</span>}
-    {chosen && <span className={`wfc-chip chosen ${chosen.differs ? 'diff' : ''}`}>{w.chosen(chosen.title)}</span>}
-    <button type="button" className="ibtn wfc-toggle" title={open ? w.collapse : w.expand} aria-label={open ? w.collapse : w.expand} aria-expanded={open} onClick={toggle}>{open ? <ChevronUpIcon className="gico" /> : <ChevronDownIcon className="gico" />}</button>
+    <FlowChips recommended={recommended} chosen={chosen} />
+    <button type="button" className="ibtn wfc-toggle" title={open ? w.collapse : w.expand} aria-label={open ? w.collapse : w.expand} aria-expanded={open} onClick={(event) => { event.stopPropagation(); toggle() }}>{open ? <ChevronUpIcon className="gico" /> : <ChevronDownIcon className="gico" />}</button>
   </div>
 }
 
 /**
- * In the planning chat, when the agent proposes the flow: the score table, the points bar and the flow options.
- * The user picks the flow here (the agent's recommendation is marked) and confirms; it replaces asking in the chat.
+ * In the planning chat, when the agent proposes the flow: score, the six dimensions (open, to read before choosing), the AI recommendation and the options by gear.
+ * The user picks the flow here and confirms; it replaces asking in the chat.
  */
 export function WorkflowChoiceAsk({ approval, onDecided }: { approval: Approval; onDecided(approval: Approval): void }): React.JSX.Element {
-  const all = useT(), tb = all.board, t = tb.assessment, w = all.chat.workflowChoice
+  const all = useT(), t = all.board.assessment, w = all.chat.workflowChoice, name = useFlowName()
   const cardId = approval.cardId ?? ''
   const history = useHistory(cardId), limits = useLimits(approval.projectId ?? undefined), details = useAssessmentDialog(cardId)
   const [busy, setBusy] = useState(''), [error, setError] = useState(''), [small, setSmall] = useState(() => minimized.has(approval.id))
@@ -97,34 +113,27 @@ export function WorkflowChoiceAsk({ approval, onDecided }: { approval: Approval;
   const [specKit, setSpecKit] = useState<{ enabled: boolean; reason: string | null }>({ enabled: true, reason: null })
   useEffect(() => { if (approval.projectId) void window.gearmod.invoke('speckit:availability', { projectId: approval.projectId }).then(setSpecKit).catch(() => undefined) }, [approval.projectId])
   const assessment = history?.assessments.at(-1)
-  const proposed: Flow = { workflow: String(approval.payload.workflow ?? ''), method: approval.payload.method === 'native' || approval.payload.method === 'speckit' ? approval.payload.method : null }
+  const proposed = asSel({ workflow: String(approval.payload.workflow ?? ''), method: typeof approval.payload.method === 'string' ? approval.payload.method : null })
   const reason = typeof approval.payload.reason === 'string' ? approval.payload.reason : ''
-  type Option = { key: string; workflow: WorkflowKind; method?: 'native' | 'speckit'; title: string; about: string; off?: string }
-  const [confirming, setConfirming] = useState<Option>()
-  const choose = async (option: Option): Promise<void> => {
-    setConfirming(undefined); setBusy(option.key); setError('')
+  const [confirming, setConfirming] = useState<{ workflow: WorkflowKind; method?: SddMethod }>()
+  const choose = async (option: { workflow: WorkflowKind; method?: SddMethod }): Promise<void> => {
+    setConfirming(undefined); setBusy(option.method ?? option.workflow); setError('')
     try { onDecided(await window.gearmod.invoke('approvals:decide', { id: approval.id, approve: true, choice: { workflow: option.workflow, ...(option.method ? { method: option.method } : {}) } })) } catch (reason) { setError(plainError(reason)); setBusy('') }
   }
-  const options: Option[] = [
-    { key: 'light', workflow: 'light', title: t.flowTitle.light, about: t.flowAbout.light },
-    { key: 'spec', workflow: 'spec', title: t.flowTitle.spec, about: t.flowAbout.spec },
-    { key: 'native', workflow: 'sdd', method: 'native', title: `${t.flowTitle.sdd} · ${t.methodNames.native}`, about: t.flowAbout.sdd },
-    { key: 'speckit', workflow: 'sdd', method: 'speckit', title: `${t.flowTitle.sdd} · ${t.methodNames.speckit}`, about: t.flowAbout.sdd, off: specKit.enabled ? undefined : specKit.reason ?? '' }
-  ]
-  const isProposed = (option: Option): boolean => sameFlow({ workflow: option.workflow, method: option.method ?? null }, proposed)
-  const recommendedTitle = flowTitle(t, proposed)
-  if (small) return <div className="cask wfchoice small"><FlowBar title={w.title} assessment={assessment} recommended={recommendedTitle} open={false} toggle={() => minimize(false)} /></div>
-  return <div className="cask wfchoice">
-    <div className="cgprop-h"><b>{w.title}</b><small>{w.subtitle}</small><button type="button" className="ibtn wfc-min" title={w.minimize} aria-label={w.minimize} onClick={() => minimize(true)}><MinimizeIcon className="gico" /></button></div>
-    {assessment ? <ScoreTable assessment={assessment} limits={limits} /> : <p className="cx-muted">{all.common.loading}</p>}
-    {reason && <p className="cgprop-msg">{reason}</p>}
-    <div className="wfc-opts" role="group" aria-label={t.cardFlow}>{options.map((option) => <button type="button" key={option.key} className={`cx-opt ${isProposed(option) ? 'rec' : ''}`} disabled={Boolean(busy) || option.off !== undefined} data-tip={option.off || undefined} onClick={() => setConfirming(option)}>
-      <span className="cx-opt-t">{busy === option.key ? <span className="spin sm" /> : null}{option.title}{isProposed(option) && <em><span aria-hidden="true">✦ </span>{t.recommendedTag}</em>}</span><small>{option.about}</small>
-    </button>)}</div>
-    {error && <p className="error">{error}</p>}
-    <div className="cgrow"><span className="grow1" /><button type="button" className="mini secondary" onClick={details.open}>{w.seeDetails}</button></div>
+  const recommendedTitle = proposed.workflow ? name(proposed.workflow, proposed.method) : ''
+  const bar = <FlowBar title={w.title} assessment={assessment} recommended={proposed} chosen={null} open={!small} toggle={() => minimize(!small)} />
+  if (small) return <div className="cask wfchoice pending small">{bar}</div>
+  return <div className="cask wfchoice pending">
+    {bar}
+    <div className="wfc-body">
+      {assessment ? <><ScoreRow assessment={assessment} limits={limits} /><DimensionsTable assessment={assessment} open /></> : <p className="cx-muted">{all.common.loading}</p>}
+      {proposed.workflow && <div className="cx-airec"><span className="cx-airec-i" aria-hidden="true">✦</span><div><b>{t.aiRecommendation} {recommendedTitle}</b> — {reason || w.yourChoice}</div></div>}
+      <FlowGears recommended={proposed} chosen={{ workflow: null }} specKit={specKit} busy={busy} pick={(workflow, method) => setConfirming({ workflow, method })} />
+      {error && <p className="error">{error}</p>}
+      <div className="wfc-foot"><span className="cx-muted">{w.pickHint}</span><button type="button" className="mini secondary" onClick={details.open}>{w.seeDetails}</button></div>
+    </div>
     {details.dialog}
-    {confirming && createPortal(<ConfirmDialog eyebrow={w.title} title={w.confirmTitle(confirming.title)} text={isProposed(confirming) ? w.confirmRecommended : w.confirmOther(recommendedTitle)} ok={w.confirmOk} cancel={() => setConfirming(undefined)} confirm={() => void choose(confirming)} />, document.body)}
+    {confirming && createPortal(<ConfirmDialog eyebrow={w.title} title={w.confirmTitle(name(confirming.workflow, confirming.method))} text={sameFlow({ workflow: confirming.workflow, method: confirming.method ?? null }, proposed) ? w.confirmRecommended : w.confirmOther(recommendedTitle)} ok={w.confirmOk} cancel={() => setConfirming(undefined)} confirm={() => void choose(confirming)} />, document.body)}
   </div>
 }
 
@@ -137,39 +146,50 @@ export function parseWorkflowChoice(body: string): WorkflowChoiceData | null {
   try { const data = JSON.parse(match[1]!) as WorkflowChoiceData; return typeof data.cardId === 'string' && data.recommended && data.chosen ? data : null } catch { return null }
 }
 
-/** In the chat history, where the flow was chosen: the collapsed flow card (recommended and chosen), which expands to the score table. */
+/** In the chat history, where the flow was chosen: the collapsed flow card (recommended and chosen), which expands to the score, the dimensions and the options (read only). */
 export function WorkflowChoiceRecord({ data }: { data: WorkflowChoiceData }): React.JSX.Element {
-  const all = useT(), t = all.board.assessment, w = all.chat.workflowChoice
+  const all = useT(), w = all.chat.workflowChoice
   const history = useHistory(data.cardId), limits = useLimits(data.projectId ?? undefined), details = useAssessmentDialog(data.cardId)
   const [open, setOpen] = useState(false)
   const assessment = history?.assessments.find((item) => item.version === data.version) ?? history?.assessments.at(-1)
-  const recommended = flowTitle(t, data.recommended), chosen = flowTitle(t, data.chosen), differs = !sameFlow(data.recommended, data.chosen)
+  const recommended = asSel(data.recommended), chosen = asSel(data.chosen)
   return <div className={`cask wfchoice record ${open ? '' : 'small'}`}>
-    <FlowBar title={w.recordTitle} assessment={assessment} recommended={recommended} chosen={{ title: chosen, differs }} open={open} toggle={() => setOpen(!open)} />
-    {open && <>
-      {assessment ? <ScoreTable assessment={assessment} limits={limits} /> : <p className="cx-muted">{all.common.loading}</p>}
-      <div className="cgrow"><span className="grow1" /><button type="button" className="mini secondary" onClick={details.open}>{w.seeDetails}</button></div>
+    <FlowBar title={w.recordTitle} assessment={assessment} recommended={recommended} chosen={chosen} open={open} toggle={() => setOpen(!open)} />
+    {open && <div className="wfc-body">
+      {assessment ? <><ScoreRow assessment={assessment} limits={limits} /><DimensionsTable assessment={assessment} open={false} /></> : <p className="cx-muted">{all.common.loading}</p>}
+      <FlowLegend recommended={recommended} chosen={chosen} />
+      <FlowGears recommended={recommended} chosen={chosen} readOnly />
+      <div className="wfc-foot"><span className="cx-muted">{w.changeHint}</span><button type="button" className="mini secondary" onClick={details.open}>{w.seeDetails}</button></div>
       {details.dialog}
-    </>}
+    </div>}
   </div>
 }
 
-/** Beside the planning chat, under the decisions: the score, the recommended and the chosen flow, and a link to the details. */
+/** Beside the planning chat, under the decisions: the score, the recommended and the chosen flow (one block when they match), and the details button. */
 export function ComplexitySide({ cardId, projectId, history }: { cardId: string; projectId: string; history?: CardHistory }): React.JSX.Element | null {
-  const all = useT(), tb = all.board, t = tb.assessment, w = all.chat.workflowChoice
+  const all = useT(), tb = all.board, t = tb.assessment, w = all.chat.workflowChoice, name = useFlowName()
   const limits = useLimits(projectId), details = useAssessmentDialog(cardId)
   const assessment = history?.assessments.at(-1)
   if (!history || !assessment) return null
-  const chosen = history.workflow
-  const flowName = (workflow: WorkflowKind, method?: string | null): string => workflow === 'sdd' && (method === 'native' || method === 'speckit') ? `${t.flowTitle.sdd} · ${t.methodNames[method]}` : t.flowTitle[workflow]
+  const recommended: FlowSel = { workflow: assessment.workflow, method: assessment.workflow === 'sdd' ? history.recommendedSddMethod : null }
+  const chosen: FlowSel = { workflow: history.workflow, method: history.sddMethod }
+  const spark = <span className="cx-aispark" aria-hidden="true">✦</span>
+  const row = (className: string, label: React.ReactNode, flow: FlowSel, mark = ''): React.JSX.Element => <div className={`cxside-row ${className}`}>
+    <span className="cxside-l">{label}</span>
+    <span className="cxside-v"><b>{mark}{flow.workflow ? name(flow.workflow, flow.method) : ''}</b>{flow.workflow && <small>{t.gear(gearOf(flow.workflow))}</small>}</span>
+  </div>
+  const same = chosen.workflow !== null && sameFlow(recommended, chosen)
   return <aside className="changes cxside" aria-label={w.complexity}>
     <div className="ch-head"><span className="ch-title">{w.complexity}</span><span className={`cx-badge ${assessment.level}`}><b>{assessment.total}</b>{tb.levelLabels[assessment.level]}</span></div>
     <ScoreBar assessment={assessment} limits={limits} />
     <div className="cxside-rows">
-      <span>{t.recommendedByAgent}</span><b>{flowName(assessment.workflow, assessment.workflow === 'sdd' ? history.recommendedSddMethod : null)}</b>
-      <span>{t.chosenByYou}</span>{chosen ? <b className={chosen === assessment.workflow ? 'ok' : 'diff'}>{flowName(chosen, history.sddMethod)}</b> : <em>{t.notChosenYet}</em>}
+      {same ? row('both', <>{spark}{w.recommendedAndChosen}</>, chosen, '✓ ') : <>
+        {row('ai', <>{spark}{t.recommendedByAgent}</>, recommended)}
+        {chosen.workflow ? row('pick', t.chosenByYou, chosen, '✓ ') : <div className="cxside-row none"><span className="cxside-l">{t.chosenByYou}</span><span className="cxside-v"><em>{w.notChosen}</em></span></div>}
+      </>}
     </div>
-    <button type="button" className="linklike cxside-more" onClick={details.open}>{w.seeMore}</button>
+    {chosen.workflow && !same && <p className="cxside-note">{t.differsFromRecommended}</p>}
+    <button type="button" className="mini secondary cxside-more" onClick={details.open}>{w.seeDetails}</button>
     {details.dialog}
   </aside>
 }

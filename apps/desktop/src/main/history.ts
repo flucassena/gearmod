@@ -144,7 +144,7 @@ export class CardHistoryService {
     }
     const run = this.runInfo(input.source.runId)
     const assessment = assessmentSchema.parse({
-      id: randomUUID(), cardId: input.cardId, version: (previous?.version ?? 0) + 1, preliminary: input.preliminary, scores, weights: config.weights, total, level,
+      id: randomUUID(), cardId: input.cardId, version: (previous?.version ?? 0) + 1, preliminary: input.preliminary, scores, weights: config.weights, limits: { simpleMax: config.limits.simpleMax, mediumMax: config.limits.mediumMax }, total, level,
       confidence: input.confidence, criticalRisks: input.criticalRisks.map((risk) => redact(risk)), justifications: Object.fromEntries(Object.entries(input.justifications).map(([key, value]) => [key, redact(value)])),
       evidence: input.evidence.map((item) => ({ ...item, detail: redact(item.detail), commit: item.commit ?? this.codeVersion(projectId) })), workflow: recommendedWorkflow(level, scores),
       trigger: previous ? input.trigger : 'initial', reason: redact(input.reason), actor: input.source.actor === 'user' ? 'user' : 'agent', ...run, codeVersion: this.codeVersion(projectId),
@@ -376,9 +376,9 @@ export class CardHistoryService {
   }
 
   private insertAssessment(item: Assessment, ignore = false): number {
-    return this.db.prepare(`INSERT ${ignore ? 'OR IGNORE ' : ''}INTO card_assessments(id, card_id, version, preliminary, scores_json, weights_json, total, level, confidence, critical_risks_json, justifications_json,
-      evidence_json, workflow, trigger, reason, actor, profile_id, provider, model, effort, code_version, supersedes_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(item.id, item.cardId, item.version, item.preliminary ? 1 : 0, JSON.stringify(item.scores), JSON.stringify(item.weights), item.total, item.level, item.confidence, JSON.stringify(item.criticalRisks),
+    return this.db.prepare(`INSERT ${ignore ? 'OR IGNORE ' : ''}INTO card_assessments(id, card_id, version, preliminary, scores_json, weights_json, limits_json, total, level, confidence, critical_risks_json, justifications_json,
+      evidence_json, workflow, trigger, reason, actor, profile_id, provider, model, effort, code_version, supersedes_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(item.id, item.cardId, item.version, item.preliminary ? 1 : 0, JSON.stringify(item.scores), JSON.stringify(item.weights), item.limits ? JSON.stringify(item.limits) : null, item.total, item.level, item.confidence, JSON.stringify(item.criticalRisks),
         JSON.stringify(item.justifications), JSON.stringify(item.evidence), item.workflow, item.trigger, item.reason, item.actor, item.profileId, item.provider, item.model, item.effort, item.codeVersion, item.supersedesId, item.createdAt).changes
   }
 
@@ -449,12 +449,12 @@ export function readManifest(path: string | null): MethodManifest {
   return value as MethodManifest
 }
 
-type AssessmentRow = { id: string; card_id: string; version: number; preliminary: number; scores_json: string; weights_json: string; total: number; level: string; confidence: string; critical_risks_json: string; justifications_json: string; evidence_json: string; workflow: string; trigger: string; reason: string; actor: string; profile_id: string | null; provider: string | null; model: string | null; effort: string | null; code_version: string | null; supersedes_id: string | null; created_at: string }
+type AssessmentRow = { id: string; card_id: string; version: number; preliminary: number; scores_json: string; weights_json: string; limits_json: string | null; total: number; level: string; confidence: string; critical_risks_json: string; justifications_json: string; evidence_json: string; workflow: string; trigger: string; reason: string; actor: string; profile_id: string | null; provider: string | null; model: string | null; effort: string | null; code_version: string | null; supersedes_id: string | null; created_at: string }
 type DecisionRow = { id: string; card_id: string; number: number; kind: string; statement: string; rationale: string; status: string; actor: string; supersedes_id: string | null; created_at: string }
 type RunRow = { id: string; purpose: string; status: string; provider: string | null; model: string | null; effort: string | null; startedAt: string; endedAt: string | null; input: number; cached: number; output: number; costUsd: number | null }
 
 function fromAssessmentRow(row: AssessmentRow): Assessment {
-  return assessmentSchema.parse({ id: row.id, cardId: row.card_id, version: row.version, preliminary: Boolean(row.preliminary), scores: JSON.parse(row.scores_json), weights: JSON.parse(row.weights_json), total: row.total, level: row.level, confidence: row.confidence, criticalRisks: JSON.parse(row.critical_risks_json), justifications: JSON.parse(row.justifications_json), evidence: JSON.parse(row.evidence_json), workflow: row.workflow, trigger: row.trigger, reason: row.reason, actor: row.actor, profileId: row.profile_id, provider: row.provider, model: row.model, effort: row.effort, codeVersion: row.code_version, supersedesId: row.supersedes_id, createdAt: row.created_at })
+  return assessmentSchema.parse({ id: row.id, cardId: row.card_id, version: row.version, preliminary: Boolean(row.preliminary), scores: JSON.parse(row.scores_json), weights: JSON.parse(row.weights_json), limits: row.limits_json ? JSON.parse(row.limits_json) : null, total: row.total, level: row.level, confidence: row.confidence, criticalRisks: JSON.parse(row.critical_risks_json), justifications: JSON.parse(row.justifications_json), evidence: JSON.parse(row.evidence_json), workflow: row.workflow, trigger: row.trigger, reason: row.reason, actor: row.actor, profileId: row.profile_id, provider: row.provider, model: row.model, effort: row.effort, codeVersion: row.code_version, supersedesId: row.supersedes_id, createdAt: row.created_at })
 }
 
 function fromDecisionRow(row: DecisionRow): Decision {
