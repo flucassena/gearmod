@@ -4,6 +4,7 @@ import { FileTypeIcon } from '../FileAppearance'
 import { plainError } from '../NoticeDialog'
 import { slashed, nameOf } from './documents'
 import { useT } from '../i18n'
+import { ChevronRightSmallIcon } from '../icons'
 
 type Result = IpcOutput<'workspace:grep'>['results'][number]
 type Root = { path: string; name: string; worktree: boolean }
@@ -48,7 +49,7 @@ export function ProjectSearch({ context, roots, seed, open, onQueryChange }: {
       {groups.map((group) => <div key={group.root} className="wf-psearch-repo">
         {groups.length > 1 && <div className="wf-psearch-repohead" data-tip={group.root}>{group.name}<span>{group.files.reduce((sum, [, items]) => sum + items.length, 0)}</span></div>}
         {group.files.map(([path, items]) => { const shut = closed.includes(path); return <div key={path} role="treeitem" aria-expanded={!shut}>
-          <button type="button" className="wf-psearch-file" data-tip={path} onClick={() => setClosed((all) => shut ? all.filter((item) => item !== path) : [...all, path])}><span className={`wf-chevron ${shut ? '' : 'open'}`} aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m4.5 2.5 3.5 3.5-3.5 3.5" /></svg></span><FileTypeIcon path={path} /><b>{nameOf(path)}</b><small>{relativeTo(group.root, path).split('/').slice(0, -1).join('/')}</small><span className="wf-psearch-count">{items.length}</span></button>
+          <button type="button" className="wf-psearch-file" data-tip={path} onClick={() => setClosed((all) => shut ? all.filter((item) => item !== path) : [...all, path])}><span className={`wf-chevron ${shut ? '' : 'open'}`} aria-hidden="true"><ChevronRightSmallIcon /></span><FileTypeIcon path={path} /><b>{nameOf(path)}</b><small>{relativeTo(group.root, path).split('/').slice(0, -1).join('/')}</small><span className="wf-psearch-count">{items.length}</span></button>
           {!shut && items.map((item) => <button key={`${item.line}:${item.column}`} type="button" className="wf-psearch-hit" onClick={() => open(item.path, item.line, item.column, item.matchEnd - item.matchStart)}><span className="wf-psearch-line">{item.line}</span><span className="wf-psearch-text">{item.preview.slice(0, item.matchStart).trimStart()}<mark>{item.preview.slice(item.matchStart, item.matchEnd)}</mark>{item.preview.slice(item.matchEnd)}</span></button>)}
         </div> })}
       </div>)}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import type { Project } from '@gearmod/contracts'
-import { HandIcon, SparkIcon } from './icons'
+import { HandIcon, PlanIcon } from './icons'
 import { Select } from './Select'
 import { useEscape } from './useEscape'
 import { useT } from './i18n'
@@ -28,7 +28,7 @@ export function NewCardDialog({ project, close, plan, manual }: { project: Proje
   const hasAlternatives = options.cards.length + external.length > 0
   const hint = from === 'new' ? tn.hintNew : from.startsWith('card:') ? tn.hintCard : tn.hintExternal
   return <div className="overlay" role="dialog" aria-label={t.newCard} onMouseDown={(e) => { if (e.target === e.currentTarget) close() }}><div className="modal" style={{ width: 'min(520px,100%)' }}><header><div><div className="eyebrow">{t.newCard}</div><h2>{tn.title}</h2></div><button className="x" onClick={close} aria-label={common.close}>×</button></header>
-    <div className="choices"><button type="button" className="choice" onClick={() => plan(choice())}><span className="cico plan"><SparkIcon /></span><b>{tn.planWithAgent}</b><small>{tn.planWithAgentHint}</small></button>
+    <div className="choices"><button type="button" className="choice" onClick={() => plan(choice())}><span className="cico plan"><PlanIcon /></span><b>{tn.planWithAgent}</b><small>{tn.planWithAgentHint}</small></button>
     <button type="button" className="choice" onClick={() => manual(choice())}><span className="cico"><HandIcon /></span><b>{tn.createManually}</b><small>{tn.createManuallyHint}</small></button></div>
     {hasAlternatives && <div className="stack newcard-where">
       <div className="sectitle">{tn.whereTitle}</div>

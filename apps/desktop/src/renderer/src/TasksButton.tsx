@@ -3,6 +3,7 @@ import { tasks, useTasks, type BgTask } from './backgroundTasks'
 import { useFitInView } from './useFitInView'
 import { useEscape } from './useEscape'
 import { useT } from './i18n'
+import { ActivityIcon } from './icons'
 
 const elapsed = (task: BgTask, now: number): string => {
   const seconds = Math.max(0, Math.round(((task.endedAt ?? now) - task.startedAt) / 1000))
@@ -26,7 +27,7 @@ export function TasksButton(): React.JSX.Element {
   const label = running ? t.shell.tasks.running(running) : t.shell.tasks.backgroundProcesses
   return <span className="popwrap tasksbtn" ref={box}>
     <button type="button" className={`ibtn tip ${open ? 'on' : ''} ${running ? 'busy' : ''}`} data-tip={label} aria-label={label} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>
-      {running ? <span className="spin sm" aria-hidden="true" /> : <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h3l2-5 4 10 2-5h3" /></svg>}
+      {running ? <span className="spin sm" aria-hidden="true" /> : <ActivityIcon />}
       {(running > 0 || failed > 0) && <i className={`tasks-badge ${running ? '' : 'bad'}`}>{running || failed}</i>}
     </button>
     {open && <div className="tasks-pop" ref={pop} role="dialog" aria-label={t.shell.tasks.backgroundProcesses}>

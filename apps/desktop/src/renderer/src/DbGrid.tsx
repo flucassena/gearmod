@@ -30,7 +30,7 @@ const typeShapes: Record<TypeKind, React.ReactNode> = {
   binary: <path d="M4 3.500v3M4 9.500v3M8 3.500v3M8 9.500v3M12 3.500v3M12 9.500v3" />,
   other: <><rect x="2.500" y="3" width="11" height="10" rx="1.500" /><path d="M2.500 6.500h11" /></>
 }
-const TypeIcon = ({ type }: { type: string }): React.JSX.Element => <svg className="db-tico" viewBox="0 0 16 16" aria-hidden="true">{typeShapes[typeKind(type)]}</svg>
+const TypeIcon = ({ type }: { type: string }): React.JSX.Element => <svg className="ico db-tico" viewBox="0 0 16 16" aria-hidden="true">{typeShapes[typeKind(type)]}</svg>
 const text = (cell: Cell | undefined): string => (cell?.t ?? 'NULL').replace(/[\t\r\n]+/g, ' ')
 
 /** Results grid: selects a cell, row (by number) or column (by header) and resizes columns on the divider line. */

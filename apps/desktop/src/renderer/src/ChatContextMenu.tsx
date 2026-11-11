@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Chat } from '@gearmod/contracts'
-import { BoardIcon, TrashIcon } from './icons'
+import { CardIcon, TrashIcon } from './icons'
 import { useEscape } from './useEscape'
 import { useT } from './i18n'
 
@@ -25,7 +25,7 @@ export function ChatContextMenu({ x, y, chat, cardTitle, openCard, remove, close
   }, [close, remove, openCard, chat.cardId])
   return <div className="ctxmenu" ref={root} role="menu" tabIndex={-1} aria-label={m.actionsFor(cardTitle || chat.title || m.freeConversation)} style={pos} onContextMenu={(event) => event.preventDefault()}>
     <div className="ctxtitle">{cardTitle || chat.title || (chat.purpose === 'constitution' ? m.projectConstitution : m.freeConversation)}</div>
-    {chat.cardId && openCard && <button type="button" role="menuitem" className="ctxitem on" onClick={openCard}><BoardIcon /><span>{m.openCard}</span><kbd>C</kbd></button>}
+    {chat.cardId && openCard && <button type="button" role="menuitem" className="ctxitem on" onClick={openCard}><CardIcon /><span>{m.openCard}</span><kbd>C</kbd></button>}
     <button type="button" role="menuitem" className={`ctxitem danger ${chat.cardId ? '' : 'on'}`} disabled={Boolean(chat.cardId)} data-tip={chat.cardId ? m.cardChatsTip : undefined} onClick={remove}><TrashIcon /><span>{m.deleteChat}</span>{!chat.cardId && <kbd>A</kbd>}</button>
     {chat.cardId && <p className="chat-menu-note">{m.cardChatNote}</p>}
   </div>

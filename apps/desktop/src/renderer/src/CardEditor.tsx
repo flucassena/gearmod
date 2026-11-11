@@ -9,7 +9,7 @@ import { AgentIcon } from './AgentIcon'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeleteCardDialog } from './DeleteCardDialog'
 import { WorktreeDeleteDialog } from './WorktreeDelete'
-import { BranchIcon, ChatIcon, FolderGlyph, TrashIcon, CollapseIcon, TreeIcon, ExpandIcon, EyeIcon, PencilIcon, SplitIcon, Chevron } from './icons'
+import { ArtifactIcon, BranchIcon, ChatIcon, Chevron, CollapseIcon, ExpandIcon, EyeIcon, FolderGlyph, HistoryIcon, PencilIcon, SplitIcon, TrashIcon, TreeIcon } from './icons'
 import { Markdown } from './markdown'
 import { TokenUsage } from './TokenUsage'
 import { TestChecklist } from './TestChecklist'
@@ -35,7 +35,7 @@ const proseOptions = { wrap: true, tabSize: 2, indentWithTab: false, whitespace:
 const placeholderCache = new Map<string, Extension[]>()
 const placeholderFor = (kind: string): Extension[] => { const key = `${getLocale()}:${kind}`; let found = placeholderCache.get(key); if (!found) { found = [placeholder((tr().board.docPlaceholders as Record<string, string>)[kind] ?? '')]; placeholderCache.set(key, found) } return found }
 const systemKinds: readonly CardDocumentKind[] = ['duvidas', 'mudancas']
-const priorities = [{ value: 'low', color: 'var(--muted)' }, { value: 'medium', color: 'var(--blue)' }, { value: 'high', color: 'var(--warn)' }, { value: 'urgent', color: 'var(--danger)' }] as const
+const priorities = [{ value: 'low', color: 'var(--tone-neutral)' }, { value: 'medium', color: 'var(--tone-info)' }, { value: 'high', color: 'var(--tone-warning)' }, { value: 'urgent', color: 'var(--tone-danger)' }] as const
 type Mode = 'write' | 'split' | 'prev'
 type Texts = Record<CardDocumentKind, string>
 const empty: Texts = { resumo: '', especificacao: '', plano: '', tasks: '', duvidas: '', mudancas: '' }
@@ -156,7 +156,7 @@ export function CardEditor({ projectId, sources, profiles, cardTypes, draft: sta
     <form onSubmit={(e) => void submit(e)} style={{ display: 'contents' }}>
       <div className={`editor docs ${small ? 'smallcard' : ''} ${wide ? 'wide' : ''}`}>
         <div className="pane-left"><div className="stack pane-left-top">
-          {complexity && <div className="cxtop">{complexity.complexity ? <ComplexityBadge full pendingDecisions={complexity.pending.decisions} complexity={complexity.complexity} workflowText={complexity.workflow ? (!complexity.workflow ? t.flow.none : complexity.workflow === 'sdd' ? t.flow[complexity.sddMethod ?? 'sdd'] : t.flow[complexity.workflow]) : undefined} onClick={() => { setAssessTab('avaliacao'); setAssessing(true) }} /> : d.id && <span className={`flowchip tip ${complexity.workflow ? '' : 'none'}`} data-tip={t.flow.tip}>{(!complexity.workflow ? t.flow.none : complexity.workflow === 'sdd' ? t.flow[complexity.sddMethod ?? 'sdd'] : t.flow[complexity.workflow])}</span>}{d.id && <button type="button" className="mini secondary tip cx-artifacts" data-tip={tb.assessment.openArtifacts} aria-label={tb.assessment.openArtifacts} onClick={() => { void window.gearmod.invoke('history:open-folder', { cardId: d.id! }).catch((reason) => setError(plainError(reason))) }}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3.5h6l3 3v8a1.5 1.5 0 0 1-1.5 1.5h-7.5A1.5 1.5 0 0 1 4.5 14.5v-9A1.5 1.5 0 0 1 6 3.5Z" /><path d="M12 3.5v3h3M7.5 10h5M7.5 13h3.5" /></svg></button>}</div>}
+          {complexity && <div className="cxtop">{complexity.complexity ? <ComplexityBadge full pendingDecisions={complexity.pending.decisions} complexity={complexity.complexity} workflowText={complexity.workflow ? (!complexity.workflow ? t.flow.none : complexity.workflow === 'sdd' ? t.flow[complexity.sddMethod ?? 'sdd'] : t.flow[complexity.workflow]) : undefined} onClick={() => { setAssessTab('avaliacao'); setAssessing(true) }} /> : d.id && <span className={`flowchip tip ${complexity.workflow ? '' : 'none'}`} data-tip={t.flow.tip}>{(!complexity.workflow ? t.flow.none : complexity.workflow === 'sdd' ? t.flow[complexity.sddMethod ?? 'sdd'] : t.flow[complexity.workflow])}</span>}{d.id && <button type="button" className="mini secondary tip cx-artifacts" data-tip={tb.assessment.openArtifacts} aria-label={tb.assessment.openArtifacts} onClick={() => { void window.gearmod.invoke('history:open-folder', { cardId: d.id! }).catch((reason) => setError(plainError(reason))) }}><ArtifactIcon /></button>}</div>}
         </div><div className="stack pane-left-scroll">
           <div className="f"><span>{t.type}</span><Select label={t.type} options={cardTypeOptions(cardTypes, d.type)} value={d.type} onChange={(value) => set({ ...d, type: value })} /></div>
           <div className="f"><span>{t.priority}</span><Select label={t.priority} options={priorityOptions} value={d.priority} onChange={(value) => set({ ...d, priority: value as Card['priority'] })} /></div>
@@ -181,7 +181,7 @@ export function CardEditor({ projectId, sources, profiles, cardTypes, draft: sta
         <div className="stack pane-mid" style={{ minWidth: 0 }}>
           {testsView && checklist.trim() ? <><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span className="sectitle">{t.testsByTester}</span></div><div className="md descarea">{checklistData && <TestChecklist data={checklistData} />}</div></> : <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span className="sectitle">{small ? t.whatToDo : labels[kind]} · {systemKinds.includes(kind) ? t.generatedBySystem : 'Markdown'}</span>
-            <div className="tabs">{d.id && !systemKinds.includes(kind) && <button type="button" className={`ibtn tip ${versions ? 'on' : ''}`} data-tip={versions ? t.closeHistory : t.versionHistory} aria-label={t.versionHistory} aria-pressed={Boolean(versions)} onClick={() => (versions ? setVersions(undefined) : void showVersions())}><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg></button>}
+            <div className="tabs">{d.id && !systemKinds.includes(kind) && <button type="button" className={`ibtn tip ${versions ? 'on' : ''}`} data-tip={versions ? t.closeHistory : t.versionHistory} aria-label={t.versionHistory} aria-pressed={Boolean(versions)} onClick={() => (versions ? setVersions(undefined) : void showVersions())}><HistoryIcon /></button>}
               <button type="button" className={`ibtn tip ${wide ? 'on' : ''}`} data-tip={wide ? t.showSideColumns : t.expandHidesColumns} aria-label={wide ? t.collapseDocument : t.expandDocument} aria-pressed={wide} onClick={() => setWide(!wide)}>{wide ? <CollapseIcon /> : <ExpandIcon />}</button>
               {([['write', t.modeWrite, <PencilIcon key="w" />], ['split', t.modeSplit, <SplitIcon key="s" />], ['prev', t.modePreview, <EyeIcon key="p" />]] as const).map(([value, label, icon]) => <button type="button" key={value} className={`ibtn tip ${mode === value ? 'on' : ''}`} data-tip={label} aria-label={label} aria-pressed={mode === value} onClick={() => setMode(value)}>{icon}</button>)}</div></div>
           {/* An existing card opens in Preview (easier to read); double-clicking the text switches to Write. */}

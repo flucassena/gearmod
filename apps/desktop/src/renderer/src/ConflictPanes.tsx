@@ -6,7 +6,7 @@ import { Checkbox } from './Checkbox'
 const CONTEXT = 3
 type Side = 'ours' | 'theirs'
 
-const Icon = ({ children }: { children: React.ReactNode }): React.JSX.Element => <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" />{children}</svg>
+const Icon = ({ children }: { children: React.ReactNode }): React.JSX.Element => <svg className="ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" />{children}</svg>
 
 /** Plain lines around the blocks: only a few next to each conflict, the rest collapsed into one "N lines" row. */
 function context(lines: string[], from: number, keep: 'start' | 'end' | 'both', hidden: (count: number) => string): React.JSX.Element[] {

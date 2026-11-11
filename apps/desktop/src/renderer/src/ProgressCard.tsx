@@ -6,6 +6,7 @@ import { checklistEvent, toggleChecklist } from './checklistToggle'
 import { MarkBadges } from './MarkBadges'
 import { plainError } from './NoticeDialog'
 import { useT } from './i18n'
+import { CheckMiniIcon, ChevronDownSmallIcon } from './icons'
 
 interface Criterion { text: string; done: boolean; line: number }
 interface Task { key: string; line: number; text: string; done: boolean; criteria: Criterion[]; group: string | null }
@@ -28,7 +29,7 @@ export function parseTasks(markdown: string): Task[] {
   return tasks
 }
 
-const CheckMark = (): React.JSX.Element => <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.6l4.5-5" /></svg>
+const CheckMark = (): React.JSX.Element => <CheckMiniIcon />
 
 /**
  * Progress beside the chat: in implementation, the card's Tasks (the agent checks off tasks and criteria as it finishes);
@@ -59,7 +60,7 @@ export function ProgressCard({ cardId, purpose }: { cardId: string; purpose: 'ex
   const expanded = (task: Task): boolean => toggled[task.key] ?? task.key === current
   return <aside className={`progress ${open ? 'open' : ''}`} aria-label={title}>
     <div className="ch-head">
-      <button type="button" className="ch-title" aria-expanded={open} onClick={() => setOpen(!open)}>{title}<span className="chev chev-box" aria-hidden="true"><svg className="chev-svg" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg></span></button>
+      <button type="button" className="ch-title" aria-expanded={open} onClick={() => setOpen(!open)}>{title}<span className="chev chev-box" aria-hidden="true"><ChevronDownSmallIcon className="chev-svg" /></span></button>
       {tasks.length > 0 && <span className="pg-count">{done}/{tasks.length}</span>}
     </div>
     {tasks.length > 0 && <span className="pg-bar"><i style={{ width: `${Math.round((done / tasks.length) * 100)}%` }} /></span>}
@@ -72,12 +73,12 @@ export function ProgressCard({ cardId, purpose }: { cardId: string; purpose: 'ex
             <button type="button" className="pg-markbtn" role="checkbox" aria-checked={task.done} aria-label={task.done ? t.testChecklist.uncheckItem(task.text) : t.testChecklist.checkItem(task.text)} data-tip={task.done ? t.testChecklist.uncheckTip : t.testChecklist.checkTip} onClick={() => flip(task.line, task.text, !task.done)}><span className="pg-mark">{task.done && <CheckMark />}</span></button>
             <button type="button" className="pg-rowmain" disabled={!task.criteria.length} aria-expanded={task.criteria.length ? isOpen : undefined} onClick={() => setToggled({ ...toggled, [task.key]: !isOpen })}>
               <span className="pg-text"><InlineMarkdown text={task.text} /></span>{by(task.text, task.done)}
-              {task.criteria.length > 0 && <span className="pg-meta">{met}/{task.criteria.length}<span className="chev chev-box" aria-hidden="true"><svg className="chev-svg" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg></span></span>}
+              {task.criteria.length > 0 && <span className="pg-meta">{met}/{task.criteria.length}<span className="chev chev-box" aria-hidden="true"><ChevronDownSmallIcon className="chev-svg" /></span></span>}
             </button>
           </div> : <button type="button" className="pg-row" disabled={!task.criteria.length} aria-expanded={task.criteria.length ? isOpen : undefined} onClick={() => setToggled({ ...toggled, [task.key]: !isOpen })}>
             <span className="pg-mark" aria-label={task.done ? t.progress.completed : started ? t.progress.inProgress : t.progress.toDo}>{task.done && <CheckMark />}</span>
             <span className="pg-text"><InlineMarkdown text={task.text} /></span>
-            {task.criteria.length > 0 && <span className="pg-meta">{met}/{task.criteria.length}<span className="chev chev-box" aria-hidden="true"><svg className="chev-svg" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg></span></span>}
+            {task.criteria.length > 0 && <span className="pg-meta">{met}/{task.criteria.length}<span className="chev chev-box" aria-hidden="true"><ChevronDownSmallIcon className="chev-svg" /></span></span>}
           </button>}
           {isOpen && <ul className="pg-criteria">{task.criteria.map((item, position) => <li key={position} className={`pg-crit ${item.done ? 'done' : ''}`}>{interactive ? <button type="button" className="pg-mark sm btn" role="checkbox" aria-checked={item.done} aria-label={item.done ? t.testChecklist.uncheckItem(item.text) : t.testChecklist.checkItem(item.text)} data-tip={item.done ? t.testChecklist.uncheckTip : t.testChecklist.checkTip} onClick={() => flip(item.line, item.text, !item.done)}>{item.done && <CheckMark />}</button> : <span className="pg-mark sm">{item.done && <CheckMark />}</span>}<span className="pg-text"><InlineMarkdown text={item.text} /></span>{by(item.text, item.done)}</li>)}</ul>}
         </div>

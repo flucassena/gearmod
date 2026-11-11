@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Card } from '@gearmod/contracts'
-import { BranchIcon, ChatIcon, EyeIcon, TrashIcon } from './icons'
+import { BranchIcon, CardIcon, ChatIcon, TrashIcon } from './icons'
 import { useEscape } from './useEscape'
 import { useT } from './i18n'
 
@@ -11,7 +11,7 @@ export function CardContextMenu({ x, y, card, open, chat, git, remove, close }: 
   const t = useT().board
   const root = useRef<HTMLDivElement>(null), [pos, setPos] = useState({ left: x, top: y }), [active, setActive] = useState(0)
   const items: Item[] = [
-    { key: 'a', label: t.contextMenu.openCard, hint: 'A', icon: <EyeIcon />, run: open },
+    { key: 'a', label: t.contextMenu.openCard, hint: 'A', icon: <CardIcon />, run: open },
     { key: 'c', label: t.contextMenu.goToChat, hint: 'C', icon: <ChatIcon />, run: chat },
     { key: 'g', label: t.contextMenu.openGit, hint: 'G', icon: <BranchIcon />, run: git },
     { key: 'e', label: t.contextMenu.deleteCard, hint: 'E', icon: <TrashIcon />, danger: true, run: remove }

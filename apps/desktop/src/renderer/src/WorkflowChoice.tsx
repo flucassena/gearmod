@@ -5,6 +5,7 @@ import { AssessmentDialog, Dots, type Tab } from './Assessment'
 import { ConfirmDialog } from './ConfirmDialog'
 import { plainError } from './NoticeDialog'
 import { useT } from './i18n'
+import { ChevronDownIcon, ChevronUpIcon, MinimizeIcon } from './icons'
 
 type Limits = { simpleMax: number; mediumMax: number }
 
@@ -79,7 +80,7 @@ function FlowBar({ title, assessment, recommended, chosen, open, toggle }: { tit
     {assessment && <span className={`cx-badge ${assessment.level}`}><b>{assessment.total}</b>{tb.levelLabels[assessment.level]}</span>}
     {recommended && <span className="wfc-chip">{w.recommended(recommended)}</span>}
     {chosen && <span className={`wfc-chip chosen ${chosen.differs ? 'diff' : ''}`}>{w.chosen(chosen.title)}</span>}
-    <button type="button" className="ibtn wfc-toggle" title={open ? w.collapse : w.expand} aria-label={open ? w.collapse : w.expand} aria-expanded={open} onClick={toggle}><svg viewBox="0 0 24 24" className="gico"><path d={open ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} /></svg></button>
+    <button type="button" className="ibtn wfc-toggle" title={open ? w.collapse : w.expand} aria-label={open ? w.collapse : w.expand} aria-expanded={open} onClick={toggle}>{open ? <ChevronUpIcon className="gico" /> : <ChevronDownIcon className="gico" />}</button>
   </div>
 }
 
@@ -114,11 +115,11 @@ export function WorkflowChoiceAsk({ approval, onDecided }: { approval: Approval;
   const recommendedTitle = flowTitle(t, proposed)
   if (small) return <div className="cask wfchoice small"><FlowBar title={w.title} assessment={assessment} recommended={recommendedTitle} open={false} toggle={() => minimize(false)} /></div>
   return <div className="cask wfchoice">
-    <div className="cgprop-h"><b>{w.title}</b><small>{w.subtitle}</small><button type="button" className="ibtn wfc-min" title={w.minimize} aria-label={w.minimize} onClick={() => minimize(true)}><svg viewBox="0 0 24 24" className="gico"><path d="M5 12h14" /></svg></button></div>
+    <div className="cgprop-h"><b>{w.title}</b><small>{w.subtitle}</small><button type="button" className="ibtn wfc-min" title={w.minimize} aria-label={w.minimize} onClick={() => minimize(true)}><MinimizeIcon className="gico" /></button></div>
     {assessment ? <ScoreTable assessment={assessment} limits={limits} /> : <p className="cx-muted">{all.common.loading}</p>}
     {reason && <p className="cgprop-msg">{reason}</p>}
     <div className="wfc-opts" role="group" aria-label={t.cardFlow}>{options.map((option) => <button type="button" key={option.key} className={`cx-opt ${isProposed(option) ? 'rec' : ''}`} disabled={Boolean(busy) || option.off !== undefined} data-tip={option.off || undefined} onClick={() => setConfirming(option)}>
-      <span className="cx-opt-t">{busy === option.key ? <span className="spin sm" /> : null}{option.title}{isProposed(option) && <em>{t.recommendedTag}</em>}</span><small>{option.about}</small>
+      <span className="cx-opt-t">{busy === option.key ? <span className="spin sm" /> : null}{option.title}{isProposed(option) && <em><span aria-hidden="true">✦ </span>{t.recommendedTag}</em>}</span><small>{option.about}</small>
     </button>)}</div>
     {error && <p className="error">{error}</p>}
     <div className="cgrow"><span className="grow1" /><button type="button" className="mini secondary" onClick={details.open}>{w.seeDetails}</button></div>

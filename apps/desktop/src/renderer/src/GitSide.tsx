@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import type { GitGraph, PullRequestList, PullRequestSummary } from '@gearmod/contracts'
 import { useT } from './i18n'
 import { PrAccessNotice } from './PrPanel'
+import { PullIcon, PushIcon } from './icons'
 
 type Node<T> = { type: 'item'; item: T; label: string } | { type: 'folder'; name: string; entries: Array<{ item: T; label: string }> }
 type LocalBranch = GitGraph['branches']['local'][number]
@@ -10,7 +11,7 @@ type Icons = Record<'branch' | 'cloud' | 'pc' | 'folder' | 'stash' | 'tree', Rea
 const heightsKey = 'gearmod.gitSideHeights', openKey = 'gearmod.gitSideOpen'
 const loadOpen = (): { shut: Record<string, boolean>; folders: Record<string, boolean> } => { try { const saved = JSON.parse(localStorage.getItem(openKey) ?? '{}') as { shut?: Record<string, boolean>; folders?: Record<string, boolean> }; return { shut: saved.shut ?? {}, folders: saved.folders ?? {} } } catch { return { shut: {}, folders: {} } } }
 const loadHeights = (): Record<string, number> => { try { return JSON.parse(localStorage.getItem(heightsKey) ?? '{}') as Record<string, number> } catch { return {} } }
-const syncArrow = (direction: 'up' | 'down'): React.JSX.Element => <svg viewBox="0 0 16 16" aria-hidden="true"><path d={direction === 'down' ? 'M8 3v8M4.5 7.5 8 11l3.5-3.5M3.5 13.5h9' : 'M8 13V5M4.5 8.5 8 5l3.5 3.5M3.5 2.5h9'} /></svg>
+const syncArrow = (direction: 'up' | 'down'): React.JSX.Element => direction === 'down' ? <PullIcon /> : <PushIcon />
 const withoutRemote = (name: string): string => name.replace(/^[^/]+\//, '')
 
 /** Groups by the first part of the name (feature/x becomes the "feature" folder); without a slash it stays loose. Keeps the original order. */

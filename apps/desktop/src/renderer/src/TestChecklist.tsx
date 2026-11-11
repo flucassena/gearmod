@@ -5,6 +5,7 @@ import { toggleChecklist } from './checklistToggle'
 import { MarkBadges } from './MarkBadges'
 import { plainError } from './NoticeDialog'
 import { useT } from './i18n'
+import { CheckMiniIcon } from './icons'
 
 const itemLine = /^(\s*)[-*+]\s+\[( |x|X)\]\s+(.*)$/, headingLine = /^#{1,6}\s+(.*)$/
 
@@ -20,7 +21,7 @@ export function TestChecklist({ data }: { data: CardChecklist }): React.JSX.Elem
       if (item) {
         const done = item[2] !== ' ', text = item[3]!.trim(), mark = data.marks[checklistKey(text)]
         return <div key={line} className={`tc-item ${done ? 'done' : ''} ${item[1] ? 'sub' : ''}`}>
-          <button type="button" className="pg-mark sm btn" role="checkbox" aria-checked={done} aria-label={done ? t.uncheckItem(text) : t.checkItem(text)} data-tip={done ? t.uncheckTip : t.checkTip} onClick={() => flip(line, text, !done)}>{done && <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.6l4.5-5" /></svg>}</button>
+          <button type="button" className="pg-mark sm btn" role="checkbox" aria-checked={done} aria-label={done ? t.uncheckItem(text) : t.checkItem(text)} data-tip={done ? t.uncheckTip : t.checkTip} onClick={() => flip(line, text, !done)}>{done && <CheckMiniIcon />}</button>
           <span className="tc-text"><InlineMarkdown text={text} /></span>
           <MarkBadges mark={mark} checked={done} />
         </div>

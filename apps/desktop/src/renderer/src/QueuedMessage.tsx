@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { AttachmentChips } from './Attachments'
-import { SendIcon } from './icons'
+import { MoreHorizontalIcon, SendIcon } from './icons'
 import { ReplyContextCards } from './ChatReplies'
 import { splitChatReplies } from './chatReplyContext'
 import { useT } from './i18n'
@@ -49,7 +49,7 @@ export function QueuedPreview({ text, files, busy, sendNow, edit, discard }: { t
     <div className="q-content"><AttachmentChips files={files} /><ReplyContextCards replies={parsed.replies} />{parsed.text && <p className="q-text">{parsed.text}</p>}</div>
     <div className="q-tools" ref={menu}>
       <button type="button" className="sendbtn q-send tip" data-tip={busy ? t.sendNow : t.send} aria-label={busy ? t.sendNow : t.send} onClick={sendNow}><SendIcon /></button>
-      <button type="button" className="sendbtn q-more" aria-label={t.moreOptions} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.35" /><circle cx="10" cy="10" r="1.35" /><circle cx="16" cy="10" r="1.35" /></svg></button>
+      <button type="button" className="sendbtn q-more" aria-label={t.moreOptions} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}><MoreHorizontalIcon /></button>
       {open && <div className="q-menu" role="menu"><button type="button" role="menuitem" onClick={() => { setOpen(false); edit() }}>{t.edit}</button><button type="button" role="menuitem" className="danger" onClick={() => { setOpen(false); discard() }}>{t.discard}</button></div>}
     </div>
   </div>

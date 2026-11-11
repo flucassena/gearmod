@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react'
 import { useAsk } from './useAsk'
 import { useT } from './i18n'
+import { ChevronLeftIcon, ChevronRightIcon } from './icons'
 
 const viewerMin = 320
 const stored = (): number => { try { return Number(localStorage.getItem('gearmod.viewerWidth')) || 520 } catch { return 520 } }
@@ -50,8 +51,8 @@ export function ViewGrip({ viewer }: { viewer: ReturnType<typeof useFileViewer> 
   return <div className="viewgrip" role="separator" aria-orientation="vertical" aria-label={t.files.viewer.gripLabel} onPointerDown={viewer.startSplit} onDoubleClick={viewer.restore}>
     <span className="viewgrip-handle" aria-hidden="true" />
     <span className="viewgrip-btns" onPointerDown={stop}>
-      <button type="button" className="tip" data-tip={t.files.viewer.expand} aria-label={t.files.viewer.expand} onClick={viewer.expand}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg></button>
-      <button type="button" className="tip" data-tip={t.files.viewer.restoreWidth} aria-label={t.files.viewer.restoreWidth} onClick={viewer.restore}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>
+      <button type="button" className="tip" data-tip={t.files.viewer.expand} aria-label={t.files.viewer.expand} onClick={viewer.expand}><ChevronLeftIcon /></button>
+      <button type="button" className="tip" data-tip={t.files.viewer.restoreWidth} aria-label={t.files.viewer.restoreWidth} onClick={viewer.restore}><ChevronRightIcon /></button>
     </span>
   </div>
 }

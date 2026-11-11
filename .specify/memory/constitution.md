@@ -64,10 +64,17 @@ App desktop Electron (Windows 10/11 x64, Linux x64 e macOS 12+) que entrega card
 - Estado de carregamento de painel, página ou corpo de diálogo **DEVE** usar `Loading` (mascote pensando e texto com pontos animados, `label` para dizer o que carrega). **NÃO DEVE** ser um texto solto como "Carregando…". Botão e texto curto em linha continuam com o texto simples.
 - Campo de texto **DEVE** usar a classe `in` e ter rótulo (`label.f` ou `aria-label`).
 - Dica **DEVE** usar `data-tip` (mostrado pelo `TooltipLayer`). **NÃO DEVE** usar o atributo `title` nativo em elemento HTML. Botão só com ícone **DEVE** ter `data-tip` e `aria-label`.
-- Cor **DEVE** vir das variáveis de `prototype.css` / `theme-tokens.css` ou de classes que as usam. **NÃO DEVE** haver `#hex` ou `rgb()` em `style` inline. Exceção: dados que são a própria cor (paleta de agentes, amostras de tema, cor escolhida).
-- Cor fixa nova em CSS **DEVE** ter a variante de `:root[data-theme="light"]`.
+- Cor **DEVE** vir das variáveis de `prototype.css` / `theme-tokens.css` / `design-system.css` ou de classes que as usam. **NÃO DEVE** haver `#hex` ou `rgb()` em `style` inline. Exceção: dados que são a própria cor (paleta de agentes, amostras de tema, cor escolhida).
+- Interface **DEVE** seguir o design system descrito em `docs/DESIGN-SYSTEM.md` (código em `design-system.css`, exemplos em `docs/design-system.html`):
+  - Cor de estado (info, sucesso, aviso, erro, neutro) **DEVE** usar os tons `--tone-*` e suas receitas (`-bg`, `-line`, `-fill`). **NÃO DEVE** usar `#hex` nem `--cf-*`/`--cb-*`/`--cl-*` para estado.
+  - O mesmo significado **DEVE** ter o mesmo tom em todas as telas: escolhido pelo usuário e melhorou = sucesso; IA = info com ✦; falhou, erro e risco = perigo; pausado e aguardando = aviso; modo plano = plano. Nível de complexidade usa `--lv-*`.
+  - No TSX, cor de estado **DEVE** vir de classe (`.tone-text.tone-*`, `.ds-*`), não de `style={{ color }}`.
+  - Chip, contagem, ponto, nota, cartão de opção, botão destrutivo e mensagem **DEVEM** usar a classe do guia (`.ds-*` ou a classe existente listada lá). **NÃO DEVE** haver outra versão da mesma peça.
+  - Peça visual nova que se repete **DEVE** entrar em `design-system.css`, no guia e na galeria na mesma mudança.
+  - Ícone **DEVE** vir de `icons.tsx` (família do banco em `DbIcons.tsx`), no padrão `.ico` do guia. **NÃO DEVE** haver `<svg>` de ícone escrito dentro do componente. Cada ícone **DEVE** ter o significado escrito no comentário acima dele, e os usos **DEVEM** caber nesse significado. Um ícone por significado: a mesma ação usa o mesmo ícone em todas as telas, e um ícone não é reaproveitado para outra coisa. Depois de mexer em ícones, rodar `node scripts/design-system-icons.mjs` para atualizar o catálogo da galeria.
+- Cor fixa nova em CSS fora do design system (paleta de domínio, como diff ou sintaxe) **DEVE** ter a variante de `:root[data-theme="light"]`.
 
-**Por quê:** controles nativos e `title` ignoram o tema e o idioma; com um componente só, ajustar o visual é um lugar só.
+**Por quê:** controles nativos e `title` ignoram o tema e o idioma; com um componente só, ajustar o visual é um lugar só. Com um tom por significado, o mesmo estado tem a mesma cor no quadro, no editor do card, no chat e nos diálogos, nos dois temas.
 
 ### IX. Comportamento novo vem com teste
 - Mudança de comportamento no main, nos contratos ou em lógica pura do renderer **DEVE** ter teste Vitest no arquivo `*.test.ts` ao lado do código.

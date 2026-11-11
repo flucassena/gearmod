@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { tr, useT } from './i18n'
+import { PencilIcon } from './icons'
 
 const size = 96
 
@@ -31,7 +32,7 @@ export function ProjectIconPicker({ name, icon, onChange, compact = false }: { n
     if (!file) return
     try { setError(''); onChange(await shrink(file)) } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)) }
   }
-  const choose = <button type="button" className="iconprev editable" aria-label={icon ? ti.changeAria : ti.chooseAria} data-tip={error || (icon ? ti.changeTip : ti.chooseTip)} onClick={() => input.current?.click()}><ProjectAvatar name={name || 'P'} icon={icon} /><span className="iconedit" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></svg></span></button>
+  const choose = <button type="button" className="iconprev editable" aria-label={icon ? ti.changeAria : ti.chooseAria} data-tip={error || (icon ? ti.changeTip : ti.chooseTip)} onClick={() => input.current?.click()}><ProjectAvatar name={name || 'P'} icon={icon} /><span className="iconedit" aria-hidden="true"><PencilIcon /></span></button>
   const file = <input ref={input} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = '' }} />
   if (compact) return <span className="iconpick compact">{choose}{icon && <button type="button" className="iconremove" aria-label={ti.removeAria} data-tip={ti.removeTip} onClick={() => onChange(null)}>×</button>}{file}{error && <span className="iconpick-error" role="status">{error}</span>}</span>
   return <div className="f"><span>{ti.label}</span>

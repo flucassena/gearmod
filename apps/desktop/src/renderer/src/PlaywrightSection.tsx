@@ -8,7 +8,7 @@ import { tasks, useTasks } from './backgroundTasks'
 import { Select } from './Select'
 import { Checkbox } from './Checkbox'
 import { useT } from './i18n'
-import { TrashIcon } from './icons'
+import { CheckIcon, TrashIcon } from './icons'
 import { loadLatest } from './toolUpdates'
 
 /** Playwright CLI: an app tool, in its own folder, with several versions and one chosen per project. */
@@ -114,7 +114,7 @@ function VersionMenu({ current, selected, installed, available, error, disabled,
     return { value: version, label: `v${version}`, highlight: version === selected, badge: <span className="pw-vm-chips">
       {version === newest && <span className="pw-chip">{tw.newest}</span>}
       {version === selected && <span className="pw-chip use">{tw.inUseShort}</span>}
-      {isInstalled ? <svg className="pw-vm-ok" viewBox="0 0 24 24" aria-label={tw.installedTag} role="img"><title>{tw.installedTag}</title><path d="M5 12.5l4.5 4.5L19 7.5" /></svg> : <span className="pw-vm-install">{tw.installVersionShort}</span>}
+      {isInstalled ? <CheckIcon className="pw-vm-ok" aria-hidden={false} aria-label={tw.installedTag} role="img" /> : <span className="pw-vm-install">{tw.installVersionShort}</span>}
     </span> }
   })
   return <div className="pw-vm">

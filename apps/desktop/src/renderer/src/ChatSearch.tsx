@@ -3,6 +3,7 @@ import { isShortcut } from './shortcuts'
 import type { ChatMessage } from '@gearmod/contracts'
 import { useFitInView } from './useFitInView'
 import { useT } from './i18n'
+import { SearchIcon } from './icons'
 
 /** Text as it appears on screen: without the Markdown formatting marks. */
 export function visibleText(body: string): string {
@@ -69,7 +70,7 @@ export function ChatSearch({ messages, log, reveal, request = 0 }: { messages: C
     }, reveal ? 80 : 0)
   }
   return <span className="popwrap chatsearch" ref={box}>
-    <button type="button" className="ibtn tip" data-tip={t.chat.search.tip} aria-label={t.chat.search.label} aria-expanded={open} onClick={() => setOpen(!open)}><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5" /><path d="M13.2 13.2L17 17" /></svg></button>
+    <button type="button" className="ibtn tip" data-tip={t.chat.search.tip} aria-label={t.chat.search.label} aria-expanded={open} onClick={() => setOpen(!open)}><SearchIcon /></button>
     {open && <div className="popmenu cs-pop" ref={pop} role="dialog" aria-label={t.chat.search.label}>
       <input ref={input} className="in" value={query} placeholder={t.chat.search.label} aria-label={t.chat.search.label} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && results[0]) go(results[0].id) }} />
       <div className="cs-list">{query.trim().length < 2 ? <p className="ch-muted">{t.chat.search.minLetters}</p> : !results.length ? <p className="ch-muted">{t.chat.search.nothingFound}</p>

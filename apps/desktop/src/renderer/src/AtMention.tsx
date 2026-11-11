@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { rankPaths } from './editor/quickOpen'
 import { useT } from './i18n'
+import { FileIcon, FolderGlyph } from './icons'
 
 interface Hit { path: string; relative: string; name: string; directory: boolean }
 const maxHits = 8
@@ -54,7 +55,7 @@ export function useAtMention({ projectId, cardId, input, setInput }: { projectId
   }
   const menu = open ? <div className="atmenu" role="listbox" aria-label={t.chat.atMention.projectFiles} onMouseDown={(event) => event.preventDefault()}>
     {hits.map((hit, position) => <button type="button" role="option" aria-selected={position === index} key={hit.path} className={`atitem ${position === index ? 'on' : ''}`} data-tip={hit.relative} onMouseEnter={() => setIndex(position)} onClick={() => pick(hit)}>
-      <svg viewBox="0 0 20 20" aria-hidden="true">{hit.directory ? <path d="M3 6a1.5 1.5 0 0 1 1.5-1.5H8l1.6 2H15.5A1.5 1.5 0 0 1 17 8v6.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z" /> : <path d="M5.5 3h6L15 6.5v10a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5zM11 3v4h4" />}</svg>
+      {hit.directory ? <FolderGlyph /> : <FileIcon />}
       <span className="atname">{hit.name}</span><span className="atpath">{hit.relative.includes('/') ? hit.relative.slice(0, hit.relative.length - hit.name.length - 1) : ''}</span>
     </button>)}
   </div> : null

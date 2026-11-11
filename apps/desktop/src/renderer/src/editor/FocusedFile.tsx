@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { IpcOutput } from '@gearmod/contracts'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { CloseIcon } from '../icons'
+import { CloseIcon, ExternalIcon } from '../icons'
 import { findChange, parseChanges, tabLabels, type FileChange } from '../changes'
 import { nameOf, slashed } from './documents'
 import { FilePane } from './FilePane'
@@ -60,7 +60,7 @@ export function FocusedFile({ projectId, cardId, chatId, request, close, setDirt
     {quick && <QuickOpen key={quick} context={context} roots={roots} recents={readRecents(projectId)} initialMode={quick} open={openAt} close={() => setQuick(null)} />}
     {current
       ? <FilePane doc={current} mode="focused" context={context} preferences={preferences} changePreferences={changePreferences} change={findChange(changes.current, current.path)} root={currentRoot} commentCardId={cardId} commentTarget={cardId ? t.files.editor.focused.commentCard : t.files.editor.focused.commentChat} update={update} save={save} reload={(path) => void reload(path)} afterComment={() => undefined} error={error} loading={loading} setError={setError} jump={jump} onJumped={() => setJump(undefined)} repoName={repoName} roots={roots} openAt={openAt}
-        headerEnd={<><button type="button" className="wf-iconchip tip" data-tip={t.files.editor.focused.openInFiles} aria-label={t.files.editor.focused.openInFiles} onClick={() => window.dispatchEvent(new CustomEvent('gearmod:open-file', { detail: { projectId, cardId, path: current.path } }))}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 3H3v14h14v-5M11 3h6v6m0-6-8 8" /></svg></button><button type="button" className="x" aria-label={t.files.editor.focused.closeFile} onClick={leave}><CloseIcon /></button></>} />
+        headerEnd={<><button type="button" className="wf-iconchip tip" data-tip={t.files.editor.focused.openInFiles} aria-label={t.files.editor.focused.openInFiles} onClick={() => window.dispatchEvent(new CustomEvent('gearmod:open-file', { detail: { projectId, cardId, path: current.path } }))}><ExternalIcon /></button><button type="button" className="x" aria-label={t.files.editor.focused.closeFile} onClick={leave}><CloseIcon /></button></>} />
       : <><div className="fv-head"><div className="fv-path" data-tip={target.path}><span className="fv-name">{nameOf(target.path)}</span></div><button type="button" className="x" aria-label={t.files.editor.focused.closeFile} onClick={close}><CloseIcon /></button></div>
         <div className="fv-body">{loading && <p className="fv-note"><span className="spin sm" /> {t.files.editor.focused.opening}</p>}{error && <p className="fv-note err">{error}</p>}</div></>}
     {leaving && current && <ConfirmDialog eyebrow={t.files.editor.focused.discardEyebrow} title={t.files.workspace.discardTitle} text={t.files.editor.focused.discardText(nameOf(current.path))} ok={t.files.editor.focused.discardOk} danger cancel={() => setLeaving(false)} confirm={() => { setLeaving(false); close() }} />}

@@ -7,6 +7,7 @@ import { Switch } from './Switch'
 import { toast } from './toasts'
 import { useEscape } from './useEscape'
 import { useT } from './i18n'
+import { EyeIcon, EyeOffIcon, SearchIcon } from './icons'
 
 type Provider = McpServer['providers'][number]
 const providerNames: Record<Provider, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
@@ -71,7 +72,7 @@ export function McpPanel({ scope, projectId, available }: { scope: 'global' | 'p
         <button type="button" role="tab" aria-selected={view === 'mine'} className={view === 'mine' ? 'on' : ''} onClick={() => setView('mine')}>{tm.tabMine}{visible.length > 0 && <small>{visible.length}</small>}</button>
         <button type="button" role="tab" aria-selected={view === 'discover'} className={view === 'discover' ? 'on' : ''} onClick={() => setView('discover')}>{tm.tabDiscover}</button>
       </div>
-      <label className="mcp-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg><input value={query} placeholder={tm.search} aria-label={tm.search} onChange={(event) => setQuery(event.target.value)} /></label>
+      <label className="mcp-search"><SearchIcon /><input value={query} placeholder={tm.search} aria-label={tm.search} onChange={(event) => setQuery(event.target.value)} /></label>
       <div className="mcp-add" ref={addRef}>
         <button type="button" className="mini mcp-add-btn" aria-haspopup="menu" aria-expanded={addMenu} onClick={() => setAddMenu(!addMenu)}>{tm.addButton} <span aria-hidden="true">▾</span></button>
         {addMenu && <div className="mcp-add-menu" role="menu">
@@ -167,7 +168,7 @@ function KeyValues({ title, rows, change, fixed = false }: { title: string; rows
     {rows.map((row, index) => <div className={`mcp-kv ${fixed ? 'fixed' : ''}`} key={index}>
       <input className="in" aria-label={t.common.name} value={row.key} readOnly={fixed} placeholder={tm.keyPlaceholder} onChange={(event) => change(rows.map((item, at) => at === index ? { ...item, key: event.target.value } : item))} />
       <span className="pwfield"><input className="in" aria-label={tm.valueAria} type={shown.has(index) ? 'text' : 'password'} autoComplete="new-password" value={row.value} placeholder={row.set ? tm.valueSet : tm.valuePlaceholder} onChange={(event) => change(rows.map((item, at) => at === index ? { ...item, value: event.target.value } : item))} />
-        <button type="button" className="pwtoggle tip" data-tip={shown.has(index) ? tm.hideValue : tm.showValue} aria-label={shown.has(index) ? tm.hideValue : tm.showValue} aria-pressed={shown.has(index)} onClick={() => toggle(index)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M1.5 10S4.5 4.5 10 4.5 18.5 10 18.5 10 15.5 15.5 10 15.5 1.5 10 1.5 10z" /><circle cx="10" cy="10" r="2.6" />{shown.has(index) && <path d="M3 17 17 3" />}</svg></button></span>
+        <button type="button" className="pwtoggle tip" data-tip={shown.has(index) ? tm.hideValue : tm.showValue} aria-label={shown.has(index) ? tm.hideValue : tm.showValue} aria-pressed={shown.has(index)} onClick={() => toggle(index)}>{shown.has(index) ? <EyeOffIcon /> : <EyeIcon />}</button></span>
       {!fixed && <button type="button" className="mini secondary" aria-label={tm.removeRow} onClick={() => change(rows.filter((_, at) => at !== index))}>×</button>}</div>)}
     {!fixed && <button type="button" className="mini secondary" style={{ justifySelf: 'start' }} onClick={() => change([...rows, { key: '', value: '', set: false }])}>{tm.addRow}</button>}</div>
 }

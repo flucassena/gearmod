@@ -50,14 +50,13 @@ export function ExternalWorktreeDeleteDialog({ sourceId, path, close, done }: { 
       done()
     } catch (reason) { setError(plainError(reason)); setBusy(false) }
   }
-  const box = (tone: 'danger' | 'ok'): React.CSSProperties => ({ margin: '0 0 12px', padding: '10px 12px', borderRadius: 8, fontSize: 13, lineHeight: 1.5, border: `1px solid color-mix(in srgb, var(${tone === 'danger' ? '--danger' : '--border'}) 70%, transparent)`, background: tone === 'danger' ? 'color-mix(in srgb, var(--danger) 12%, transparent)' : 'color-mix(in srgb, var(--muted) 10%, transparent)' })
   const extra = <div>
-    <div style={{ margin: '0 0 12px', padding: '8px 12px', borderRadius: 8, background: 'color-mix(in srgb, var(--muted) 10%, transparent)', fontSize: 13 }}><b>{info.branch ?? name}</b><div style={{ color: 'var(--muted)', fontSize: 12, wordBreak: 'break-all' }}>{info.path}</div></div>
-    {risky ? <div style={box('danger')} role="alert"><b style={{ color: 'var(--danger)' }}>{t.lossTitle}</b>
+    <div className="ds-note block"><b>{info.branch ?? name}</b><div style={{ color: 'var(--muted)', fontSize: 12, wordBreak: 'break-all' }}>{info.path}</div></div>
+    {risky ? <div className="ds-note block tone-danger" role="alert"><b>{t.lossTitle}</b>
       <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}><li>{[info.unpushed > 0 && t.unpushed(info.unpushed), info.files > 0 && t.uncommitted(info.files)].filter(Boolean).join(' · ')}</li></ul>
       {info.files > 0 && <div style={{ marginTop: 6 }}>{t.uncommittedLost}</div>}
       {info.unpushed > 0 && <div style={{ marginTop: 6 }}>{withBranch ? t.unpushedLost : t.unpushedKept}</div>}</div>
-      : <div style={box('ok')}>{t.nothingLost}</div>}
+      : <div className="ds-note block">{t.nothingLost}</div>}
     {info.branch && <label className="f" style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '0 0 12px', fontSize: 13 }}><Checkbox checked={withBranch} onChange={setDeleteBranch} label={t.alsoBranch} /><span>{t.alsoBranchText(info.branch)}</span></label>}
     {(busy || deleting) && <DeleteProgress />}
     {error && <p className="error" role="alert">{error}</p>}
@@ -83,17 +82,16 @@ export function WorktreeDeleteDialog({ projectId, cardId, sourceId, close, done 
     setBusy(true); setError('')
     try { await runWorktreeDelete({ projectId, cardId, sourceId, deleteBranch: withBranch, title: info.title }); done() } catch (reason) { setError(plainError(reason)); setBusy(false) }
   }
-  const box = (tone: 'danger' | 'ok'): React.CSSProperties => ({ margin: '0 0 12px', padding: '10px 12px', borderRadius: 8, fontSize: 13, lineHeight: 1.5, border: `1px solid color-mix(in srgb, var(${tone === 'danger' ? '--danger' : '--border'}) 70%, transparent)`, background: tone === 'danger' ? 'color-mix(in srgb, var(--danger) 12%, transparent)' : 'color-mix(in srgb, var(--muted) 10%, transparent)' })
   const extra = <div>
-    <div style={{ margin: '0 0 12px', padding: '8px 12px', borderRadius: 8, background: 'color-mix(in srgb, var(--muted) 10%, transparent)', fontSize: 13 }}><b>{info.title}</b><div style={{ color: 'var(--muted)', fontSize: 12 }}>{info.branch}{info.repos.length > 1 ? ` · ${t.repos(info.repos.length)}` : sourceId && info.repos[0] ? ` · ${info.repos[0].name}` : ''}</div></div>
-    {info.sharedWith.length > 0 && <div style={box('ok')}>{t.sharedWith(info.sharedWith)}</div>}
-    {risky ? <div style={box('danger')} role="alert"><b style={{ color: 'var(--danger)' }}>{t.lossTitle}</b>
+    <div className="ds-note block"><b>{info.title}</b><div style={{ color: 'var(--muted)', fontSize: 12 }}>{info.branch}{info.repos.length > 1 ? ` · ${t.repos(info.repos.length)}` : sourceId && info.repos[0] ? ` · ${info.repos[0].name}` : ''}</div></div>
+    {info.sharedWith.length > 0 && <div className="ds-note block">{t.sharedWith(info.sharedWith)}</div>}
+    {risky ? <div className="ds-note block tone-danger" role="alert"><b>{t.lossTitle}</b>
       <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
         {lossLines.map((repo) => <li key={repo.name}>{info.repos.length > 1 && <b>{repo.name}: </b>}{[repo.unpushed > 0 && t.unpushed(repo.unpushed), repo.files > 0 && t.uncommitted(repo.files)].filter(Boolean).join(' · ')}</li>)}
       </ul>
       {files > 0 && <div style={{ marginTop: 6 }}>{t.uncommittedLost}</div>}
       {unpushed > 0 && <div style={{ marginTop: 6 }}>{withBranch ? t.unpushedLost : t.unpushedKept}</div>}</div>
-      : <div style={box('ok')}>{t.nothingLost}</div>}
+      : <div className="ds-note block">{t.nothingLost}</div>}
     <label className="f" style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '0 0 12px', fontSize: 13 }}><Checkbox checked={withBranch} onChange={setDeleteBranch} label={t.alsoBranch} /><span>{t.alsoBranchText(info.branch)}</span></label>
     {(busy || deleting) && <DeleteProgress />}
     {error && <p className="error" role="alert">{error}</p>}

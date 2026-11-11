@@ -81,7 +81,7 @@ export function ChangesCard({ cardId, projectId, busy, shared }: { cardId: strin
     <button type="button" className="ch-row ch-rowbtn" disabled={!files?.length} data-tip={t.viewFiles} aria-label={t.viewFiles} onClick={showAll}>
       <DiffIcon />
       {files === undefined ? <span className="ch-muted">{common.loading}</span>
-        : files.length ? <><span className="ch-add">+{added}</span><span className="ch-del">−{removed}</span><span className="ch-muted">{t.fileCount(files.length)}</span><span className="chev chev-box" aria-hidden="true"><svg className="chev-svg" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg></span></>
+        : files.length ? <><span className="ch-add">+{added}</span><span className="ch-del">−{removed}</span><span className="ch-muted">{t.fileCount(files.length)}</span></>
           : <span className="ch-muted">{t.noChangesYet}</span>}
     </button>
     {shared && <p className="ch-muted ch-shared">{t.usingWorktreeOf(shared)} · <button type="button" className="linklike" onClick={() => void window.gearmod.invoke('worktrees:link', { cardId, fromCardId: null }).then(() => { window.dispatchEvent(new Event('gearmod:board-changed')); void refresh() })}>{t.unlink}</button></p>}

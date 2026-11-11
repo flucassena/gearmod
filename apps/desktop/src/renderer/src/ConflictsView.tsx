@@ -12,6 +12,7 @@ import { findConflicts, hasConflicts, nextConflict, previousConflict } from './e
 import { usePreferences } from './editor/preferences'
 import { useT } from './i18n'
 import { toast } from './toasts'
+import { ArrowDownIcon, ArrowUpIcon } from './icons'
 
 /** `stash` = stash apply/pop that conflicted: there is no operation to continue/cancel, only files to resolve. */
 export type ConflictState = { operation: 'merge' | 'rebase' | 'cherry-pick' | 'revert' | 'stash' | null; files: string[] }
@@ -106,8 +107,8 @@ export function ConflictsView({ target, profiles, changed, back, setDirty }: { t
       <ul className="cfl-files" aria-label={t.filesAria}>{state.files.map((file) => <li key={file}><button type="button" className={file === path ? 'on' : ''} data-tip={file} onClick={() => open(file)}>{file}{dirty(file) && <i className="cflview-dot" data-tip={t.unsavedChanges} />}</button></li>)}{!state.files.length && <li className="cfl-ok">{stash ? t.stashNothingLeft : t.nothingLeft}</li>}</ul>
       <div className="cflview-main">{path ? <>
         <div className="cfl-actions"><span className="cflview-left">{draft ? t.remaining(remaining) : common.loading}</span>
-          <button type="button" className="wf-findnav" aria-label={t.previous} data-tip={t.previousTip} disabled={!remaining && !model.blocks.length} onClick={() => (model.blocks.length ? setActive((active + model.blocks.length - 1) % model.blocks.length) : view.current && previousConflict(view.current))}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4m-5 5 5-5 5 5" /></svg></button>
-          <button type="button" className="wf-findnav" aria-label={t.next} data-tip={t.nextTip} disabled={!remaining && !model.blocks.length} onClick={() => (model.blocks.length ? setActive((active + 1) % model.blocks.length) : view.current && nextConflict(view.current))}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12m-5-5 5 5 5-5" /></svg></button>
+          <button type="button" className="wf-findnav" aria-label={t.previous} data-tip={t.previousTip} disabled={!remaining && !model.blocks.length} onClick={() => (model.blocks.length ? setActive((active + model.blocks.length - 1) % model.blocks.length) : view.current && previousConflict(view.current))}><ArrowUpIcon /></button>
+          <button type="button" className="wf-findnav" aria-label={t.next} data-tip={t.nextTip} disabled={!remaining && !model.blocks.length} onClick={() => (model.blocks.length ? setActive((active + 1) % model.blocks.length) : view.current && nextConflict(view.current))}><ArrowDownIcon /></button>
           <span className="grow1" />
           <button type="button" className="mini" disabled={busy} onClick={() => guard(path, t.useWholeTitle(oursLabel), () => void resolve('ours'))}>{t.useWhole(oursLabel)}</button>
           <button type="button" className="mini" disabled={busy} onClick={() => guard(path, t.useWholeTitle(theirsLabel), () => void resolve('theirs'))}>{t.useWhole(theirsLabel)}</button>

@@ -7,7 +7,7 @@ const autoOptions = (off: string): Array<[number, string]> => [[0, off], [5, '5 
 
 /** Icon button for the database grids' toolbar (table and SQL result). */
 export function TbBtn({ label, keys, onClick, disabled, tone, on, children }: { label: string; keys?: string; onClick(): void; disabled?: boolean; tone?: 'danger' | 'ok'; on?: boolean; children: React.ReactNode }): React.JSX.Element {
-  return <button type="button" className={`db-tb${tone ? ` ${tone}` : ''}${on ? ' on' : ''}`} data-tip={keys ? `${label} (${keys})` : label} aria-label={label} disabled={disabled} onClick={onClick}><svg viewBox="0 0 16 16" aria-hidden="true">{children}</svg></button>
+  return <button type="button" className={`db-tb${tone ? ` ${tone}` : ''}${on ? ' on' : ''}`} data-tip={keys ? `${label} (${keys})` : label} aria-label={label} disabled={disabled} onClick={onClick}><svg className="ico" viewBox="0 0 16 16" aria-hidden="true">{children}</svg></button>
 }
 
 /** Reload (Ctrl+F5 by default), auto refresh (always off on open) and cancel (Ctrl+F2 by default): the same in the table and in the SQL result. */

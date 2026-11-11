@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { GitAccountInfo, GitAccountsState, GitRepo, ProjectSource } from '@gearmod/contracts'
 import { gitIcons } from './GitPage'
-import { FolderGlyph, MoreIcon, TokenIcon, TrashIcon, CheckMiniIcon, CrossMiniIcon } from './icons'
+import { CheckMiniIcon, ChevronDownIcon, CrossMiniIcon, FolderGlyph, KeyIcon, MoreIcon, TrashIcon } from './icons'
 import { GitMenu, type MenuItem } from './BranchMenu'
 import { cachedGit, refreshGit } from './gitConfigCache'
 import { gitChangedEvent } from './GitSetup'
@@ -120,7 +120,7 @@ export function GitAccountsPanel({ projectId, openFirst = false }: { projectId: 
     <div className="cgrow"><button type="button" className="mini" disabled={busy || !token.trim()} onClick={() => void save()}>{busy ? t.checking : t.save}</button><button type="button" className="mini secondary" disabled={busy} onClick={() => setEdit(null)}>{common.cancel}</button></div></div>
   return <div className="stack gacc">
     <div className="gacc-head"><div className="sectitle">{t.title}</div><button type="button" className="mini secondary withicon" disabled={repoBusy} onClick={() => void addFolder()}><FolderGlyph />{tpj.addAnotherFolder}</button></div>
-    <div className="gacc-info" role="note"><span className="gacc-info-i" aria-hidden="true">i</span><div className="gacc-info-text"><p>{t.baseHint}</p>{infoOpen && <><p>{t.hint}</p><p>{tpj.reposHint}</p></>}</div><button type="button" className="gacc-info-toggle tip" data-tip={infoOpen ? t.lessInfo : t.moreInfo} aria-label={infoOpen ? t.lessInfo : t.moreInfo} aria-expanded={infoOpen} onClick={() => setInfoOpen(!infoOpen)}><svg viewBox="0 0 20 20" aria-hidden="true" style={{ transform: infoOpen ? "rotate(180deg)" : undefined }}><path d="m5 8 5 5 5-5" /></svg></button></div>
+    <div className="gacc-info" role="note"><span className="gacc-info-i" aria-hidden="true">i</span><div className="gacc-info-text"><p>{t.baseHint}</p>{infoOpen && <><p>{t.hint}</p><p>{tpj.reposHint}</p></>}</div><button type="button" className="gacc-info-toggle tip" data-tip={infoOpen ? t.lessInfo : t.moreInfo} aria-label={infoOpen ? t.lessInfo : t.moreInfo} aria-expanded={infoOpen} onClick={() => setInfoOpen(!infoOpen)}><ChevronDownIcon style={{ transform: infoOpen ? "rotate(180deg)" : undefined }} /></button></div>
     {error && !edit && <p className="error">{error}</p>}
     {!state ? <small className="hint">{common.loading}</small> : !state.hosts.length && !repos.length ? <small className="hint">{t.noRemotes}</small> : state.hosts.map((host) => {
       const provider = host.provider ?? 'gitlab', projectTarget: Target = { host: host.host, provider }
@@ -128,12 +128,12 @@ export function GitAccountsPanel({ projectId, openFirst = false }: { projectId: 
         <h4>{host.host}<small className="cx-muted"> · {provider === 'github' ? 'GitHub' : 'GitLab'}</small></h4>
         <div className={`gacc-token ${host.project ? 'on' : ''}`}><span className="gacc-token-label">{host.project && <i className="gacc-ok" aria-hidden="true" />}{t.projectToken}</span>{host.project ? <Who info={host.project} /> : <span className="cx-muted">{t.none}</span>}
           <span className="grow1" />
-          {more(`${t.projectToken} · ${host.host}`, [{ key: 'token', label: host.project ? t.replace : t.add, icon: <TokenIcon /> }, ...(host.project ? [{ key: 'remove-token' as const, label: t.removeToken, danger: true, icon: <TrashIcon /> }] : [])], (key) => { if (key === 'token') open(projectTarget); else if (key === 'remove-token') setRemoving({ host: host.host, label: host.host }) })}</div>
+          {more(`${t.projectToken} · ${host.host}`, [{ key: 'token', label: host.project ? t.replace : t.add, icon: <KeyIcon /> }, ...(host.project ? [{ key: 'remove-token' as const, label: t.removeToken, danger: true, icon: <TrashIcon /> }] : [])], (key) => { if (key === 'token') open(projectTarget); else if (key === 'remove-token') setRemoving({ host: host.host, label: host.host }) })}</div>
         {host.repos.length > 0 && <div className="gacc-table" role="table" aria-label={host.host}>{tableHead}{host.repos.map((repo) => {
           const target: Target = { host: host.host, sourceId: repo.sourceId, provider: host.project?.provider ?? provider }
           const info = repoInfo(repo.sourceId)
           return <div key={repo.sourceId} className="gacc-tr" role="row"><b role="cell" data-tip={info?.path}>{repo.name}</b><span role="cell">{branch(info)}</span><span role="cell">{base(repo.sourceId)}</span><span role="cell">{tokenChip(repo, host)}</span>
-            <span role="cell" className="gacc-act">{repoMenu(repo.sourceId, repo.name, [{ key: 'token', label: repo.own ? t.replaceOwnToken : t.useOwnToken, icon: <TokenIcon /> }, ...(repo.own ? [{ key: 'remove-token' as const, label: t.removeOwnToken, danger: true, icon: <TrashIcon /> }] : [])], (key) => { if (key === 'token') open(target); else if (key === 'remove-token') setRemoving({ host: host.host, sourceId: repo.sourceId, label: repo.name }) })}</span></div>
+            <span role="cell" className="gacc-act">{repoMenu(repo.sourceId, repo.name, [{ key: 'token', label: repo.own ? t.replaceOwnToken : t.useOwnToken, icon: <KeyIcon /> }, ...(repo.own ? [{ key: 'remove-token' as const, label: t.removeOwnToken, danger: true, icon: <TrashIcon /> }] : [])], (key) => { if (key === 'token') open(target); else if (key === 'remove-token') setRemoving({ host: host.host, sourceId: repo.sourceId, label: repo.name }) })}</span></div>
         })}</div>}
       </section>
     })}

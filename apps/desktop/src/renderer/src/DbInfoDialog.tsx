@@ -4,6 +4,7 @@ import { plainError } from './NoticeDialog'
 import { toast } from './toasts'
 import { useEscape } from './useEscape'
 import { dateLocale, useT } from './i18n'
+import { ChevronRightSmallIcon } from './icons'
 
 export type DbInfoKind = 'history' | 'structure' | 'readonly'
 
@@ -17,7 +18,7 @@ function HistoryRow({ entry }: { entry: HistoryEntry }): React.JSX.Element {
   const [open, setOpen] = useState(false), sql = entry.sql ?? ''
   return <div className={`db-hist${open ? ' open' : ''}`}>
     <button type="button" className="db-hist-line" aria-expanded={open} onClick={() => setOpen((value) => !value)} data-tip={open ? t.database.info.collapse : t.database.info.viewFullSql}>
-      <span className={`wf-chevron ${open ? 'open' : ''}`} aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m4.500 2.500 3.500 3.500-3.500 3.500" /></svg></span>
+      <span className={`wf-chevron ${open ? 'open' : ''}`} aria-hidden="true"><ChevronRightSmallIcon /></span>
       <span className={`db-hist-dot ${entry.status}`} role="img" aria-label={entry.status === 'ok' ? t.database.info.executed : t.database.info.withError} />
       <span className="db-hist-sql">{oneLine(sql || entry.summary)}</span>
       <span className="db-hist-meta">{when(entry.at)} · {entry.durationMs} ms</span>

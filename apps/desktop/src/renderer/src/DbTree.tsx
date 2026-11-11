@@ -3,6 +3,7 @@ import type { IpcOutput } from '@gearmod/contracts'
 import { plainError } from './NoticeDialog'
 import { SchemaIcon } from './DbIcons'
 import { useT } from './i18n'
+import { ChevronRightSmallIcon } from './icons'
 
 type TableItem = { oid: number; name: string; kind: string }
 type Description = IpcOutput<'db:describe'>
@@ -11,8 +12,8 @@ const groups = [['tables', 'tables', (kind: string) => kind === 'r' || kind === 
 /** With the mouse, only the arrow expands; with the keyboard (Enter/space, `detail` 0) the whole row still expands. */
 export const viaChevron = (event: React.MouseEvent): boolean => event.detail === 0 || Boolean((event.target as Element).closest('.wf-chevron'))
 
-const Chevron = ({ open, empty }: { open: boolean; empty?: boolean }): React.JSX.Element => <span className={`wf-chevron ${open ? 'open' : ''}`} aria-hidden="true">{!empty && <svg viewBox="0 0 12 12"><path d="m4.5 2.5 3.5 3.5-3.5 3.5" /></svg>}</span>
-const Icon = ({ kind }: { kind: 'schema' | 'folder' | 'table' | 'view' | 'sequence' | 'column' | 'key' }): React.JSX.Element => <svg className={`db-ico ${kind}`} viewBox="0 0 16 16" aria-hidden="true">{{
+const Chevron = ({ open, empty }: { open: boolean; empty?: boolean }): React.JSX.Element => <span className={`wf-chevron ${open ? 'open' : ''}`} aria-hidden="true">{!empty && <ChevronRightSmallIcon />}</span>
+const Icon = ({ kind }: { kind: 'schema' | 'folder' | 'table' | 'view' | 'sequence' | 'column' | 'key' }): React.JSX.Element => <svg className={`ico db-ico ${kind}`} viewBox="0 0 16 16" aria-hidden="true">{{
   schema: <path d="M2.5 4.5h4l1 1.5h6v6.5h-11z" />,
   folder: <path d="M2.5 4.5h4l1 1.5h6v6.5h-11z" />,
   table: <><rect x="2.5" y="3" width="11" height="10" rx="1.5" /><path d="M2.5 6.5h11M6.5 6.5V13" /></>,

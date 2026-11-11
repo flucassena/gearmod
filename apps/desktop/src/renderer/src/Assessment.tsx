@@ -8,6 +8,9 @@ import { Markdown } from './markdown'
 import { useEscape } from './useEscape'
 import { dateLocale, tr, useT } from './i18n'
 
+/** A change of points, the same everywhere (badge, popover, summary, versions, dimensions): ▲ up, ▼ down, 0 unchanged. */
+const deltaText = (delta: number): string => delta > 0 ? `▲${delta}` : delta < 0 ? `▼${-delta}` : '0'
+
 /** Complexity indicator (Kanban, editor and chat): only the dots; on hover a card drops down with level, flow, variation and confidence. `full` shows everything in the badge itself, as in the card editor. */
 /** `workflowText`: name of the already chosen flow, in place of the recommended flow's abbreviation. */
 export function ComplexityBadge({ complexity, onClick, full = false, workflowText, pendingDecisions = 0 }: { complexity: CardComplexity | null; onClick?(): void; full?: boolean; workflowText?: string; pendingDecisions?: number }): React.JSX.Element | null {
@@ -22,11 +25,11 @@ export function ComplexityBadge({ complexity, onClick, full = false, workflowTex
   }
   return <button type="button" ref={button} className={`cx-badge ${complexity.level}`} aria-label={t.complexityAria(complexity.total, tb.levelLabels[complexity.level])} onMouseEnter={show} onMouseLeave={() => setPos(null)} onFocus={show} onBlur={() => setPos(null)} onClick={(event) => { event.stopPropagation(); setPos(null); onClick?.() }}>
     <b>{complexity.preliminary ? '~' : ''}{complexity.total}</b>
-    {full && <>{tb.levelLabels[complexity.level]}{delta !== null && delta !== 0 && <span className={`cx-delta ${delta > 0 ? 'up' : 'down'}`}>{delta > 0 ? `▲${delta}` : `▼${-delta}`}</span>}<span className="cx-wf">{workflowText ?? t.shortWorkflow[wf]}</span></>}
+    {full && <>{tb.levelLabels[complexity.level]}{delta !== null && delta !== 0 && <span className={`cx-delta ${delta > 0 ? 'up' : 'down'}`}>{deltaText(delta)}</span>}<span className="cx-wf">{workflowText ?? t.shortWorkflow[wf]}</span></>}
     {pendingDecisions > 0 && <i className="pendot cx-pend" aria-label={t.waitingForYou(pendingDecisions)} />}
     {pos && createPortal(<span className="cx-pop" role="tooltip" style={{ left: pos.left, top: pos.top, bottom: pos.bottom }}>
       <span className="cx-pop-head"><span className={`cx-pop-score ${complexity.level}`}>{complexity.preliminary ? '~' : ''}{complexity.total}</span><span className="cx-pop-title"><b>{tb.levelLabels[complexity.level]}</b><small>{t.complexityPoints}{complexity.preliminary ? ` · ${t.preliminary}` : ''}</small></span>
-        {delta !== null && delta !== 0 && <span className={`cx-pop-delta ${delta > 0 ? 'up' : 'down'}`}>{delta > 0 ? '▲' : '▼'} {Math.abs(delta)}</span>}</span>
+        {delta !== null && delta !== 0 && <span className={`cx-pop-delta ${delta > 0 ? 'up' : 'down'}`}>{deltaText(delta)}</span>}</span>
       <span className="cx-pop-rows">
         <span><small>{t.recommendedFlow}</small><b>{tb.workflowLabels[complexity.recommended]}</b></span>
         {complexity.workflow && <span><small>{t.chosenFlow}</small><b>{tb.workflowLabels[complexity.workflow]}</b></span>}
@@ -113,7 +116,7 @@ function AssessmentView({ item, previous, latest, history, specKit, contest, cho
   const delta = previous ? item.total - previous.total : null
   return <>
     <div className={`cx-sum ${item.level}`}>
-      <div className="cx-sum-score"><b>{item.total}</b><span>{tb.levelLabels[item.level]}{item.preliminary ? ` · ${t.preliminary}` : ''}</span>{delta !== null && <small><b className={delta > 0 ? 'up' : delta < 0 ? 'down' : ''}>{delta > 0 ? `+${delta}` : delta < 0 ? `−${-delta}` : '0'}</b> {t.sinceVersionShort(previous!.version)}</small>}</div>
+      <div className="cx-sum-score"><b>{item.total}</b><span>{tb.levelLabels[item.level]}{item.preliminary ? ` · ${t.preliminary}` : ''}</span>{delta !== null && <small><b className={delta > 0 ? 'up' : delta < 0 ? 'down' : ''}>{deltaText(delta)}</b> {t.sinceVersionShort(previous!.version)}</small>}</div>
       <div className="cx-sum-body">
         <div className="cx-sum-stats">
           <div className="cx-sum-stat"><label>{t.confidence}</label><div>{tb.confidenceLabels[item.confidence]} <span className="cx-muted">· {t.evidenceCount(item.evidence.length)}</span></div></div>
@@ -130,7 +133,7 @@ function AssessmentView({ item, previous, latest, history, specKit, contest, cho
     </div>
     <table className="cx-table cx-dimtable"><colgroup><col style={{ width: 130 }} /><col style={{ width: 120 }} /><col style={{ width: 54 }} /><col style={{ width: 64 }} /><col /></colgroup><thead><tr><th>{t.dimension}</th><th>{t.score}</th><th>{t.weight}</th><th>{t.points}</th><th>{t.justification}</th></tr></thead><tbody>
       {complexityDimensions.map((dimension) => { const before = previous?.scores[dimension], diff = before === undefined ? 0 : item.scores[dimension] - before
-        return <tr key={dimension} className={diff ? 'changed' : ''}><td>{tb.dimensionLabels[dimension]}</td><td><Dots value={item.scores[dimension]} />{diff !== 0 && <span className={`cx-delta ${diff > 0 ? 'up' : 'down'}`}>{diff > 0 ? `+${diff}` : diff}</span>}</td><td>×{item.weights[dimension]}</td><td>{item.scores[dimension] * item.weights[dimension]}</td><td>{item.justifications[dimension] || <span className="cx-muted">—</span>}</td></tr> })}
+        return <tr key={dimension} className={diff ? 'changed' : ''}><td>{tb.dimensionLabels[dimension]}</td><td><Dots value={item.scores[dimension]} />{diff !== 0 && <span className={`cx-delta ${diff > 0 ? 'up' : 'down'}`}>{deltaText(diff)}</span>}</td><td>×{item.weights[dimension]}</td><td>{item.scores[dimension] * item.weights[dimension]}</td><td>{item.justifications[dimension] || <span className="cx-muted">—</span>}</td></tr> })}
     </tbody></table>
     {item.evidence.length > 0 && <div className="cx-evidence"><b>{t.evidence}</b><ul>{item.evidence.map((evidence, index) => <li key={index}><span className="cx-kind">{evidence.kind}</span><code>{evidence.ref}{evidence.line ? `:${evidence.line}` : ''}</code>{evidence.commit && <small> @ {evidence.commit}</small>}{evidence.detail && <span> — {evidence.detail}</span>}</li>)}</ul></div>}
     {latest && <FlowPicker item={item} history={history} specKit={specKit} locked={locked} contest={contest} choose={choose} />}
@@ -186,7 +189,7 @@ function VersionList({ assessments, currentId, pick }: { assessments: Assessment
       const before = assessments.find((other) => other.version === item.version - 1), delta = before ? item.total - before.total : null
       return <button type="button" key={item.id} aria-pressed={item.id === currentId} className={`cx-vcard ${item.level} ${item.id === currentId ? 'on' : ''}`} onClick={() => pick(item.id)}>
         <span className="cx-vtop"><b>v{item.version}</b>{item.id === latestId && <span className="cx-vlatest">{t.currentVersion}</span>}<span className="cx-vscore">{item.preliminary ? '~' : ''}{item.total}<small>{tb.levelLabels[item.level]}</small></span></span>
-        <span className="cx-vmid"><span className={`cx-vtag ${item.trigger === 'initial' ? '' : 'warn'}`}>{tb.triggerLabels[item.trigger]}</span>{delta !== null && delta !== 0 && <span className={`cx-vdelta ${delta < 0 ? 'down' : 'up'}`}>{delta < 0 ? `−${-delta}` : `+${delta}`}</span>}</span>
+        <span className="cx-vmid"><span className={`cx-vtag ${item.trigger === 'initial' ? '' : 'warn'}`}>{tb.triggerLabels[item.trigger]}</span>{delta !== null && delta !== 0 && <span className={`cx-vdelta ${delta < 0 ? 'down' : 'up'}`}>{deltaText(delta)}</span>}</span>
         <span className="cx-vfoot"><span>{item.actor === 'user' ? t.you : item.model ?? item.provider ?? t.agentFallback} · {formatDate(item.createdAt)}</span>{item.criticalRisks.length > 0 && <span className="cx-vrisks">{t.risksWord}<i>{item.criticalRisks.length}</i></span>}</span>
       </button>
     }) : <p className="cx-muted">{t.noAssessmentYet}</p>}

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useEscape } from './useEscape'
 import { useT } from './i18n'
+import { PullIcon, PushIcon, RebaseIcon } from './icons'
 
 type Pull = 'ff' | 'rebase'
 
@@ -22,15 +23,15 @@ export function PushRejectedDialog({ branch, note, cancel, pull, force }: { bran
       {note && <p className="cx-note warn pr-text" role="status">{note}</p>}
       <div className="pr-options">
         <button type="button" className="pr-opt" onClick={() => pull('ff')}>
-          <span className="pr-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 3v10m0 0-4-4m4 4 4-4M4 17h12" /></svg></span>
+          <span className="pr-ico" aria-hidden="true"><PullIcon /></span>
           <span><b>{t.pullFfTitle}</b><small>{t.pullFfText}</small></span>
         </button>
         <button type="button" className="pr-opt" onClick={() => pull('rebase')}>
-          <span className="pr-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M6 3v9a3 3 0 0 0 3 3h5m0 0-3-3m3 3-3 3M6 3 3.5 5.5M6 3l2.5 2.5" /></svg></span>
+          <span className="pr-ico" aria-hidden="true"><RebaseIcon /></span>
           <span><b>{t.pullRebaseTitle}</b><small>{t.pullRebaseText}</small></span>
         </button>
         <button type="button" className="pr-opt danger" onClick={() => setConfirmForce(true)}>
-          <span className="pr-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 17V7m0 0-4 4m4-4 4 4M4 3h12" /></svg></span>
+          <span className="pr-ico" aria-hidden="true"><PushIcon /></span>
           <span><b>{t.forceOptionTitle}</b><small>{t.forceOptionText}</small></span>
         </button>
       </div>

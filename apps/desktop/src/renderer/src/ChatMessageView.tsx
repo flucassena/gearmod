@@ -6,6 +6,7 @@ import { ReplyContextCards } from './ChatReplies'
 import { splitChatReplies } from './chatReplyContext'
 import { useT } from './i18n'
 import { parseWorkflowChoice, WorkflowChoiceRecord } from './WorkflowChoice'
+import { FileIcon, ListIcon, ScreenIcon } from './icons'
 
 /**
  * One chat message in Claude Code style: mine in the bubble; the agent's straight on the background, in Markdown;
@@ -53,7 +54,7 @@ function ScreenTestCard({ skill, visible }: ScreenTestData): React.JSX.Element {
   const s = useT().chat.screenTest
   const rows: Array<[string, string]> = [[s.tool, 'Playwright CLI'], [s.skill, skill], [s.browser, visible ? s.browserVisible : s.browserHeadless], [s.evidence, visible ? s.evidenceVisible : s.evidenceFailures]]
   return <div className="testcard" aria-label={s.ariaLabel}>
-    <div className="testcard-head"><span className="testcard-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="11" rx="2" /><path d="M7 17.5h6M10 14.5v3" /></svg></span><div><b>{s.title}</b><small>{s.subtitle}</small></div></div>
+    <div className="testcard-head"><span className="testcard-ico" aria-hidden="true"><ScreenIcon /></span><div><b>{s.title}</b><small>{s.subtitle}</small></div></div>
     <dl>{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
   </div>
 }
@@ -68,13 +69,6 @@ export function parseReviewContext(body: string): ReviewContextData | null {
   return { path: match[1]!, lines: match[2]!, oldCode: Boolean(match[3]), code: match[4]!, comment: match[5]?.trim() ?? '' }
 }
 
-function FileIcon(): React.JSX.Element {
-  return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.75h6l4 4v10.5H5z" /><path d="M11 2.75v4h4" /></svg>
-}
-
-function LinesIcon(): React.JSX.Element {
-  return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h2M4 10h2M4 15h2M9 5h7M9 10h7M9 15h7" /></svg>
-}
 
 /** Visual context of the comment: compact location and an excerpt clearly delimited as code. */
 function ReviewContext({ path, lines, oldCode, code, comment }: ReviewContextData): React.JSX.Element {
@@ -82,7 +76,7 @@ function ReviewContext({ path, lines, oldCode, code, comment }: ReviewContextDat
   return <div className="reviewctx">
     <div className="reviewctx-meta" aria-label={r.contextLabel}>
       <span className="reviewchip path" data-tip={path}><FileIcon /><span>{path}</span></span>
-      <span className="reviewchip lines"><LinesIcon /><span>{lines}{oldCode ? r.oldCode : ''}</span></span>
+      <span className="reviewchip lines"><ListIcon /><span>{lines}{oldCode ? r.oldCode : ''}</span></span>
     </div>
     <div className="reviewcode">
       <div className="reviewcode-head"><span className="reviewcode-dots" aria-hidden="true"><i /><i /><i /></span><span>diff</span></div>

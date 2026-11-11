@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { CloseIcon } from './icons'
+import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, CloseIcon } from './icons'
 import { tr, useT } from './i18n'
 import { parseGoto } from './editor/position'
 export interface FindOptions { caseSensitive: boolean; wholeWord: boolean; regex: boolean }
@@ -22,13 +22,13 @@ export function FileFind({ input, query, setQuery, options, setOptions, count, i
   const t = useT(), f = t.files.find
   return <>
   <div className="wf-find" role="search" aria-label={f.region}>
-    {replace && <button type="button" className="wf-findnav" aria-label={replace.open ? f.hideReplace : f.showReplace} data-tip={f.replaceTip} aria-expanded={replace.open} onClick={() => replace.setOpen(!replace.open)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d={replace.open ? 'm5 8 5 5 5-5' : 'm8 5 5 5-5 5'} /></svg></button>}
+    {replace && <button type="button" className="wf-findnav" aria-label={replace.open ? f.hideReplace : f.showReplace} data-tip={f.replaceTip} aria-expanded={replace.open} onClick={() => replace.setOpen(!replace.open)}>{replace.open ? <ChevronDownIcon /> : <ChevronRightIcon />}</button>}
     <div className={`wf-findbox ${error ? 'invalid' : ''}`}><input ref={input} placeholder={f.placeholder} aria-label={f.inputLabel} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (event.shiftKey) previous(); else next() } }} />
       <span className="wf-matchcount" role="status">{error || (query ? count ? `${index < 0 ? 0 : index + 1}/${count}` : f.noResults : '')}</span>
       {([['caseSensitive', f.caseSensitive, 'Aa'], ['wholeWord', f.wholeWord, 'ab'], ['regex', f.regex, '.*']] as const).map(([key, label, text]) => <button key={key} type="button" className={`wf-findopt ${options[key] ? 'on' : ''} ${key === 'wholeWord' ? 'whole-word' : ''}`} data-tip={label} aria-label={label} aria-pressed={options[key]} onClick={() => setOptions({ ...options, [key]: !options[key] })}>{text}</button>)}
     </div>
-    <button type="button" className="wf-findnav" aria-label={f.previous} data-tip={f.previousTip} disabled={!count} onClick={previous}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4m-5 5 5-5 5 5" /></svg></button>
-    <button type="button" className="wf-findnav" aria-label={f.next} data-tip={f.nextTip} disabled={!count} onClick={next}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12m-5-5 5 5 5-5" /></svg></button>
+    <button type="button" className="wf-findnav" aria-label={f.previous} data-tip={f.previousTip} disabled={!count} onClick={previous}><ArrowUpIcon /></button>
+    <button type="button" className="wf-findnav" aria-label={f.next} data-tip={f.nextTip} disabled={!count} onClick={next}><ArrowDownIcon /></button>
     <button type="button" className="wf-findnav close" aria-label={f.closeSearch} data-tip={f.closeTip} onClick={close}><CloseIcon /></button>
   </div>
   {replace?.open && <div className="wf-find wf-replace" role="group" aria-label={f.replaceGroup}>

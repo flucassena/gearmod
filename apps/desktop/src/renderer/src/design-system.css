@@ -1,0 +1,126 @@
+/* GearMod design system: semantic tokens and shared pieces, on top of the theme (theme-tokens.css and :root in prototype.css).
+   The theme decides the raw colors (--blue, --ok, --warn, --danger, --muted, surfaces); this file decides what each state looks like.
+   Not part of theme customization: users change the theme, never these recipes. Guide: docs/DESIGN-SYSTEM.md. */
+
+/* 1. Tones: one color per meaning. Always use the tone, never a hex or a --cf-/--cb-/--cl- token, for these meanings. */
+:root{
+  --tone-neutral:var(--muted);   /* default, "nothing special" */
+  --tone-info:var(--blue);       /* information, AI recommendation (✦), "latest" */
+  --tone-success:var(--ok);      /* done, approved, chosen by the user, less risk */
+  --tone-warning:var(--warn);    /* attention, differs, waiting, new risk */
+  --tone-danger:var(--danger);   /* error, failed, risk, destructive action */
+  --tone-plan:var(--plan);       /* plan mode and the planning step (not the AI itself: AI is info) */
+
+  /* The soft recipe: text in the tone, a ~9% tint behind it and a ~40% border. */
+  --tone-tint:9%;
+  --tone-edge:40%;
+  --tone-info-bg:color-mix(in srgb, var(--tone-info) var(--tone-tint), var(--surface-2));
+  --tone-success-bg:color-mix(in srgb, var(--tone-success) var(--tone-tint), var(--surface-2));
+  --tone-warning-bg:color-mix(in srgb, var(--tone-warning) var(--tone-tint), var(--surface-2));
+  --tone-danger-bg:color-mix(in srgb, var(--tone-danger) var(--tone-tint), var(--surface-2));
+  --tone-plan-bg:color-mix(in srgb, var(--tone-plan) var(--tone-tint), var(--surface-2));
+  --tone-neutral-bg:var(--surface-3);
+  --tone-info-line:color-mix(in srgb, var(--tone-info) var(--tone-edge), transparent);
+  --tone-success-line:color-mix(in srgb, var(--tone-success) var(--tone-edge), transparent);
+  --tone-warning-line:color-mix(in srgb, var(--tone-warning) var(--tone-edge), transparent);
+  --tone-danger-line:color-mix(in srgb, var(--tone-danger) var(--tone-edge), transparent);
+  --tone-plan-line:color-mix(in srgb, var(--tone-plan) var(--tone-edge), transparent);
+  --tone-neutral-line:var(--border);
+  /* Stronger tint for filled controls (buttons, card pills, menu hover): ~16%. */
+  --tone-fill:16%;
+  --tone-info-fill:color-mix(in srgb, var(--tone-info) var(--tone-fill), var(--surface-2));
+  --tone-success-fill:color-mix(in srgb, var(--tone-success) var(--tone-fill), var(--surface-2));
+  --tone-warning-fill:color-mix(in srgb, var(--tone-warning) var(--tone-fill), var(--surface-2));
+  --tone-danger-fill:color-mix(in srgb, var(--tone-danger) var(--tone-fill), var(--surface-2));
+  --tone-plan-fill:color-mix(in srgb, var(--tone-plan) var(--tone-fill), var(--surface-2));
+  /* Count bubble behind a number (text stays --text): ~32%. */
+  --tone-count:32%;
+  --tone-info-count:color-mix(in srgb, var(--tone-info) var(--tone-count), var(--surface-2));
+  --tone-success-count:color-mix(in srgb, var(--tone-success) var(--tone-count), var(--surface-2));
+  --tone-warning-count:color-mix(in srgb, var(--tone-warning) var(--tone-count), var(--surface-2));
+  --tone-danger-count:color-mix(in srgb, var(--tone-danger) var(--tone-count), var(--surface-2));
+  --tone-plan-count:color-mix(in srgb, var(--tone-plan) var(--tone-count), var(--surface-2));
+  /* Solid danger (confirm button of a destructive dialog), white text on it. */
+  --tone-danger-solid:var(--danger-solid);
+
+  /* Complexity levels reuse the tones (simple = success, medium = warning, complex = danger). */
+  --lv-simple:var(--tone-success);
+  --lv-medium:var(--tone-warning);
+  --lv-complex:var(--tone-danger);
+}
+
+/* 2. Shared pieces. Each one starts neutral; add a tone class (.tone-info, .tone-success, ...) to color it. */
+
+/* Chip / pill: a short state or label. Optional leading <i> dot. Two sizes only: normal (11.5px) and .sm (10.5px). */
+.ds-chip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;line-height:1.5;white-space:nowrap;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;font-style:normal}
+.ds-chip>i{flex:none;width:7px;height:7px;border-radius:50%;background:currentColor}
+.ds-chip.sm{padding:1px 7px;font-size:10.5px;gap:5px}
+
+/* Count badge: a number inside a chip, a tab or a button ("3 riscos"). */
+.ds-count{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:999px;font:700 10.5px/1 var(--sans);font-style:normal}
+
+/* Dot: legend marker or status light. */
+.ds-dot{display:inline-block;flex:none;width:8px;height:8px;border-radius:50%}
+
+/* Note: a one or two line callout inside a panel. Text stays readable; <b> and .ds-note-i take the tone. */
+.ds-note{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border-radius:10px;font-size:12.5px;line-height:1.45;color:var(--text)}
+.ds-note b,.ds-note-i{color:var(--tone);font-weight:600}.ds-note-i{flex:none}
+/* Block note: several lines or a list inside a dialog body ("o que se perde"). */
+.ds-note.block{display:block;margin:0 0 12px;padding:10px 12px;font-size:13px;line-height:1.5}.ds-note.block ul{margin:6px 0 0;padding-left:18px}
+
+/* Panel: a section of a dialog. .ds-panel-title is the small uppercase heading. */
+.ds-panel{display:grid;gap:10px;padding:14px 16px;border-radius:12px;background:var(--surface-2);border:1px solid var(--border)}
+.ds-panel-title{margin:0;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* Legend: a row of "marker + label" explaining colors. */
+.ds-legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;color:var(--muted);font-size:12px}
+.ds-legend>span{display:inline-flex;align-items:center;gap:6px}.ds-legend b{color:var(--text);font-weight:600}
+
+/* Tone application for chips, counts, dots and notes (neutral by default). */
+:is(.ds-chip,.ds-count,.ds-dot,.ds-note){--tone:var(--tone-neutral);--tone-bg:var(--tone-neutral-bg);--tone-line:var(--tone-neutral-line)}
+.ds-chip{color:var(--tone);background:var(--tone-bg);border:1px solid var(--tone-line)}
+.ds-note{background:var(--tone-bg);border:1px solid var(--tone-line)}
+.ds-dot{background:var(--tone)}
+/* Count: a stronger tint so the number stands out; the neutral count stays gray. */
+.ds-count{color:var(--text);background:color-mix(in srgb, var(--tone) var(--tone-count), var(--surface-2))}
+.ds-count.tone-neutral,.ds-count:not([class*="tone-"]){color:var(--muted);background:var(--surface-3);border:1px solid var(--border)}
+
+/* Tones (after the pieces, so they win over the neutral default). */
+.tone-neutral{--tone:var(--tone-neutral);--tone-bg:var(--tone-neutral-bg);--tone-line:var(--tone-neutral-line)}
+.tone-info{--tone:var(--tone-info);--tone-bg:var(--tone-info-bg);--tone-line:var(--tone-info-line)}
+.tone-success{--tone:var(--tone-success);--tone-bg:var(--tone-success-bg);--tone-line:var(--tone-success-line)}
+.tone-warning{--tone:var(--tone-warning);--tone-bg:var(--tone-warning-bg);--tone-line:var(--tone-warning-line)}
+.tone-danger{--tone:var(--tone-danger);--tone-bg:var(--tone-danger-bg);--tone-line:var(--tone-danger-line)}
+.tone-plan{--tone:var(--tone-plan);--tone-bg:var(--tone-plan-bg);--tone-line:var(--tone-plan-line)}
+/* Colored text or icon (a status line, a dot that uses currentColor): <small class="tone-text tone-warning">. */
+.tone-text{color:var(--tone,var(--tone-neutral))}
+
+/* Option card (radio-like choice): .on = chosen by the user (success), .rec = recommended by the AI (info, with the ✦ mark).
+   Used by .cx-opt in the Assessment flow picker and in the chat flow proposal. */
+.ds-opt{position:relative;display:grid;gap:4px;text-align:left;padding:11px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer}
+.ds-opt small{color:var(--muted);font-size:11.5px;line-height:1.4}
+.ds-opt:hover{border-color:var(--accent-line);filter:none}
+:is(.ds-opt,.cx-opt).rec:not(.on){background:color-mix(in srgb, var(--tone-info) 8%, var(--surface));border-color:color-mix(in srgb, var(--tone-info) 45%, transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--tone-info) 45%, transparent)}
+:is(.ds-opt,.cx-opt).on{background:var(--tone-success-bg);border-color:var(--tone-success-line);box-shadow:inset 0 0 0 1px var(--tone-success-line)}
+:is(.ds-opt,.cx-opt).on .cx-opt-t{color:var(--tone-success)}
+:is(.ds-opt,.cx-opt).rec .cx-opt-t em{color:var(--tone-info)}
+/* ✦ AI mark: top right of a recommended option, or inline before a label (.ds-aimark.inline). */
+:is(.ds-aimark,.cx-aimark){position:absolute;top:8px;right:9px;display:grid;place-items:center;width:20px;height:20px;border-radius:6px;font-size:12px;line-height:1;font-style:normal;color:var(--tone-info);background:color-mix(in srgb, var(--tone-info) 14%, var(--surface));border:1px solid var(--tone-info-line)}
+.ds-aimark.inline{position:static;display:inline-grid;width:auto;height:auto;padding:0;border:0;background:none;font-size:11px}
+
+/* Danger button: the small destructive action ("Contestar", "Excluir"). Use .mini.danger. */
+.mini.danger{color:var(--tone-danger);background:var(--tone-danger-fill);border:1px solid var(--tone-danger-line)}
+.mini.danger:hover{filter:brightness(1.15)}
+
+/* 3. Chip sizes for the existing chip classes: every chip that shows a state or a label uses one of the two sizes.
+   Kept apart from their color rules in prototype.css; only the font size is unified here. */
+.cx-sum-tag,.cx-vtag,.cx-vdelta,.cx-rkchip,.tset-chip,.wfc-chip,.pw-chip,.perm-risk,.cx-chip,.cx-flowhint,.cx-pill,.prs-pill,.gacc-chip,.cidx-chip,.db-chip,.mcp-tags em,.repochip,.cpchip,.ctxchip,.ctxmove,.cx-pathchip.big em,.catlink,.agtype,.ch-step,.pillg,.cx-flowchip,.tokchip{font-size:11.5px}
+.cx-return,.ctag,.dv-current,.pw-badges span,.wf-comment-target,.chat-reply-card-label,.gtab-conflict{font-size:10.5px}
+
+/* 4. Icons: one look for every icon (icons.tsx gives each one the .ico class).
+   Line drawing, round ends, no fill, and the same thin stroke whatever the size or the drawing grid (20 or 24).
+   Context CSS only chooses the size and the color; the stroke and the fill are not changed per screen. */
+:root{--icon-stroke:1.5px}
+svg.ico{fill:none!important;stroke-linecap:round!important;stroke-linejoin:round!important}
+:where(svg.ico){stroke:currentColor} /* the color stays with the context */
+svg.ico,svg.ico *{stroke-width:var(--icon-stroke)!important;vector-effect:non-scaling-stroke}

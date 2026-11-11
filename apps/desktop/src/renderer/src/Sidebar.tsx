@@ -1,13 +1,12 @@
 import { providerLabels } from '@gearmod/contracts'
 import { useAppUpdate } from './appUpdate'
-import { SettingsIcon } from './SettingsIcon'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useAgentUpdatesPending } from './useAgentUpdates'
 import { ProjectAvatar } from './ProjectIcon'
 import { dismissVoiceInstall, useVoiceInstall } from './voiceStore'
 import type { AgentProfile, AgentUsage, Project, UsageHistoryRow } from '@gearmod/contracts'
 import { AgentIcon, ProviderLogo } from './AgentIcon'
-import { ChevronLeftIcon, PlusIcon, TrashIcon } from './icons'
+import { ChatPlusIcon, ChevronLeftIcon, ChevronUpIcon, GearIcon, PlusIcon, TrashIcon } from './icons'
 import { plainError } from './NoticeDialog'
 import { useEscape } from './useEscape'
 import { useAsk } from './useAsk'
@@ -74,7 +73,7 @@ function UsedAgents({ profiles }: { profiles: AgentProfile[] }): React.JSX.Eleme
   const shown = profiles.slice(0, 4), extra = profiles.length - shown.length
   const windowOf = (profileId: string, id: 'five_hour' | 'seven_day') => usage.find((item) => item.profileId === profileId)?.windows.find((window) => window.id === id)
   return <div className="used" ref={root}>
-    <button type="button" className="usedbtn tip" data-tip={t.shell.sidebar.usedTip} aria-expanded={open} aria-label={t.shell.sidebar.usedTip} onClick={() => setOpen(!open)}><span className="avstack">{shown.map((profile) => <span key={profile.id} className={`av ptl ${profile.provider}`} style={{ color: profile.color, background: `color-mix(in srgb, ${profile.color} 22%, var(--surface-2))` }}><ProviderLogo provider={profile.provider} /></span>)}{extra > 0 && <span className="av ptl more">+{extra}</span>}</span><svg className={`uchev ${open ? 'open' : ''}`} viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg></button>
+    <button type="button" className="usedbtn tip" data-tip={t.shell.sidebar.usedTip} aria-expanded={open} aria-label={t.shell.sidebar.usedTip} onClick={() => setOpen(!open)}><span className="avstack">{shown.map((profile) => <span key={profile.id} className={`av ptl ${profile.provider}`} style={{ color: profile.color, background: `color-mix(in srgb, ${profile.color} 22%, var(--surface-2))` }}><ProviderLogo provider={profile.provider} /></span>)}{extra > 0 && <span className="av ptl more">+{extra}</span>}</span><ChevronUpIcon className={`uchev ${open ? 'open' : ''}`} /></button>
     {open && <div className="upop"><div className="sectitle">{t.shell.sidebar.sessionUsage}{refreshing && <span className="refreshing">{t.shell.sidebar.updating}</span>}</div>{profiles.length === 0 && <p className="hint">{t.shell.sidebar.noAgents}</p>}{profiles.map((profile) => {
       // Session (5 h) and week, one labeled bar each; the reset time of the session stays on one line under the name.
       const window = windowOf(profile.id, 'five_hour'), week = windowOf(profile.id, 'seven_day')
@@ -219,7 +218,7 @@ export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onO
           onContextMenu={(e) => { e.preventDefault(); setPeek(undefined); setMenu({ project, x: e.clientX, y: e.clientY }) }}
           onMouseEnter={(e) => showPeek(project, e.currentTarget)} onMouseLeave={hidePeek}>
           <button type="button" className={`proj ${selected === project.id ? 'on' : ''} ${finished ? 'fin' : ''} ${running ? 'busy' : ''} ${waiting ? 'wait' : ''}`} onClick={() => onSelect(project.id)}><ProjectAvatar name={project.name} icon={project.icon} /><span title={project.name}>{project.name}{sub}</span>{waiting > 0 ? <b className="pdot wait" data-tip={t.shell.sidebar.waitingTip} /> : finished > 0 ? <b className="pdot" data-tip={t.shell.sidebar.finishedTip} /> : running > 0 && <span className="spin sm" data-tip={t.shell.sidebar.runningTip} />}</button>
-          <button type="button" className="projnew tip" data-tip={t.shell.sidebar.newFreeChatTip} aria-label={t.shell.sidebar.newFreeChatIn(project.name)} onClick={() => onNewChat(project.id)}><PlusIcon /></button></div>
+          <button type="button" className="projnew tip" data-tip={t.shell.sidebar.newFreeChatTip} aria-label={t.shell.sidebar.newFreeChatIn(project.name)} onClick={() => onNewChat(project.id)}><ChatPlusIcon /></button></div>
       })}</nav>
       <VoiceInstallCard />
       <div className="side-foot"><button className="iconbtn gearwrap" data-tip={appUpdate ? t.shell.sidebar.settingsWithAppUpdate : agentUpdates ? t.shell.sidebar.settingsWithUpdate : t.common.settings} aria-label={appUpdate ? t.shell.sidebar.settingsWithAppUpdate : agentUpdates ? t.shell.sidebar.settingsLabelWithUpdate : t.common.settings} onClick={onSettings}>⚙{(agentUpdates || appUpdate) && <i className="gear-dot" aria-hidden="true" />}</button>{profiles.length ? <UsedAgents profiles={profiles} /> : <button type="button" className="mini secondary withicon side-addagent" onClick={onAddAgent}><PlusIcon />{t.shell.sidebar.addAgent}</button>}</div>
@@ -231,8 +230,8 @@ export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onO
     </div>}
     {menu && <div ref={projectMenu} className="projmenu" role="menu" aria-label={t.shell.sidebar.projectActions(menu.project.name)} tabIndex={-1} style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
       <div className="ctxtitle">{menu.project.name}</div>
-      <button type="button" role="menuitem" onClick={() => { setMenu(undefined); onNewChat(menu.project.id) }}><PlusIcon /><span>{t.shell.sidebar.newFreeChat}</span><kbd>N</kbd></button>
-      <button type="button" role="menuitem" onClick={() => { setMenu(undefined); onProjectSettings(menu.project.id) }}><SettingsIcon /><span>{t.shell.sidebar.configureProject}</span><kbd>C</kbd></button>
+      <button type="button" role="menuitem" onClick={() => { setMenu(undefined); onNewChat(menu.project.id) }}><ChatPlusIcon /><span>{t.shell.sidebar.newFreeChat}</span><kbd>N</kbd></button>
+      <button type="button" role="menuitem" onClick={() => { setMenu(undefined); onProjectSettings(menu.project.id) }}><GearIcon /><span>{t.shell.sidebar.configureProject}</span><kbd>C</kbd></button>
       <button type="button" role="menuitem" className="danger" onClick={() => { setMenu(undefined); onDelete(menu.project) }}><TrashIcon /><span>{t.shell.sidebar.deleteProject}</span><kbd>Del</kbd></button>
     </div>}
   </>

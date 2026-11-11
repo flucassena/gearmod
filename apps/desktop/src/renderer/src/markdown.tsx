@@ -5,6 +5,7 @@ import { highlightCode, type Piece } from './editor/highlightCode'
 import { toast } from './toasts'
 import { plainError } from './NoticeDialog'
 import { useT } from './i18n'
+import { CheckMiniIcon, CopyIcon, PlayIcon } from './icons'
 
 /** Minimal, safe Markdown renderer (no raw HTML). Returns only the blocks: the caller puts them inside a `.md`. Checklists in the prototype format (`ul.tasks > li.tk`). */
 interface Item { indent: number; ordered: boolean; checked: boolean | null; text: string; line: number; children: Item[] }
@@ -29,8 +30,8 @@ function CodeBlock({ code, lang, runnable: allowRun = true }: { code: string; la
   const copy = (): void => { void navigator.clipboard.writeText(code).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1400) }).catch((reason: unknown) => toast.error(t.shell.markdown.couldNotCopy, plainError(reason))) }
   return <div className="codeblock" ref={box}><pre><code>{pieces.length ? pieces.map((piece, index) => piece.cls ? <span key={index} className={piece.cls}>{piece.text}</span> : piece.text) : code}</code></pre>
     <div className="cb-tools">
-      {runnable && <button type="button" className="cb-btn tip" data-tip={t.shell.markdown.runInTerminal} aria-label={t.shell.markdown.runInTerminal} onClick={() => void terminal.run(command)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z" /></svg></button>}
-      <button type="button" className="cb-btn tip" data-tip={copied ? t.shell.markdown.copied : t.shell.markdown.copy} aria-label={t.shell.markdown.copy} onClick={copy}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="7" width="9" height="9" rx="2" /><path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" /></svg></button>
+      {runnable && <button type="button" className="cb-btn tip" data-tip={t.shell.markdown.runInTerminal} aria-label={t.shell.markdown.runInTerminal} onClick={() => void terminal.run(command)}><PlayIcon /></button>}
+      <button type="button" className="cb-btn tip" data-tip={copied ? t.shell.markdown.copied : t.shell.markdown.copy} aria-label={t.shell.markdown.copy} onClick={copy}><CopyIcon /></button>
     </div></div>
 }
 
@@ -99,7 +100,7 @@ function renderItems(items: Item[], onToggle: ((line: number, checked: boolean) 
     const flat: Array<{ item: Item; depth: number }> = []
     const walk = (list: Item[], depth: number): void => list.forEach((item) => { flat.push({ item, depth }); walk(item.children, depth + 1) })
     walk(items, 0)
-    return <ul key={key} className="tasks">{flat.map(({ item, depth }) => <li key={`${key}-${item.line}`} className={`tk ${depth ? 'sub' : ''} ${item.checked ? 'done' : ''}`} data-ln={onToggle ? item.line : undefined} onClick={onToggle ? () => onToggle(item.line, !item.checked) : undefined}><span className={`tkb ${item.checked ? 'on' : ''}`}>{item.checked && <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.6l4.5-5" /></svg>}</span><span className="tkt">{inline(item.text, `${key}-${item.line}`)}</span></li>)}</ul>
+    return <ul key={key} className="tasks">{flat.map(({ item, depth }) => <li key={`${key}-${item.line}`} className={`tk ${depth ? 'sub' : ''} ${item.checked ? 'done' : ''}`} data-ln={onToggle ? item.line : undefined} onClick={onToggle ? () => onToggle(item.line, !item.checked) : undefined}><span className={`tkb ${item.checked ? 'on' : ''}`}>{item.checked && <CheckMiniIcon />}</span><span className="tkt">{inline(item.text, `${key}-${item.line}`)}</span></li>)}</ul>
   }
   const Tag = items[0]?.ordered ? 'ol' : 'ul'
   return <Tag key={key}>{items.map((item) => <li key={`${key}-${item.line}`}>{inline(item.text, `${key}-${item.line}`)}{item.children.length > 0 && renderItems(item.children, onToggle, `${key}-${item.line}c`)}</li>)}</Tag>

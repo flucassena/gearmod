@@ -1,4 +1,3 @@
-import { SettingsIcon } from './SettingsIcon'
 import { toast } from './toasts'
 import { ColumnMenu } from './ColumnMenu'
 import { useToolsPending } from './ToolsPanel'
@@ -22,7 +21,7 @@ import { blankDraft, CardEditor, type Draft } from './CardEditor'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DoneCleanupDialog } from './DoneCleanup'
 import { DeleteCardDialog } from './DeleteCardDialog'
-import { ArchiveIcon, BoardIcon, BranchIcon, ChatIcon, DatabaseIcon, FinishIcon, PlayIcon, SparkIcon, StopIcon } from './icons'
+import { ArchiveIcon, BoardIcon, BranchIcon, ChatIcon, DatabaseIcon, FinishIcon, GearIcon, PlanIcon, PlayIcon, StopIcon } from './icons'
 import { NewCardDialog, type StartChoice } from './NewCardDialog'
 import { PendingDialog } from './PendingDialog'
 import { NoAgentDialog } from './ProjectDialogs'
@@ -84,8 +83,8 @@ function CardTile({ card, types, state, agent, agents, dropLabel, dragProps, onP
       <span className="ownr">{(agents.length ? agents : agent ? [agent] : []).length > 0 && <span className="agentstack">{(agents.length ? agents : [agent!]).map((profile) => <AgentIcon key={profile.id} profile={profile} />)}</span>}{!open && <span className="cnt">{card.workflow === 'light' ? t.tile.oneAgentOnly : total ? t.tile.tasksCount(done, total) : t.tile.noTasks}</span>}</span>
       <div className="btns">
         {card.workspace && <button type="button" className="ib view ws tip" data-tip={t.tile.branchTip(card.workspace.branch, worktreeName(card.workspace.path), card.workspace.baseRef)} aria-label={t.tile.branchAria(card.workspace.branch)} onClick={(e) => { e.stopPropagation(); onGit() }}><BranchIcon /></button>}
-        {run === 'idle' && !card.hasPlan && (state === 'backlog' || state === 'todo') && button('plan', open ? t.tile.continuePlanning : t.tile.goToPlanning, onPlan, <SparkIcon />)}
-        {(state === 'todo' || state === 'backlog') && (run !== 'idle' || card.hasPlan) && button('plan', t.tile.plan, onPlan, <SparkIcon />)}
+        {run === 'idle' && !card.hasPlan && (state === 'backlog' || state === 'todo') && button('plan', open ? t.tile.continuePlanning : t.tile.goToPlanning, onPlan, <PlanIcon />)}
+        {(state === 'todo' || state === 'backlog') && (run !== 'idle' || card.hasPlan) && button('plan', t.tile.plan, onPlan, <PlanIcon />)}
         {run === 'failed' && button('start', t.tile.chooseAgent, onRetry, <PlayIcon />)}
         {run === 'paused' && button('start', common.continue, onResume, <PlayIcon />)}
         {state === 'doing' && run !== 'running' && run !== 'paused' && run !== 'failed' && button('start', t.tile.start, onStart, <PlayIcon />)}
@@ -308,7 +307,7 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
   const fresh = (card: Card): Card => board.cards.find((item) => item.id === card.id) ?? card
   const columnLabel = (card: Card): string => board.columns.find((column) => column.id === fresh(card).columnId)?.label ?? ''
   // Board/Chats/Git, the window button and the gear sit in the title bar (portals into its slots); without the slots, they stay here in the header.
-  const gearControl = <button type="button" className={slots?.gear ? 'ibtn tip tb-gearbtn' : 'iconbtn'} data-tip={t.view.configureProject} aria-label={t.view.configureProject} onClick={() => onProjectConfig()}>{toolsPending && <i className="gear-dot" aria-hidden="true" />}{slots?.gear ? <SettingsIcon /> : '⚙'}</button>
+  const gearControl = <button type="button" className={slots?.gear ? 'ibtn tip tb-gearbtn' : 'iconbtn'} data-tip={t.view.configureProject} aria-label={t.view.configureProject} onClick={() => onProjectConfig()}>{toolsPending && <i className="gear-dot" aria-hidden="true" />}{slots?.gear ? <GearIcon /> : '⚙'}</button>
   const currentView: ProjectView = gitOpen ? 'git' : dbOpen ? 'db' : chatsOpen ? 'chats' : 'board'
   const selectView = (value: ProjectView): void => { setDraft(undefined); window.dispatchEvent(new Event('gearmod:select-view')); setChatsOpen(value === 'chats'); setGitOpen(value === 'git'); setDbOpen(value === 'db') }
   // Click on the project already open in the sidebar: back to the board as when the project opens (closes the card chat).

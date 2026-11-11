@@ -3,6 +3,7 @@ import type { CardHistory } from '@gearmod/contracts'
 import { plainError } from './NoticeDialog'
 import { useT } from './i18n'
 import { ComplexitySide } from './WorkflowChoice'
+import { ChevronDownSmallIcon } from './icons'
 
 /**
  * Card decisions beside the planning chat (where the implementation shows Changes): the agent's recommendations are
@@ -31,7 +32,7 @@ export function DecisionsSide({ cardId, projectId }: { cardId: string; projectId
   const approved = decisions.length - open.length
   // Same as the test checklist: the title folds the list; the count and the bar show how many are approved.
   return <div className="dockside"><aside className={`changes decside ${expanded ? 'open' : ''}`} aria-label={t.cardDecisions}>
-    <div className="ch-head"><button type="button" className="ch-title" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t.cardDecisions}<span className="chev chev-box" aria-hidden="true"><svg className="chev-svg" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4.5 3 3 3-3" /></svg></span></button>{open.length > 0 && <span className="cx-pill warn">{t.waitingForYou(open.length)}</span>}{decisions.length > 0 && <span className="pg-count">{approved}/{decisions.length}</span>}</div>
+    <div className="ch-head"><button type="button" className="ch-title" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>{t.cardDecisions}<span className="chev chev-box" aria-hidden="true"><ChevronDownSmallIcon className="chev-svg" /></span></button>{open.length > 0 && <span className="cx-pill warn">{t.waitingForYou(open.length)}</span>}{decisions.length > 0 && <span className="pg-count">{approved}/{decisions.length}</span>}</div>
     {decisions.length > 0 && <span className="pg-bar"><i style={{ width: `${Math.round((approved / decisions.length) * 100)}%` }} /></span>}
     {expanded && !decisions.length && <p className="decside-empty">{t.noDecisions}</p>}
     {expanded && decisions.length > 0 && <ul className="decside-list">{decisions.map((item) => <li key={item.id} className={item.status}>

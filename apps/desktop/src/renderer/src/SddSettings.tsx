@@ -5,8 +5,9 @@ import { Select } from './Select'
 import { ConstitutionPanel } from './ConstitutionPanel'
 import { useT } from './i18n'
 import { specRunFinishedEvent } from './specKitRun'
+import { FolderGlyph } from './icons'
 
-const FolderIcon = (): React.JSX.Element => <svg className="cx-foldico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+const FolderIcon = (): React.JSX.Element => <FolderGlyph className="cx-foldico" />
 const slash = (value: string): string => value.replace(/\\/g, '/').replace(/\/$/, '')
 const isAbsolute = (value: string): boolean => /^(?:[A-Za-z]:\/|\/)/.test(slash(value))
 

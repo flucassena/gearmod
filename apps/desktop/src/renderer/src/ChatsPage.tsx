@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentPurpose, Card, Chat, ProjectBoard } from '@gearmod/contracts'
-import { ArchiveIcon, BoardIcon, ChatIcon, SparkIcon } from './icons'
+import { ArchiveIcon, CardIcon, ChatIcon, ChatPlusIcon, SearchIcon } from './icons'
 import { ChatContextMenu } from './ChatContextMenu'
 import { ConfirmDialog } from './ConfirmDialog'
 import { plainError } from './NoticeDialog'
@@ -50,9 +50,9 @@ export function ChatsPage({ board, openCard, openCardEditor, openFree, deleted, 
   const latest = (list: Chat[]): Chat => list.reduce((a, b) => b.updatedAt > a.updatedAt ? b : a)
   return <section className="chatspage" aria-label={p.projectChats}>
     <div className="cptools">
-      <div className="cpsearch"><input className="in" type="search" placeholder={filter === 'archived' ? p.searchArchivedPlaceholder : p.searchPlaceholder} aria-label={filter === 'archived' ? p.searchArchived : p.search} value={query} onChange={(e) => setQuery(e.target.value)} autoFocus /><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" /><path d="m13 13 4 4" /></svg></div>
+      <div className="cpsearch"><input className="in" type="search" placeholder={filter === 'archived' ? p.searchArchivedPlaceholder : p.searchPlaceholder} aria-label={filter === 'archived' ? p.searchArchived : p.search} value={query} onChange={(e) => setQuery(e.target.value)} autoFocus /><SearchIcon /></div>
       <div className="tabs" role="tablist" aria-label={p.filterLabel}>{([['all', t.common.all], ['free', p.filterFree], ['card', p.filterCards], ['archived', p.filterArchived]] as const).map(([value, label]) => <button type="button" key={value} role="tab" aria-selected={filter === value} className={`tab ${filter === value ? 'on' : ''}`} onClick={() => setFilter(value)}>{label}{value === 'archived' && archived.length > 0 ? ` (${archived.length})` : ''}</button>)}</div>
-      <button type="button" className="cpnew" onClick={() => openFree()}><SparkIcon />{p.newChat}</button>
+      <button type="button" className="cpnew" onClick={() => openFree()}><ChatPlusIcon />{p.newChat}</button>
     </div>
     <div className="cplistpage">
       {error && <p className="error">{error}</p>}
@@ -66,7 +66,7 @@ export function ChatsPage({ board, openCard, openCardEditor, openFree, deleted, 
         </button>
         // Card row: a div, since the step buttons inside it are buttons themselves. Clicking the row opens the card's latest chat.
         return <div className={`cpitem cpcard ${list.some((item) => item.id === current) ? 'on' : ''}`} key={card.id} onClick={() => open(chat, card)} onContextMenu={(event) => { event.preventDefault(); setMenu({ chat, x: event.clientX, y: event.clientY }) }}>
-          <span className="cpico"><BoardIcon /></span>
+          <span className="cpico"><CardIcon /></span>
           <span className="cpmain"><b>{card.title || t.chat.tile.newCard}</b>
             <span className="cpmeta"><span>{board.columns.find((column) => column.id === card.columnId)?.label}</span><span>{ago(updatedAt)}</span>
               <span className="cpsteps">{list.map((item) => <button type="button" key={item.id} className={`cpstep ${item.busy ? 'busy' : ''} ${current === item.id ? 'on' : ''}`} title={ago(item.updatedAt)} onClick={(event) => { event.stopPropagation(); open(item, card) }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setMenu({ chat: item, x: event.clientX, y: event.clientY }) }}>{item.busy && <span className="spin xs" aria-label={p.running} />}{label(item)}</button>)}</span></span></span>
