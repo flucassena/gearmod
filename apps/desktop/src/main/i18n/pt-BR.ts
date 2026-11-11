@@ -11,6 +11,7 @@ export const ptBR = {
     windowsExecutableRequired: 'No Windows, o agente deve apontar para um arquivo .exe, .cmd ou .bat',
     safeExecutableNotFound: (command: string) => `Executável seguro não encontrado no PATH: ${command}`,
     unsupportedGeminiMode: (mode: string) => `Modo não suportado pelo Gemini: ${mode}`,
+    statusCheckPrompt: (minutes: number) => `[Mensagem automática do GearMod] Faz ${minutes} min que as tarefas em segundo plano não dão sinal. Confira o estado de cada uma: se ainda estão rodando e avançando, diga em uma linha o que estão fazendo e continue esperando; se travaram, encerre-as e explique o que aconteceu.`,
     geminiExitedNoResult: (code: number|null, detail: string) => `Gemini encerrou sem resultado (${code}): ${detail}`,
     geminiExited: (code: number|null, detail: string) => `Gemini encerrou (${code}): ${detail}`,
     geminiError: 'Erro do Gemini',
@@ -322,6 +323,8 @@ export const ptBR = {
   },
   orchestrator: {
     timeoutReached: (minutes: number) => `Tempo limite de ${minutes} min atingido (Configurar projeto > Workflow).`,
+    statusCheckAsked: (minutes: number) => `Faz ${minutes} min sem sinal das tarefas em segundo plano. O GearMod perguntou ao agente se está tudo certo.`,
+    backgroundStalled: 'A tarefa em segundo plano parou sem avisar que terminou (o processo dela não existe mais). O GearMod encerrou a execução com a última resposta do agente.',
     appQuitting: 'O aplicativo está encerrando',
     noAttachmentsFound: 'Nenhum dos arquivos anexados foi encontrado.',
     agentRemoved: (label: string) => `O agente ${label} foi removido e não pode mais executar. Reinicie o chat com outro agente.`,

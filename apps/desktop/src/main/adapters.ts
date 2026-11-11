@@ -18,6 +18,7 @@ import type { TurnStartParams } from './generated/codex-app-server/v2/TurnStartP
 import { redact, redactObject } from './redaction'
 import { applyEnvPolicy } from './env-policy'
 import { tm } from './i18n'
+import { backgroundAlive } from './process-tree'
 
 export type AgentEvent = { type: string; payload: Record<string, unknown> }
 export type AgentRunOptions = { cwd: string; addDirs?: string[]; prompt: string; sessionId: string | null; planning: boolean; profile: AgentProfile; pluginDir?: string | null; env?: Record<string, string>; mcpServers?: McpRunServer[]; mcp?: McpEndpoint; model?: string | null; effort?: Effort | null; mode?: PermissionMode; developerInstructions?: string; attachments?: string[]; signal?: AbortSignal; /** The adapter hands over how to change the permission mode of the running process (only Claude can). */ onModeControl?(setMode: (mode: PermissionMode) => boolean): void; requestPermission?(kind: string, details: Record<string, unknown>, signal?: AbortSignal): Promise<boolean>; onEvent(event: AgentEvent): void }
@@ -266,8 +267,14 @@ ${context}`)
   })
 }
 
+/**
+ * Waiting on background tasks: `pendingIdleMs` of silence triggers the check whether the command is still alive; `statusCheckMs` of silence makes
+ * GearMod ask Claude, in the chat, how the tasks are going (at most `maxStatusChecks` times per run).
+ */
+export type ClaudeTiming = { graceMs: number; pendingIdleMs: number; statusCheckMs?: number; maxStatusChecks?: number }
+
 export class ClaudeCliAdapter implements AgentAdapter {
-  constructor(private readonly processes: ProcessFactory = nodeProcesses, private readonly timing = { graceMs: 60_000, pendingIdleMs: 10 * 60_000 }) {}
+  constructor(private readonly processes: ProcessFactory = nodeProcesses, private readonly timing: ClaudeTiming = { graceMs: 60_000, pendingIdleMs: 10 * 60_000, statusCheckMs: 30 * 60_000, maxStatusChecks: 4 }, private readonly alive: (pid: number | undefined, since: number) => Promise<boolean> = backgroundAlive) {}
   async run(options: AgentRunOptions): Promise<AgentRunResult> {
     if (options.signal?.aborted) throw new Error(tm().common.executionCancelled)
     // In `plan` mode Claude refuses to call tools that write (including GearMod's; confirmed in a real test).
@@ -318,11 +325,36 @@ export class ClaudeCliAdapter implements AgentAdapter {
     return new Promise<AgentRunResult>((resolve, reject) => {
       // Background tasks (subagents and commands): the turn's `result` arrives while they are still running. The process can only exit when all of them
       // finish and Claude answers their notification (another `result`); if it does not answer, the last result counts after a grace period.
-      const pending = new Set<string>(), { graceMs: grace, pendingIdleMs } = this.timing
-      let answered = false, deferred: AgentRunResult | null = null, graceTimer: NodeJS.Timeout | undefined, idleTimer: NodeJS.Timeout | undefined
-      const finish = (result: AgentRunResult): void => { if (graceTimer) clearTimeout(graceTimer); if (idleTimer) clearTimeout(idleTimer); resolve(result) }
-      // Background task that never reports it finished (task_started without task_notification): with no activity for `pendingIdleMs`, the turn's result counts.
-      const armIdle = (): void => { if (!deferred) return; if (idleTimer) clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (deferred) { const last = deferred; child.kill(); finish(last) } }, pendingIdleMs) }
+      // Pending task id → when it started (ms): a background command is a process the agent starts after that moment.
+      const pending = new Map<string, number>(), { graceMs: grace, pendingIdleMs, statusCheckMs, maxStatusChecks = 0 } = this.timing
+      let answered = false, done = false, statusChecks = 0, deferred: AgentRunResult | null = null, graceTimer: NodeJS.Timeout | undefined, idleTimer: NodeJS.Timeout | undefined, checkTimer: NodeJS.Timeout | undefined
+      const finish = (result: AgentRunResult): void => { done = true; if (graceTimer) clearTimeout(graceTimer); if (idleTimer) clearTimeout(idleTimer); if (checkTimer) clearTimeout(checkTimer); resolve(result) }
+      // Background task without news for `pendingIdleMs`: if its command is still running under Claude, keep waiting; if nothing is left
+      // (it died without a task_notification), the turn's result counts and the chat says why.
+      const idleCheck = (): void => {
+        if (!deferred || done || !pending.size) return
+        const since = Math.min(...pending.values())
+        void this.alive(child.pid, since).then((running) => {
+          if (!deferred || done) return
+          if (running) { armIdle(); return }
+          options.onEvent({ type: 'gearmod/background-stalled', payload: { tasks: pending.size } })
+          const last = deferred; child.kill(); finish(last)
+        })
+      }
+      // Long silence: GearMod asks Claude, as a chat message, how the background tasks are going. Claude checks them and answers (a new turn).
+      const statusCheck = (): void => {
+        if (!deferred || done || !interactive || !child.stdin.writable || child.stdin.destroyed || statusChecks >= maxStatusChecks) return
+        statusChecks++
+        const minutes = Math.round((statusCheckMs ?? 0) / 60_000)
+        options.onEvent({ type: 'gearmod/status-check', payload: { minutes, tasks: pending.size } })
+        if (text && !text.endsWith('\n\n')) { const gap = text.endsWith('\n') ? '\n' : '\n\n'; text += gap; options.onEvent({ type: 'item/agentMessage/delta', payload: { delta: gap } }) }
+        child.stdin.write(`${JSON.stringify({ type: 'user', session_id: '', message: { role: 'user', content: tm().adapters.statusCheckPrompt(minutes) }, parent_tool_use_id: null })}\n`)
+      }
+      const armIdle = (): void => {
+        if (!deferred || done) return
+        if (idleTimer) clearTimeout(idleTimer); idleTimer = setTimeout(idleCheck, pendingIdleMs)
+        if (checkTimer) clearTimeout(checkTimer); if (statusCheckMs && interactive && statusChecks < maxStatusChecks) checkTimer = setTimeout(statusCheck, statusCheckMs)
+      }
       const settle = (): void => { if (deferred && !pending.size && !graceTimer) { const last = deferred; graceTimer = setTimeout(() => finish(last), grace) } }
       createInterface({ input: child.stdout }).on('line', (line) => {
         let message: JsonObject; try { message = JSON.parse(line) as JsonObject } catch { return }
@@ -343,7 +375,7 @@ export class ClaudeCliAdapter implements AgentAdapter {
         if (message.type === 'stream_event' && delta?.type === 'text_delta' && typeof delta.text === 'string') { text += delta.text; options.onEvent({ type: 'item/agentMessage/delta', payload: { delta: delta.text } }) }
         else options.onEvent({ type: `claude/${String(message.type ?? 'event')}`, payload: redactObject(message) })
         if (message.type === 'system' && typeof message.task_id === 'string') {
-          if (message.subtype === 'task_started') pending.add(message.task_id)
+          if (message.subtype === 'task_started') pending.set(message.task_id, Date.now())
           else if (message.subtype === 'task_notification') { pending.delete(message.task_id); settle() }
         }
         // Claude answering the notification starts a new turn: wait for its `result` instead of closing the run in the middle of it (the idle timer still applies).

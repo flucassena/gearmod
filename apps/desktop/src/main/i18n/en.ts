@@ -12,6 +12,7 @@ export const en: typeof ptBR = {
     windowsExecutableRequired: 'On Windows, the agent must point to an .exe, .cmd or .bat file',
     safeExecutableNotFound: (command: string) => `Safe executable not found on PATH: ${command}`,
     unsupportedGeminiMode: (mode: string) => `Mode not supported by Gemini: ${mode}`,
+    statusCheckPrompt: (minutes: number) => `[Automatic message from GearMod] The background tasks have given no sign for ${minutes} min. Check each one: if it is still running and making progress, say in one line what it is doing and keep waiting; if it is stuck, stop it and explain what happened.`,
     geminiExitedNoResult: (code: number|null, detail: string) => `Gemini exited without a result (${code}): ${detail}`,
     geminiExited: (code: number|null, detail: string) => `Gemini exited (${code}): ${detail}`,
     geminiError: 'Gemini error',
@@ -324,6 +325,8 @@ export const en: typeof ptBR = {
   orchestrator: {
     appQuitting: 'The app is shutting down',
     timeoutReached: (minutes: number) => `Time limit of ${minutes} min reached (Configure project > Workflow).`,
+    statusCheckAsked: (minutes: number) => `The background tasks have given no sign for ${minutes} min. GearMod asked the agent whether everything is fine.`,
+    backgroundStalled: 'The background task stopped without saying it finished (its process no longer exists). GearMod ended the run with the last answer from the agent.',
     noAttachmentsFound: 'None of the attached files were found.',
     agentRemoved: (label: string) => `The agent ${label} was removed and can no longer run. Restart the chat with another agent.`,
     usePlanningChat: 'Use a planning chat to run in read-only mode',

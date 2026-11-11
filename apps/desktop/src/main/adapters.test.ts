@@ -72,6 +72,32 @@ describe('real provider protocol adapters', () => {
     expect(result).toMatchObject({ status: 'completed', text: 'pronto' })
   })
 
+  it('keeps waiting while the background command is still running, and ends when its process is gone', async () => {
+    let child: ChildProcessWithoutNullStreams, checks = 0
+    const events: string[] = []
+    const factory: ProcessFactory = { start() { child = fakeProcess(); queueMicrotask(() => { send(child, { type: 'system', subtype: 'task_started', task_id: 't1', session_id: 's' }); send(child, { type: 'result', session_id: 's', is_error: false, result: 'rodando' }) }); return child } }
+    const alive = async (): Promise<boolean> => ++checks < 3
+    const result = await new ClaudeCliAdapter(factory, { graceMs: 10, pendingIdleMs: 20 }, alive).run({ cwd: 'C:\repo', prompt: 'x', sessionId: null, planning: false, profile: profile('claude'), onEvent: (event) => events.push(event.type) })
+    expect(checks).toBe(3)
+    expect(result).toMatchObject({ status: 'completed', text: 'rodando' })
+    expect(events).toContain('gearmod/background-stalled')
+  })
+
+  it('after a long silence asks Claude in the chat how the background tasks are going, and takes its answer', async () => {
+    let child: ChildProcessWithoutNullStreams
+    const events: string[] = [], prompts: string[] = []
+    const factory: ProcessFactory = { start() { child = fakeProcess((input, process) => {
+      const content = String((input.message as { content?: unknown } | undefined)?.content ?? '')
+      prompts.push(content)
+      if (prompts.length === 1) { send(process, { type: 'system', subtype: 'task_started', task_id: 't1', session_id: 's' }); send(process, { type: 'stream_event', session_id: 's', event: { delta: { type: 'text_delta', text: 'build rodando' } } }); send(process, { type: 'result', session_id: 's', is_error: false }) }
+      else { send(process, { type: 'stream_event', session_id: 's', event: { delta: { type: 'text_delta', text: 'travou, encerrei' } } }); send(process, { type: 'system', subtype: 'task_notification', task_id: 't1', status: 'stopped', session_id: 's' }); send(process, { type: 'result', session_id: 's', is_error: false }) }
+    }); return child } }
+    const result = await new ClaudeCliAdapter(factory, { graceMs: 10, pendingIdleMs: 5_000, statusCheckMs: 20, maxStatusChecks: 2 }, async () => true).run({ cwd: 'C:\repo', prompt: 'x', sessionId: null, planning: false, profile: profile('claude'), requestPermission: async () => true, onEvent: (event) => events.push(event.type) })
+    expect(events).toContain('gearmod/status-check')
+    expect(prompts[1]).toContain('GearMod')
+    expect(result.text).toBe('build rodando\n\ntravou, encerrei')
+  })
+
   it('waits for the turn Claude starts after a background task notification, even past the grace period', async () => {
     let child: ChildProcessWithoutNullStreams
     const factory: ProcessFactory = { start() { child = fakeProcess(); queueMicrotask(() => {

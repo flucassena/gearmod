@@ -158,6 +158,11 @@ export class AgentOrchestrator {
         const owner = this.worktrees.foreignOwner(context.cardId, file)
         if (owner && !offered.has(owner.cardId)) { offered.add(owner.cardId); this.emit({ runId: job.run.id, eventType: 'gearmod/worktree-foreign', payload: { cardId: context.cardId, ownerCardId: owner.cardId, ownerTitle: owner.title } }) }
       }
+      // Waiting on background tasks: GearMod's own notes go in the chat as system lines, so the user sees why the run is still open or why it ended.
+      if (event.type === 'gearmod/status-check' || event.type === 'gearmod/background-stalled') {
+        this.conversations.addMessage({ chatId: job.chatId, role: 'system', body: event.type === 'gearmod/status-check' ? tm().orchestrator.statusCheckAsked(Number(event.payload.minutes) || 30) : tm().orchestrator.backgroundStalled, status: 'complete' })
+        this.emit({ runId: job.run.id, eventType: 'gearmod/tool-activity', payload: { chatId: job.chatId } })
+      }
       if (tools.length) {
         for (const tool of tools) this.conversations.addMessage({ chatId: job.chatId, role: 'tool', body: tool.detail ? `${tool.title}\n${tool.detail}` : tool.title, status: 'complete' })
         this.emit({ runId: job.run.id, eventType: 'gearmod/tool-activity', payload: { chatId: job.chatId } })
