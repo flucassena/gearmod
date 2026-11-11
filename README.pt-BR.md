@@ -291,7 +291,7 @@ powershell -ExecutionPolicy Bypass -File .\installer.ps1   # apps/desktop/dist/G
 
 Os dois scripts fecham o `GearMod.exe` aberto da pasta `win-unpacked`, porque ele trava a pasta. Os testes trocam o binário nativo do `better-sqlite3` entre Node e Electron, então não rode os testes com o app aberto da mesma pasta. Use `GEARMOD_DATA_DIR` para rodar com uma pasta de dados descartável.
 
-As versões são geradas pelo GitHub Actions: enviar uma tag como `v0.3.0` (igual à versão de `apps/desktop/package.json`) gera o instalador do Windows, os pacotes do Linux e as imagens de disco do Mac e os publica com os checksums. O que uma versão traz vai em `release-notes/<versão>.md`, que abre as notas da Release, com o texto em português em `release-notes/<versão>.pt-BR.md`. A página de download mostra os dois.
+As versões são geradas pelo GitHub Actions: enviar uma tag como `v0.3.1` (igual à versão de `apps/desktop/package.json`) gera o instalador do Windows, os pacotes do Linux e as imagens de disco do Mac e os publica com os checksums. O que uma versão traz vai em `release-notes/<versão>.md`, que abre as notas da Release, com o texto em português em `release-notes/<versão>.pt-BR.md`. A página de download mostra os dois.
 
 ```
 apps/desktop        App Electron (processo principal, preload, interface React)

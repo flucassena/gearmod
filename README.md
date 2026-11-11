@@ -290,7 +290,7 @@ powershell -ExecutionPolicy Bypass -File .\installer.ps1   # apps/desktop/dist/G
 
 Both scripts close a running `GearMod.exe` from `win-unpacked`, because it locks the folder. The tests swap the native `better-sqlite3` binary between Node and Electron, so don't run them while the app is open from the same folder. Set `GEARMOD_DATA_DIR` to run against a throwaway data folder.
 
-Releases are built by GitHub Actions: pushing a tag such as `v0.3.0` (matching the version in `apps/desktop/package.json`) builds the Windows installer, the Linux packages and the Mac disk images and publishes them with their checksums. What a version brings goes in `release-notes/<version>.md`, which opens the Release notes, with the Portuguese text in `release-notes/<version>.pt-BR.md`. The download page shows both.
+Releases are built by GitHub Actions: pushing a tag such as `v0.3.1` (matching the version in `apps/desktop/package.json`) builds the Windows installer, the Linux packages and the Mac disk images and publishes them with their checksums. What a version brings goes in `release-notes/<version>.md`, which opens the Release notes, with the Portuguese text in `release-notes/<version>.pt-BR.md`. The download page shows both.
 
 ```
 apps/desktop        Electron app (main process, preload, React renderer)
