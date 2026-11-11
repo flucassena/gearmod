@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
+import { rmTree } from './rm-tree'
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir, readdir, realpath, rm, stat } from 'node:fs/promises'
+import { mkdir, readdir, realpath, stat } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { withErrorCode, type GitSnapshot, type Worktree } from '@gearmod/contracts'
@@ -460,8 +461,8 @@ export class WorktreeService {
   }
 
   private async discard(repoPath: string, path: string): Promise<void> {
-    await this.git.run(['-C', repoPath, 'worktree', 'remove', '--force', path]).catch(() => undefined)
-    await rm(path, { recursive: true, force: true }).catch(() => undefined)
+    // Never `git worktree remove`: on Windows Git follows the junctions in node_modules and empties the packages they point to.
+    await rmTree(path).catch(() => undefined)
     await this.git.run(['-C', repoPath, 'worktree', 'prune']).catch(() => undefined)
   }
 

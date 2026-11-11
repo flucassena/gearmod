@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { access, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -156,6 +156,29 @@ describe('GitManager with real repositories', () => {
     expect(graph.externalWorktrees[0]).toMatchObject({ branch: 'feature/outside', detached: false })
     expect(graph.externalWorktrees[0]!.path.endsWith('outside-wt')).toBe(true)
     expect(graph.worktrees.map((item) => item.path)).toEqual([wt])
+  })
+  it('deletes a worktree made outside GearMod with its branch, reporting what would be lost first; never a card worktree', async () => {
+    const { manager, projectId, sourceId, repo, wt } = await setup()
+    const outside = join(repo, '..', 'outside-del')
+    await git(repo, 'worktree', 'add', '-b', 'feature/outside-del', outside)
+    await writeFile(join(outside, 'loose.txt'), 'x')
+    expect(await manager.externalWorktreeInfo(sourceId, outside)).toMatchObject({ branch: 'feature/outside-del', files: 1 })
+    await expect(manager.deleteExternalWorktree(sourceId, wt, true)).rejects.toThrow()
+    expect(await manager.deleteExternalWorktree(sourceId, outside, true)).toMatchObject({ keptBranches: [] })
+    await expect(access(outside)).rejects.toThrow()
+    expect((await manager.graph(projectId, sourceId)).externalWorktrees).toEqual([])
+    expect((await git(repo, 'branch', '--list', 'feature/outside-del')).stdout.trim()).toBe('')
+  })
+  it('deleting a worktree never empties what its node_modules junctions point to', async () => {
+    const { manager, sourceId, repo } = await setup()
+    const outside = join(repo, '..', 'outside-junction'), shared = join(repo, '..', 'shared-pkg')
+    await git(repo, 'worktree', 'add', '-b', 'feature/outside-junction', outside)
+    await mkdir(shared, { recursive: true }); await writeFile(join(shared, 'index.js'), 'keep')
+    await mkdir(join(outside, 'node_modules'), { recursive: true })
+    await symlink(shared, join(outside, 'node_modules', 'pkg'), 'junction')
+    await manager.deleteExternalWorktree(sourceId, outside, false)
+    await expect(access(outside)).rejects.toThrow()
+    expect(await readFile(join(shared, 'index.js'), 'utf8')).toBe('keep')
   })
 
   it('lets a card adopt a worktree made by hand, and letting it go never deletes the folder or the branch', async () => {

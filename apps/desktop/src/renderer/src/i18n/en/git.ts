@@ -241,6 +241,14 @@ export const git: typeof source = {
     viewInGit: 'View in Git'
   },
   worktreeDelete: {
+    externalMenu: 'Delete this worktree…',
+    externalTitle: (name: string) => `Delete the worktree "${name}"?`,
+    externalText: 'It belongs to no card: it was made outside GearMod. The folder leaves the disk and Git stops listing it.',
+    externalTask: (name: string) => `Delete the worktree "${name}"`,
+    taskTitle: (card: string) => `Delete the worktree of "${card}"`,
+    deletingNow: 'Deleting the worktree…',
+    backgroundHint: 'You can close this: it keeps going in the background and tells you when it is done.',
+    background: 'Keep in background',
     menuOne: "Delete only this repository's worktree…",
     menuItem: "Delete all of the card's worktrees…",
     menuLabel: (branch) => `Actions for worktree ${branch}`,

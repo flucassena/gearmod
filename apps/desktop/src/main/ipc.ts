@@ -660,6 +660,8 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     , 'reviews:prepare-local': (input: { cardId: string }) => services.quality.prepareLocalReview(input.cardId)
     , 'git:repos': (input: { projectId: string }) => services.gitManager.repos(input.projectId)
     , 'git:worktree-info': (input: { projectId?: string | undefined; cardId: string; sourceId?: string | undefined }) => services.gitManager.worktreeInfo(input.projectId ?? services.gitManager.projectOfCard(input.cardId), input.cardId, input.sourceId)
+    , 'git:external-worktree-info': (input: { sourceId: string; path: string }) => services.gitManager.externalWorktreeInfo(input.sourceId, input.path)
+    , 'git:external-worktree-delete': (input: { sourceId: string; path: string; deleteBranch: boolean }) => services.gitManager.deleteExternalWorktree(input.sourceId, input.path, input.deleteBranch)
     , 'git:worktree-delete': (input: { projectId?: string | undefined; cardId: string; sourceId?: string | undefined; deleteBranch: boolean; force?: boolean | undefined }) => services.gitManager.deleteWorktree(input.projectId ?? services.gitManager.projectOfCard(input.cardId), input.cardId, input.deleteBranch, input.sourceId, input.force === true)
     , 'git:upstream': (input: { sourceId: string; cardId: string | null }) => services.gitManager.upstream(input.sourceId, input.cardId)
     , 'git:set-upstream': (input: { sourceId: string; cardId: string | null; remote: string; branch: string }) => services.gitManager.setUpstream(input)

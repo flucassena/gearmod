@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto'
+import { rmTree } from './rm-tree'
 import { realpathSync, statSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { scanForSecrets } from './secret-scan'
-import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path'
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { defaultGitPolicy, errorCodeOf, withErrorCode, gitPolicySchema, type GitCard, type GitChange, type GitChanges, type GitCommitFile, type GitGraph, type GitPolicy, type GitRef, type GitRepo, type GitRequest, type GitRow, type GitRule, type GitWorktreeInfo } from '@gearmod/contracts'
 import type { AppDatabase } from './database'
 import { nativeGit, type GitRunner } from './worktrees'
@@ -807,10 +808,15 @@ ${diff}`
       })()
       return { output: tm().git.worktreeReleased(info.title), keptBranches: [] }
     }
+    // Deleting a worktree file by file (node_modules included) takes long: the folder is moved to a trash next to the card
+    // folders (instant on the same disk), Git forgets the worktree, and the trash is emptied in the background.
+    const trash = join(dirname(worktree.path), '.gearmod-trash')
     for (const member of members) {
       const branch = info.repos.find((repo) => repo.name === basename(member.repoPath))?.branch ?? member.branch
-      await this.tryRun(member.repoPath, ['worktree', 'remove', '--force', member.path])
-      await rm(member.path, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }).catch(() => undefined)
+      const parked = join(trash, `${basename(member.path)}-${Date.now()}`)
+      const moved = await mkdir(trash, { recursive: true }).then(() => rename(member.path, parked)).then(() => true, () => false)
+      // Never `git worktree remove`: on Windows Git follows the junctions in node_modules and empties the packages they point to.
+      if (!moved) await rmTree(member.path).catch(() => undefined)
       await this.tryRun(member.repoPath, ['worktree', 'prune'])
       if (existsSyncDir(member.path)) throw new Error(tm().git.worktreeFolderLocked(member.path))
       this.database.db.prepare('DELETE FROM worktree_members WHERE worktree_id = ? AND path = ?').run(worktree.id, member.path)
@@ -819,14 +825,51 @@ ${diff}`
     }
     // Only one folder was deleted and others remain: the card worktree is still valid.
     const remaining = this.database.db.prepare('SELECT COUNT(*) FROM worktree_members WHERE worktree_id = ?').pluck().get(worktree.id) as number
-    if (remaining > 0) return { output: tm().git.worktreeDeleted(info.title), keptBranches: kept }
+    if (remaining > 0) { this.emptyTrash(trash); return { output: tm().git.worktreeDeleted(info.title), keptBranches: kept } }
     // The parent folder (one per card) only goes away if it is nobody's own repository.
-    if (!members.some((member) => same(member.repoPath, worktree.path)) && !existsSyncDir(join(worktree.path, '.git'))) await rm(worktree.path, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }).catch(() => undefined)
+    if (!members.some((member) => same(member.repoPath, worktree.path)) && !existsSyncDir(join(worktree.path, '.git'))) await rmTree(worktree.path).catch(() => undefined)
     this.database.db.transaction(() => {
       this.database.db.prepare(`UPDATE worktrees SET cleanup_state = 'removed' WHERE id = ?`).run(worktree.id)
       this.database.db.prepare('UPDATE cards SET worktree_card_id = NULL WHERE worktree_card_id = ?').run(cardId)
     })()
+    this.emptyTrash(trash)
     return { output: tm().git.worktreeDeleted(info.title), keptBranches: kept }
+  }
+
+  /** A worktree that is neither the main folder nor a card's (made by hand or by another tool); throws if Git does not list it. */
+  private async externalWorktree(sourceId: string, path: string): Promise<{ repoPath: string; path: string; branch: string | null }> {
+    const source = this.source(sourceId)
+    const known = this.database.db.prepare('SELECT path FROM worktree_members').pluck().all() as string[]
+    const found = (await this.externalWorktrees(source.path, known)).find((item) => sameDir(item.path, path))
+    if (!found) throw new Error(tm().git.externalWorktreeNotFound)
+    return { repoPath: source.path, path: found.path, branch: found.branch }
+  }
+
+  /** What would be lost deleting an outside worktree: files without commit and commits that are on no remote. */
+  async externalWorktreeInfo(sourceId: string, path: string): Promise<{ path: string; branch: string | null; files: number; unpushed: number }> {
+    const worktree = await this.externalWorktree(sourceId, path)
+    const files = await this.listChanges(worktree.path).catch(() => [] as GitChange[])
+    const count = (await this.tryRun(worktree.path, ['rev-list', '--count', 'HEAD', '--not', '--remotes']))?.trim()
+    return { path: worktree.path, branch: worktree.branch, files: new Set(files.map((file) => file.path)).size, unpushed: Number(count) || 0 }
+  }
+
+  /** Deletes an outside worktree (folder and Git's entry) and, if asked, its local branch; a branch Git refuses to delete is reported back. */
+  async deleteExternalWorktree(sourceId: string, path: string, deleteBranch: boolean): Promise<{ output: string; keptBranches: string[] }> {
+    const worktree = await this.externalWorktree(sourceId, path)
+    // The folder goes first, through Node (it does not follow junctions); `git worktree remove` would empty what the node_modules
+    // junctions point to (e.g. the packages of the main folder). Then Git only forgets the entry.
+    await rmTree(worktree.path).catch(() => undefined)
+    await this.tryRun(worktree.repoPath, ['worktree', 'prune'])
+    if (existsSyncDir(worktree.path)) throw new Error(tm().git.worktreeFolderLocked(worktree.path))
+    try { this.onFolderRemoved?.(worktree.path) } catch { /* the index is informational */ }
+    const kept: string[] = []
+    if (deleteBranch && worktree.branch && await this.tryRun(worktree.repoPath, ['branch', '-d', worktree.branch]) === null && await this.tryRun(worktree.repoPath, ['show-ref', '--verify', '-q', `refs/heads/${worktree.branch}`]) !== null) kept.push(worktree.branch)
+    return { output: tm().git.worktreeDeleted(basename(worktree.path)), keptBranches: kept }
+  }
+
+  /** Empties the worktree trash in the background (also what an earlier deletion left behind); errors are ignored. */
+  private emptyTrash(trash: string): void {
+    void readdir(trash).then((names) => Promise.all(names.map((name) => rmTree(join(trash, name), 5).catch(() => undefined)))).catch(() => undefined)
   }
 
   /** Worktrees listed by Git that are neither the main folder nor a card's: made by hand or by another tool. Folders that no longer exist are left out. */

@@ -222,6 +222,7 @@ export const en: typeof ptBR = {
     branchForcePublished: (branch: string) => `Branch ${branch} force-published.`,
     invalidNameEmpty: 'Invalid name: (empty)',
     worktreeAgentBusy: (title: string) => `The card "${title}" has an agent running. Wait for it to finish before deleting the worktree.`,
+    externalWorktreeNotFound: 'This worktree is no longer listed by Git in this repository.',
     worktreeFolderLocked: (path: string) => `Could not delete the folder ${path}: a program is still using it. Close it and try again.`,
     worktreeDeleted: (title: string) => `Worktree of card "${title}" deleted.`,
     worktreeReleased: (title: string) => `Card "${title}" let go of the worktree. The folder and the branch were kept.`,

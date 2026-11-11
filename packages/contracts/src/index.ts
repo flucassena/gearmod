@@ -700,6 +700,8 @@ export const ipcContracts = {
   , 'git:repos': { input: z.object({ projectId: uuid }).strict(), output: z.array(gitRepoSchema) }
   , 'git:worktree-info': { input: z.object({ projectId: uuid.optional(), cardId: uuid, sourceId: uuid.optional() }).strict(), output: gitWorktreeInfoSchema }
   , 'git:worktree-delete': { input: z.object({ projectId: uuid.optional(), cardId: uuid, sourceId: uuid.optional(), deleteBranch: z.boolean(), force: z.boolean().optional() }).strict(), output: z.object({ output: z.string(), keptBranches: z.array(z.string()) }) }
+  , 'git:external-worktree-info': { input: z.object({ sourceId: uuid, path: z.string().min(1).max(4000) }).strict(), output: z.object({ path: z.string(), branch: z.string().nullable(), files: z.number(), unpushed: z.number() }) }
+  , 'git:external-worktree-delete': { input: z.object({ sourceId: uuid, path: z.string().min(1).max(4000), deleteBranch: z.boolean() }).strict(), output: z.object({ output: z.string(), keptBranches: z.array(z.string()) }) }
   , 'git:upstream': { input: z.object({ sourceId: uuid, cardId: uuid.nullable() }).strict(), output: z.object({ branch: z.string().nullable(), upstream: z.string().nullable(), remotes: z.array(z.string()) }) }
   , 'git:set-upstream': { input: z.object({ sourceId: uuid, cardId: uuid.nullable(), remote: z.string().min(1).max(100), branch: z.string().min(1).max(250) }).strict(), output: z.object({ upstream: z.string() }) }
   , 'git:detect': { input: z.object({ projectId: uuid }).strict(), output: z.object({ repos: z.array(gitRepoSchema), changed: z.boolean() }) }

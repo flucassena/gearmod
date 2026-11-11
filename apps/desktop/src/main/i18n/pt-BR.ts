@@ -221,6 +221,7 @@ export const ptBR = {
     branchForcePublished: (branch: string) => `Branch ${branch} publicada à força.`,
     invalidNameEmpty: 'Nome inválido: (vazio)',
     worktreeAgentBusy: (title: string) => `O card "${title}" está com um agente rodando. Espere terminar para apagar a worktree.`,
+    externalWorktreeNotFound: 'Essa worktree não aparece mais no Git deste repositório.',
     worktreeFolderLocked: (path: string) => `Não consegui apagar a pasta ${path}: algum programa ainda a usa. Feche-o e tente de novo.`,
     worktreeDeleted: (title: string) => `Worktree do card "${title}" apagada.`,
     worktreeReleased: (title: string) => `O card "${title}" soltou o worktree. A pasta e a branch foram mantidas.`,

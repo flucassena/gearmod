@@ -255,6 +255,14 @@ export const git = {
     viewInGit: 'Ver no Git'
   },
   worktreeDelete: {
+    externalMenu: 'Apagar esta worktree…',
+    externalTitle: (name: string) => `Apagar a worktree "${name}"?`,
+    externalText: 'Ela não pertence a nenhum card: foi criada por fora do GearMod. A pasta sai do disco e o Git deixa de listá-la.',
+    externalTask: (name: string) => `Apagar a worktree "${name}"`,
+    taskTitle: (card: string) => `Apagar a worktree de "${card}"`,
+    deletingNow: 'Apagando a worktree…',
+    backgroundHint: 'Pode fechar: continua em segundo plano e avisa quando terminar.',
+    background: 'Deixar em segundo plano',
     menuOne: 'Apagar somente a worktree deste repositório…',
     menuItem: 'Apagar todas as worktrees do card…',
     menuLabel: (branch: string) => `Ações da worktree ${branch}`,
