@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Chevron } from './icons'
 import { errorCodeOf, withoutErrorCode, type AgentProfile, type GitChange, type GitCommitFile, type GitGraph, type GitRepo, type GitRow, type ProjectBoard, type PullRequestSummary } from '@gearmod/contracts'
 import { AgentIcon } from './AgentIcon'
@@ -49,10 +50,25 @@ export const gitIcons = {
 /** Card icon in the corner of the detail: on click shows title, branch and the card's actions in a bubble, without taking up the panel. */
 function CardButton({ cardId, title, branch, focus, setFocus, openCardGit }: { cardId: string; title: string; branch?: string | null; focus: string | null; setFocus(id: string | null): void; openCardGit(cardId: string): void }): React.JSX.Element {
   const T = useT(), t = T.git.page
-  const [open, setOpen] = useState(false), box = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false), box = useRef<HTMLDivElement>(null), pop = useRef<HTMLDivElement>(null)
+  // The bubble goes to the body (fixed), so the graph panel does not clip it and the side panel does not cover it; it stays inside the window.
+  const [at, setAt] = useState<{ top: number; left: number }>()
+  useLayoutEffect(() => {
+    if (!open) { setAt(undefined); return }
+    const place = (): void => {
+      const anchor = box.current?.getBoundingClientRect(), width = pop.current?.offsetWidth ?? 300, height = pop.current?.offsetHeight ?? 0
+      if (!anchor) return
+      const left = Math.min(Math.max(8, anchor.right - width), window.innerWidth - width - 8)
+      const below = anchor.bottom + 6, top = below + height > window.innerHeight - 8 ? Math.max(8, anchor.top - height - 6) : below
+      setAt({ top, left })
+    }
+    place()
+    window.addEventListener('resize', place); window.addEventListener('scroll', place, true)
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
+  }, [open])
   useEffect(() => {
     if (!open) return
-    const out = (event: MouseEvent): void => { if (!box.current?.contains(event.target as Node)) setOpen(false) }
+    const out = (event: MouseEvent): void => { const target = event.target as Node; if (!box.current?.contains(target) && !pop.current?.contains(target)) setOpen(false) }
     const esc = (event: KeyboardEvent): void => { if (event.key === 'Escape') setOpen(false) }
     document.addEventListener('mousedown', out); document.addEventListener('keydown', esc)
     return () => { document.removeEventListener('mousedown', out); document.removeEventListener('keydown', esc) }
@@ -60,8 +76,8 @@ function CardButton({ cardId, title, branch, focus, setFocus, openCardGit }: { c
   const on = focus === cardId
   return <div ref={box} className="gcardbtnwrap">
     <button type="button" className={`gcardbtn ${on ? 'on' : ''}`} data-tip={title} aria-label={`${T.common.card}: ${title}`} aria-expanded={open} onClick={() => setOpen(!open)}>{gitIcons.card}</button>
-    {open && <div className="gcardpop" role="dialog" aria-label={T.common.card}><small>{T.common.card}</small><b>{title}</b>{branch && <span className="gcardpopbr" data-tip={branch}>{branch}</span>}
-      <div className="cgrow"><button type="button" className="mini" onClick={() => { setOpen(false); openCardGit(cardId) }}>{t.openCardGit}</button><button type="button" className="mini secondary" onClick={() => setFocus(on ? null : cardId)}>{on ? t.showAllCommits : t.onlyThisCard}</button></div></div>}
+    {open && createPortal(<div ref={pop} className="gcardpop" role="dialog" aria-label={T.common.card} style={at ? { top: at.top, left: at.left } : { visibility: 'hidden', top: 0, left: 0 }}><small>{T.common.card}</small><b>{title}</b>{branch && <span className="gcardpopbr" data-tip={branch}>{branch}</span>}
+      <div className="cgrow"><button type="button" className="mini" onClick={() => { setOpen(false); openCardGit(cardId) }}>{t.openCardGit}</button><button type="button" className="mini secondary" onClick={() => setFocus(on ? null : cardId)}>{on ? t.showAllCommits : t.onlyThisCard}</button></div></div>, document.body)}
   </div>
 }
 
@@ -353,10 +369,20 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
   useEffect(() => window.gearmod.onRunEvent((event) => { if (['gearmod/card-updated', 'gearmod/run-completed'].includes(event.eventType)) void load() }), [load])
   useEffect(() => { const again = (): void => void load(); window.addEventListener('focus', again); return () => window.removeEventListener('focus', again) }, [load])
   useEffect(() => { if (graph && sel && !graph.rows.some((row) => row.hash === sel)) { setSel(null); setOpen(false) } }, [graph, sel])
-  useEffect(() => { const key = (e: KeyboardEvent): void => { if (e.key === 'Escape' && focus && !document.querySelector('.overlay')) setFocus(null) }; document.addEventListener('keydown', key); return () => document.removeEventListener('keydown', key) }, [focus])
+  useEffect(() => { const key = (e: KeyboardEvent): void => { if (e.key === 'Escape' && !document.querySelector('.overlay')) { if (focus) setFocus(null); else setPicked((current) => (current && !current.startsWith('stash:') ? undefined : current)) } }; document.addEventListener('keydown', key); return () => document.removeEventListener('keydown', key) }, [focus])
 
   const rows = graph?.rows ?? []
-  const dimmed = useCallback((row: GitRow): boolean => Boolean(focus) && row.cardId !== focus, [focus])
+  // Branch clicked in the sidebar: only the commits reachable from its tip stay lit; the rest of the graph fades.
+  const branchReach = useMemo(() => {
+    const [kind, ...rest] = (picked ?? '').split(':'), name = rest.join(':')
+    if (!name || (kind !== 'local' && kind !== 'remote')) return null
+    const tip = rows.find((item) => item.refs.some((ref) => ref.name === name && (kind === 'remote' ? ref.kind === 'remote' : ref.kind !== 'remote' && ref.kind !== 'tag')))
+    if (!tip) return null
+    const byHash = new Map(rows.map((item) => [item.hash, item])), reach = new Set<string>(), stack = [tip.hash]
+    while (stack.length) { const hash = stack.pop()!; if (reach.has(hash)) continue; reach.add(hash); for (const parent of byHash.get(hash)?.parents ?? []) stack.push(parent) }
+    return reach
+  }, [picked, rows])
+  const dimmed = useCallback((row: GitRow): boolean => focus ? row.cardId !== focus : branchReach ? !branchReach.has(row.hash) && !(isWip(row) && row.wip?.branch === (picked ?? '').replace(/^[^:]+:/, '')) : false, [focus, branchReach, picked])
   const lanes = rows.reduce((max, row) => Math.max(max, row.lane), 0) + 1, autoWidth = Math.max(64, 20 + lanes * laneSpacing)
   // Narrow graph column: the lanes get closer and, at the minimum, become a single line.
   const width = Math.max(graphMin, Math.min(cols.cg ?? autoWidth, autoWidth)), spacing = lanes > 1 ? Math.max(0, Math.min(laneSpacing, (width - 32) / (lanes - 1))) : laneSpacing
@@ -582,7 +608,7 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
     {focus ? <button type="button" className="gonly on" onClick={() => setFocus(null)}>{gitIcons.graph}{t.onlyCard(title(focus))}</button> : <span className="gonly">{gitIcons.graph}{t.allBranches}</span>}
     <span className="gcur">{worktree ? t.worktreeOfIn(title(worktree)) : t.mainFolderIn}<b>{graph?.repo.head ?? '—'}</b></span></div>
     {error && <p className="error" style={{ margin: '10px 14px' }}>{error}</p>}
-    <div className={`glist ${cols.cm ? 'fixedcm' : ''}`} style={colStyle} ref={list} onScroll={onListScroll} onClick={(e) => { if (focus && !(e.target as HTMLElement).closest('.grow,.ghead')) setFocus(null) }}>
+    <div className={`glist ${cols.cm ? 'fixedcm' : ''}`} style={colStyle} ref={list} onScroll={onListScroll} onClick={(e) => { if (!(e.target as HTMLElement).closest('.grow,.ghead')) { if (focus) setFocus(null); else if (branchReach) setPicked(undefined) } }}>
       <div className="ghead">{t.columns.map((label) => <span key={label}>{label}</span>)}</div>
       {colEdges.length === 4 && ([['cr', 90], ['cg', graphMin], ['cm', 160], ['cc', 120]] as const).map(([key, min], cell) => <i key={key} className="gcolfull" data-tip={t.dragToResize} style={{ left: colEdges[cell]! - 4, height: 28 + rows.length * rowHeight }} onPointerDown={grip(key, min, cell)} />)}
       <svg className="gsvg" width={width} height={rows.length * rowHeight} aria-hidden="true">{edges.map((edge, i) => <path key={i} d={edge.d} stroke={edge.color} strokeWidth={1.5} fill="none" strokeDasharray={edge.wip ? '3 3' : undefined} opacity={edge.dim ? 0.3 : 1} />)}</svg>

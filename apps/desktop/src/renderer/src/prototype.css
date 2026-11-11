@@ -1423,7 +1423,7 @@ main{padding-top:6px}
 .gcardbtn{width:30px;height:30px;padding:0;display:grid;place-items:center;border-radius:8px;background:color-mix(in srgb, var(--accent) 7%, var(--g1b));color:color-mix(in srgb, var(--accent) 8%, var(--gc9));border:1px solid color-mix(in srgb, var(--accent) 16%, var(--g31))}
 .gcardbtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .gcardbtn:hover,.gcardbtn[aria-expanded="true"]{border-color:var(--accent-line);filter:none}.gcardbtn.on{border-color:var(--accent);background:var(--accent-deep);color:var(--accent)}
-.gcardpop{position:absolute;top:36px;right:0;width:min(300px,calc(100vw - 48px));display:grid;gap:8px;padding:12px 14px;border-radius:12px;background:color-mix(in srgb, var(--accent) 7%, var(--g1b));border:1px solid color-mix(in srgb, var(--accent) 16%, var(--g31));box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.gcardpop{position:fixed;z-index:1200;width:min(300px,calc(100vw - 48px));display:grid;gap:8px;padding:12px 14px;border-radius:12px;background:color-mix(in srgb, var(--accent) 7%, var(--g1b));border:1px solid color-mix(in srgb, var(--accent) 16%, var(--g31));box-shadow:0 10px 30px rgba(0,0,0,.45)}
 .gcardpop small{font-size:11px;color:color-mix(in srgb, var(--accent) 7%, var(--g7a))}.gcardpop b{font-size:13.5px;line-height:1.35}
 .gcardpopbr{font-size:11.5px;font-family:var(--mono);color:color-mix(in srgb, var(--accent) 7%, var(--g8d968f));overflow-wrap:anywhere}
 .gcardpop .cgrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -3151,7 +3151,8 @@ body:has(.overlay) .viewdock.floating{display:none}
 .tile{cursor:pointer}.tile .tfoot{justify-content:flex-start}.tile .tfoot .tst{flex:1;min-width:0}.tile .tcard{margin-left:auto;flex:none;width:24px;height:22px}.tile .tcard svg{width:14px;height:14px}
 
 /* Conflict notice floats at the bottom of the Git page instead of pushing the content down. */
-.gwrap{position:relative}
+/* Own stacking layer: the graph column grips (z-index 26) stay inside the Git page and never cross the expanded chat on top of it. */
+.gwrap{position:relative;isolation:isolate}
 .gwrap>.cfl-banner{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:20;margin:0;width:max-content;max-width:calc(100% - 32px);box-shadow:0 8px 28px var(--cs-00000077)}
 
 /* Conflict resolver, GitKraken style: A | B on top (tick lines), the output below. */
