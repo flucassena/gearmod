@@ -1870,11 +1870,13 @@ a.mdLink.ext{cursor:pointer;color:var(--cf-6fb1ff);text-decoration:underline;tex
 
 /* ---- code block with ▶ and copy ---- */
 .codeblock{position:relative}
-.codeblock>pre{margin:8px 0}
-.cb-tools{position:absolute;top:14px;right:8px;display:flex;gap:4px;opacity:0;transition:opacity .12s}
+/* Room on the right for the run/copy buttons, so the code does not run under them. */
+.codeblock>pre{margin:8px 0;padding-right:72px}
+/* Centered on the first line (pre margin 8 + padding 10, line ~19px): it sits in the corner of any block, one line or many. */
+.cb-tools{position:absolute;top:15px;right:9px;align-items:center;display:flex;gap:4px;opacity:0;transition:opacity .12s}
 .codeblock:hover .cb-tools,.cb-tools:focus-within{opacity:1}
-.cb-btn{display:grid;place-items:center;width:28px;height:28px;padding:0;border-radius:8px;background:color-mix(in srgb, var(--accent) 6%, var(--g1c));border:1px solid var(--border);color:var(--text)}
-.cb-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.cb-btn{display:grid;place-items:center;width:24px;height:24px;padding:0;border-radius:7px;background:color-mix(in srgb, var(--accent) 6%, var(--g1c));border:1px solid var(--border);color:var(--text)}
+.cb-btn svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
 .cb-btn:first-child svg path[d^="M6 4"]{fill:currentColor}
 .cb-btn:hover{background:color-mix(in srgb, var(--accent) 18%, var(--g26));filter:none}
 

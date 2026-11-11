@@ -344,9 +344,10 @@ async function createWindow(popout?: { target: PopoutTarget; bounds: Electron.Re
   })
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', (event) => event.preventDefault())
-  // Only the microphone (voice dictation) is allowed; any other permission stays denied.
-  window.webContents.session.setPermissionRequestHandler((_webContents, permission, callback, details) => callback(permission === 'media' && (details as { mediaTypes?: string[] }).mediaTypes?.every((type) => type === 'audio') === true))
-  window.webContents.session.setPermissionCheckHandler((_webContents, permission) => permission === 'media')
+  // Only the microphone (voice dictation) and writing to the clipboard (the Copy buttons) are allowed; any other permission,
+  // reading the clipboard included, stays denied.
+  window.webContents.session.setPermissionRequestHandler((_webContents, permission, callback, details) => callback(permission === 'clipboard-sanitized-write' || (permission === 'media' && (details as { mediaTypes?: string[] }).mediaTypes?.every((type) => type === 'audio') === true)))
+  window.webContents.session.setPermissionCheckHandler((_webContents, permission) => permission === 'media' || permission === 'clipboard-sanitized-write')
   const query = popout ? popoutQuery(popout.target) : undefined
   if (process.env.ELECTRON_RENDERER_URL) await window.loadURL(query ? `${process.env.ELECTRON_RENDERER_URL}?${new URLSearchParams(query)}` : process.env.ELECTRON_RENDERER_URL)
   else await window.loadFile(join(__dirname, '../renderer/index.html'), query ? { query } : undefined)
