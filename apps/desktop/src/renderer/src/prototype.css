@@ -1083,7 +1083,7 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .gonly{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:color-mix(in srgb, var(--accent) 7%, var(--g98));background:transparent;padding:5px 8px;font-weight:600}
 .gonly.on{color:var(--accent-strong)}
 .glist{position:relative;overflow:auto;min-height:0;flex:1}
-.ghead,.grow{display:grid;grid-template-columns:var(--cr,170px) var(--gw) var(--cm,560px) var(--cc,220px);width:max-content;min-width:100%;align-items:center}
+.ghead,.grow{display:grid;grid-template-columns:var(--cr,170px) var(--gw) var(--cm,560px) var(--cc,220px) var(--cd,150px);width:max-content;min-width:100%;align-items:center}
 .ghead{position:sticky;top:0;z-index:2;background:color-mix(in srgb, var(--accent) 7%, var(--g14));border-bottom:1px solid color-mix(in srgb, var(--accent) 7%, var(--g27));font-size:10.5px;color:color-mix(in srgb, var(--accent) 7%, var(--g70));text-transform:uppercase;letter-spacing:.06em;font-weight:700;height:28px}
 .ghead span{padding:0 10px}
 .grow{height:36px;width:100%;background:transparent;color:color-mix(in srgb, var(--accent) 7%, var(--gd6));border-radius:0;padding:0;font-weight:500;text-align:left;position:relative}
@@ -1172,9 +1172,12 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .gwgo{width:100%;padding:9px;border-radius:9px}.gwgo:disabled{background:color-mix(in srgb, var(--accent) 16%, var(--g1e));color:var(--cf-6f8a76);cursor:default}
 .gdetail .gfiles{grid-template-columns:minmax(0,1fr)}.gfile{min-width:0}.gfile .pth{flex:1 1 auto;min-width:0;direction:ltr!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gfile .nums,.gfile .st{flex:none}
 .gwrow{position:relative;width:max-content;min-width:100%;box-sizing:border-box}.gwrow .st{flex:none}.gwrow .gwp{flex:none;overflow:visible}.gwbtn{position:sticky;right:0;margin-left:auto;flex:none;background:var(--cb-16241a)!important;box-shadow:-14px 0 10px -2px color-mix(in srgb, var(--accent) 7%, var(--g19));pointer-events:none}.gwbtn.un{background:var(--cb-241f14)!important}.gwrow:hover .gwbtn,.gwrow:focus-within .gwbtn{opacity:1;pointer-events:auto}
-.glist:not(.fixedcm) .ghead,.glist:not(.fixedcm) .grow{grid-template-columns:var(--cr,170px) var(--gw) minmax(140px,1fr) var(--cc,180px)!important;width:100%!important}
+.glist:not(.fixedcm) .ghead,.glist:not(.fixedcm) .grow{grid-template-columns:var(--cr,170px) var(--gw) minmax(140px,1fr) var(--cc,180px) var(--cd,150px)!important;width:100%!important}
 .gago2{left:auto!important;right:12px!important;transform:translateY(-50%)!important}
 .grow .gmsg .t{flex:1 1 auto}.gcardc{overflow:hidden}.gcardc .ctag{display:block}
+/* Date and time of the commit, last column of the graph (the tooltip has it in full). */
+.ghead span:nth-child(5){text-align:right;padding-right:12px}
+.gdate{padding:0 12px 0 10px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:11.5px var(--mono);color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
 .cgit{min-height:0!important;overflow-y:auto!important;flex:1 1 auto}
 .cgsum .br{gap:6px!important;flex-wrap:nowrap!important;min-width:0}
 .bchip{display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:65%;height:24px;padding:0 9px;border-radius:7px;font-family:var(--mono);font-size:12px;background:color-mix(in srgb, var(--accent) 16%, var(--g26));border:1px solid var(--accent-line);color:var(--accent-strong)}
@@ -1224,7 +1227,7 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .gitpage{width:100%;min-width:0}.gitpage>*{min-width:0}.gdetail{overflow-x:hidden}.glist{overflow-x:auto}.grow .gmsg{overflow:hidden}
 .ghead span{position:relative}.gcolgrip{position:absolute;right:-4px;top:4px;bottom:4px;width:8px;cursor:col-resize;z-index:3}.gcolgrip::after{content:"";position:absolute;left:3px;top:2px;bottom:2px;width:2px;border-radius:2px;background:color-mix(in srgb, var(--accent) 7%, var(--g30))}.gcolgrip:hover::after,.gresizing .gcolgrip::after{background:var(--accent)}.gresizing{cursor:col-resize;user-select:none}.gdetail .gcardbox,.gdetail .gfiles{min-width:0}.gdetail .cgrow{flex-wrap:wrap}.gtools .gcur{white-space:nowrap}
 @container (max-width:1050px){.gitpage{grid-template-columns:200px minmax(0,1fr)}.gdetail{display:none}}
-@container (max-width:760px){.gitpage{grid-template-columns:minmax(0,1fr)}.gside{display:none}.ghead,.grow{grid-template-columns:var(--gw) minmax(0,1fr) 64px}.ghead span:nth-child(3),.grow .gwho{display:none}}
+@container (max-width:760px){.gitpage{grid-template-columns:minmax(0,1fr)}.gside{display:none}.ghead,.grow{grid-template-columns:var(--gw) minmax(0,1fr) 64px}.ghead span:nth-child(3),.grow .gwho,.ghead span:nth-child(5),.grow .gdate{display:none}}
 /* Git panel inside the card */
 .viewtoggle.sm{padding:2px}.viewtoggle.sm button{padding:4px 9px;font-size:12px}
 .cgit{flex:1;overflow:auto;padding:14px 16px 18px;display:grid;gap:14px;align-content:start}

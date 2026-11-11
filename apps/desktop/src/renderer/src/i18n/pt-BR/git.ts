@@ -164,7 +164,7 @@ export const git = {
     allBranches: 'Todas as branches',
     worktreeOfIn: (title: string) => `Worktree de ${title} em `,
     mainFolderIn: 'Pasta principal em ',
-    columns: ['Branch / Tag', 'Grafo', 'Mensagem', 'Card'],
+    columns: ['Branch / Tag', 'Grafo', 'Mensagem', 'Card', 'Data'],
     dragToResize: 'Arraste para mudar a largura',
     loadingHistory: 'Carregando o histórico',
     openCardGitTip: 'Abrir o Git do card',

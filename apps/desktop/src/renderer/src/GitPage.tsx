@@ -15,7 +15,7 @@ import { openInEditor } from './openInEditor'
 import { toast } from './toasts'
 import { GitEmpty, GitUpstreamDialog as UpstreamDialog, gitChangedEvent } from './GitSetup'
 import { plainError } from './NoticeDialog'
-import { agoLabel, ghostChip, graphEdges, initials, isWip, laneColor, laneSpacing, laneX, refChips, rowHeight, shortAgo, splitPath, type RefChip } from './gitView'
+import { agoLabel, commitDateLong, commitDateTime, ghostChip, graphEdges, initials, isWip, laneColor, laneSpacing, laneX, refChips, rowHeight, shortAgo, splitPath, type RefChip } from './gitView'
 import { Checkbox } from './Checkbox'
 import { ExternalWorktreeDeleteDialog, WorktreeDeleteDialog } from './WorktreeDelete'
 import { FileContextMenu, type FileMenuItem } from './FileContextMenu'
@@ -245,7 +245,7 @@ function CommitDetail({ row, graph, profiles, board, focus, setFocus, openCardGi
   return <>
     {card && <CardButton cardId={card.id} title={card.title} branch={branch} focus={focus} setFocus={setFocus} openCardGit={openCardGit} />}
     <div className="gmeta"><span>{t.commitWord} <code>{row.short}</code>{row.parents.length > 1 ? t.mergeSuffix : ''}</span></div>{editMessage ? <button type="button" className="gstashname" data-tip={t.editLastMessageTip} onClick={editMessage}>{row.subject} {gitIcons.pen}</button> : <h3>{row.subject}</h3>}
-    <div className="gmeta"><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Who row={row} profiles={profiles} /> · {shortAgo(row.date)}</span>{row.parents.length > 0 && <span>{t.parent} <code>{row.parents.map((hash) => hash.slice(0, 7)).join(', ')}</code></span>}</div>
+    <div className="gmeta"><span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Who row={row} profiles={profiles} /> · {shortAgo(row.date)}</span><span>{row.parents.length > 0 && <>{t.parent} <code>{row.parents.map((hash) => hash.slice(0, 7)).join(', ')}</code> · </>}{row.date && <time dateTime={row.date} data-tip={commitDateLong(row.date)}>{commitDateTime(row.date)}</time>}</span></div>
     {detail?.body && detail.body !== row.subject && (() => { const text = detail.body.replace(row.subject, '').trim(), long = text.length > 180 || text.split('\n').length > 3; return <><p className={`gbody ${long && !moreBody ? 'short' : ''}`}>{text}</p>{long && <button type="button" className="gmore" aria-expanded={moreBody} onClick={() => setMoreBody(!moreBody)}>{moreBody ? t.seeLess : t.seeMore}</button>}</> })()}
     {!card && <div className="cgnote">{t.noCardCommit}</div>}
     {error ? <p className="error">{error}</p> : <><div className="cglabel">{t.filesCount(files.length)} · <FileCounts files={files} /></div><div className="gfiles">{files.map((file) => <FileRow key={file.path} file={file} onOpen={() => openFile(file)} />)}</div></>}
@@ -555,7 +555,7 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
     return () => observer.disconnect()
   })
   const clickRow = (row: GitRow): void => { if (open && sel === row.hash) setOpen(false); else { setSel(row.hash); setOpen(true) } }
-  const grip = (key: 'cr' | 'cg' | 'cm' | 'cc', min: number, cell: number) => (e: React.PointerEvent<HTMLElement>): void => {
+  const grip = (key: 'cr' | 'cg' | 'cm' | 'cc' | 'cd', min: number, cell: number) => (e: React.PointerEvent<HTMLElement>): void => {
     e.preventDefault(); e.stopPropagation()
     const box = list.current, head = box?.querySelectorAll<HTMLElement>('.ghead > span')[cell]
     if (!head) return
@@ -610,7 +610,7 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
     {error && <p className="error" style={{ margin: '10px 14px' }}>{error}</p>}
     <div className={`glist ${cols.cm ? 'fixedcm' : ''}`} style={colStyle} ref={list} onScroll={onListScroll} onClick={(e) => { if (!(e.target as HTMLElement).closest('.grow,.ghead')) { if (focus) setFocus(null); else if (branchReach) setPicked(undefined) } }}>
       <div className="ghead">{t.columns.map((label) => <span key={label}>{label}</span>)}</div>
-      {colEdges.length === 4 && ([['cr', 90], ['cg', graphMin], ['cm', 160], ['cc', 120]] as const).map(([key, min], cell) => <i key={key} className="gcolfull" data-tip={t.dragToResize} style={{ left: colEdges[cell]! - 4, height: 28 + rows.length * rowHeight }} onPointerDown={grip(key, min, cell)} />)}
+      {colEdges.length === 5 && ([['cr', 90], ['cg', graphMin], ['cm', 160], ['cc', 120], ['cd', 110]] as const).map(([key, min], cell) => <i key={key} className="gcolfull" data-tip={t.dragToResize} style={{ left: colEdges[cell]! - 4, height: 28 + rows.length * rowHeight }} onPointerDown={grip(key, min, cell)} />)}
       <svg className="gsvg" width={width} height={rows.length * rowHeight} aria-hidden="true">{edges.map((edge, i) => <path key={i} d={edge.d} stroke={edge.color} strokeWidth={1.5} fill="none" strokeDasharray={edge.wip ? '3 3' : undefined} opacity={edge.dim ? 0.3 : 1} />)}</svg>
       {!graph && !error && <div className="gskel" aria-busy="true" aria-label={t.loadingHistory}>{Array.from({ length: 16 }, (_, index) => <div className="gskel-row" key={index} style={{ '--w': `${46 + ((index * 37) % 44)}%` } as React.CSSProperties}><span className="gskel-chip" /><span className="gskel-dot" /><span className="gskel-bar" /><span className="gskel-tag" /></div>)}</div>}
       {rows.map((row, i) => {
@@ -619,7 +619,8 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
         return <button type="button" key={row.hash} data-hash={row.hash} className={`grow ${last && rows[i + 1] ? 'gbreak' : ''} ${wip ? 'wip' : ''} ${open && row.hash === sel ? 'on' : ''} ${dimmed(row) ? 'dim' : ''}`} onClick={() => clickRow(row)} onContextMenu={wip ? undefined : (event) => { event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, kind: row.stash ? 'stash' : 'commit', name: row.stash?.ref ?? row.hash }) }}>
           <RefsCell row={row} ghost={ghostChip(rows, i, graph?.repo.head ?? null)} spacing={spacing} worktrees={[...(graph?.worktrees ?? []), ...(graph?.externalWorktrees ?? []).flatMap((wt) => wt.branch ? [{ cardId: '', title: wt.path.split(/[\\/]/).filter(Boolean).pop() ?? wt.path, branch: wt.branch, path: wt.path }] : [])]} act={(kind, name, open) => { if (!open) pickBranch(kind, name); else if (kind === 'remote') void openRemoteBranch(name); else if (name === graph?.repo.head) toast.info(t.alreadyOn(name)); else openLocalBranch(name) }} /><span className="ggraph"><Dot row={row} profiles={profiles} spacing={spacing} /></span>
           <span className="gmsg">{wip ? <><span className="gwipbox">{summaries[row.hash] || '// WIP'}</span><span className="gwipcnt">{wip.modified > 0 && <span className="m">{gitIcons.pen}{wip.modified}</span>}{wip.added > 0 && <span className="a">+{wip.added}</span>}{wip.deleted > 0 && <span className="d">−{wip.deleted}</span>}</span></> : <span className="t">{row.stash && <b className="gstashlabel">{row.stash.ref} · </b>}{row.subject}</span>}</span>
-          <span className="gcardc">{row.cardId && <span className="ctag" role="link" data-tip={t.openCardGitTip} onClick={(e) => { e.stopPropagation(); openCardGit(row.cardId!) }}>{cardTitle}</span>}</span></button>
+          <span className="gcardc">{row.cardId && <span className="ctag" role="link" data-tip={t.openCardGitTip} onClick={(e) => { e.stopPropagation(); openCardGit(row.cardId!) }}>{cardTitle}</span>}</span>
+          <span className="gdate">{row.date && !wip && <time dateTime={row.date} data-tip={commitDateLong(row.date)}>{commitDateTime(row.date)}</time>}</span></button>
       })}
       {rows.map((row, i) => (!rows[i + 1] || labels[i + 1] !== labels[i]) ? <span key={`ago-${row.hash}`} className="gago gago2" style={{ top: 28 + (i + 1) * rowHeight }}>{labels[i]}</span> : null)}
       {graph?.truncated && <div className="gempty" style={{ padding: '10px 14px', position: 'absolute', top: 28 + rows.length * rowHeight }}>{more ? t.loadingMoreCommits : t.commitsLoaded(rows.filter((row) => !isWip(row)).length)}</div>}

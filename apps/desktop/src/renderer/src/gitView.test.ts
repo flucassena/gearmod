@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GitRow } from '@gearmod/contracts'
-import { agoLabel, ghostChip, graphEdges, initials, refChips, shortAgo, splitPath } from './gitView'
+import { agoLabel, commitDateLong, commitDateTime, ghostChip, graphEdges, initials, refChips, shortAgo, splitPath } from './gitView'
 
 const now = Date.parse('2026-10-22T12:00:00Z')
 const row = (hash: string, lane: number, parents: string[], extra: Partial<GitRow> = {}): GitRow => ({ hash, short: hash, parents, lane, author: 'Ana Souza', email: '', date: '2026-10-22T11:00:00Z', subject: hash, refs: [], cardId: null, agentProfileId: null, wip: null, ...extra })
@@ -19,6 +19,20 @@ describe('date labels', () => {
     expect(shortAgo('2026-10-22T11:48:00Z', now)).toBe('12 min')
     expect(shortAgo('2026-10-22T09:00:00Z', now)).toBe('3 h')
     expect(shortAgo('2026-10-19T12:00:00Z', now)).toBe('3 dias')
+  })
+})
+
+describe('commit date and time', () => {
+  // Local time, so the expected text does not depend on the machine's time zone.
+  const at = new Date(2026, 10, 11, 0, 25, 13).toISOString()
+  it('follows the app language: day first in Portuguese, month first and AM/PM in English', () => {
+    expect(commitDateTime(at, 'pt-BR')).toBe('11/11/2026 00:25')
+    expect(commitDateTime(new Date(2026, 1, 3, 14, 5).toISOString(), 'pt-BR')).toBe('03/02/2026 14:05')
+    expect(commitDateTime(new Date(2026, 1, 3, 14, 5).toISOString(), 'en-US')).toBe('02/03/2026 02:05 PM')
+  })
+  it('is empty without a date (changes not committed yet) and has a full form for the tooltip', () => {
+    expect(commitDateTime(null)).toBe('')
+    expect(commitDateLong(at, 'pt-BR')).toContain('2026')
   })
 })
 

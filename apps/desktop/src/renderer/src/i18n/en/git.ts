@@ -154,7 +154,7 @@ export const git: typeof source = {
     allBranches: 'All branches',
     worktreeOfIn: (title) => `Worktree of ${title} on `,
     mainFolderIn: 'Main folder on ',
-    columns: ['Branch / Tag', 'Graph', 'Message', 'Card'],
+    columns: ['Branch / Tag', 'Graph', 'Message', 'Card', 'Date'],
     dragToResize: 'Drag to change the width',
     loadingHistory: 'Loading history',
     openCardGitTip: 'Open the card Git',

@@ -1,5 +1,5 @@
 import type { GitRef, GitRow, GitRule } from '@gearmod/contracts'
-import { tr } from './i18n'
+import { dateLocale, tr } from './i18n'
 
 /** Colors of the graph lanes, in lane order. */
 export const laneColors = ['#8db99a', '#8fb8d6', '#e8c27a', '#b98fd6', '#e07a9a']
@@ -25,6 +25,17 @@ export function agoLabel(date: string | null, now = Date.now()): string {
   if (months < 12) return v.monthsAgo(months)
   const years = Math.floor(days / 365)
   return v.yearsAgo(years)
+}
+
+/** Date and time of a commit in the app language: "11/11/2026 00:25" in Portuguese, "11/11/2026 12:25 AM" in English. */
+export function commitDateTime(date: string | null, locale = dateLocale()): string {
+  if (!date) return ''
+  const at = new Date(date)
+  return `${at.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })} ${at.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`
+}
+/** The same, in full, for a tooltip: "terça-feira, 11 de novembro de 2026 00:25:13". */
+export function commitDateLong(date: string | null, locale = dateLocale()): string {
+  return date ? new Date(date).toLocaleString(locale, { dateStyle: 'full', timeStyle: 'medium' }) : ''
 }
 
 /** Short time for lists: "now", "12 min", "3 h", "2 days". */
