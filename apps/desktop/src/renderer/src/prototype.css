@@ -305,8 +305,8 @@ h1{font:500 40px/1.05 Georgia,serif;margin:6px 0 4px}
 .filepick small{margin-left:auto;color:color-mix(in srgb, var(--accent) 8%, var(--g79));font-weight:500}
 .running[data-view]{cursor:pointer}
 .running[data-view]:hover{border-color:var(--accent-line);background:var(--accent-deep)}
-.running{display:grid;gap:6px;background:var(--accent-deep);border:1px solid var(--accent-line);border-radius:8px;padding:8px 9px}
-.running .row{display:flex;align-items:center;gap:8px;font-size:12px}
+.running{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--accent-deep);border:1px solid var(--accent-line);border-radius:8px;padding:8px 9px}
+.running .row{display:flex;align-items:center;gap:8px;font-size:12px}.running .who{display:flex;align-items:center;gap:8px;min-width:0;font-size:12px}.running .who .model{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--accent-line);border-top-color:var(--accent);animation:spin .8s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 .bar{height:3px;background:color-mix(in srgb, var(--accent) 16%, var(--g28));border-radius:3px;overflow:hidden}

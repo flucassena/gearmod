@@ -41,6 +41,7 @@ export const board = {
     needsYouTip: 'O agente está esperando uma resposta sua. Abra o chat do card.',
     testingTap: 'Testando · toque para ver',
     autoTestsRunningTap: 'Rodando testes automatizados · toque para ver',
+    tapToView: 'toque para ver',
     executionTap: 'Toque para ver execução',
     oneAgentOnly: 'um agente só',
     tasksCount: (done: number, total: number) => `${done}/${total} tasks`,

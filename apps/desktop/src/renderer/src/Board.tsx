@@ -60,6 +60,7 @@ function CardTile({ card, types, state, agent, agents, dropLabel, dragProps, onP
   // Something left over that "Finalize" clears: a stopped, failed or finished run, an approval nobody will answer, a pending commit.
   const dirty = run === 'paused' || run === 'failed' || run === 'finished' || unlisted > 0 || card.pending.commits > 0
   const button = (cls: string, tip: string, click: () => void, icon: React.ReactNode): React.JSX.Element => <button type="button" className={`ib ${cls} tip`} data-tip={tip} aria-label={tip} onClick={(e) => { e.stopPropagation(); click() }}>{icon}</button>
+  const runLine = (purpose: string, tip: string, who?: AgentProfile, model?: string | null): React.JSX.Element => <div className="running" data-purpose={purpose} data-tip={tip} role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onChat() }} onKeyDown={(e) => { if (e.key === 'Enter') onChat() }}><span className="who">{who && <AgentIcon profile={who} />}{model && <span className="model">{model}</span>}</span><span className="spin" /></div>
   return <article className={`card ${waiting > 0 ? 'wait' : run === 'finished' ? 'fin' : ''} ${run === 'paused' || run === 'failed' ? 'paused' : ''} ${open ? 'planopen' : ''} ${ready ? 'ready' : ''} ${dropLabel ? 'drop-before' : ''}`} data-plabel={dropLabel} onClick={onOpen} {...dragProps}>
     <div className="pills"><CardTypePill types={types} type={card.type} /><span className={`pill ${card.priority}`}>{t.priority[card.priority]}</span><ComplexityBadge complexity={card.complexity} pendingDecisions={card.pending.decisions} onClick={onComplexity} /></div>
     <button type="button" className="cardchat tip" data-tip={t.tile.openChat} aria-label={t.tile.openChat} onClick={(e) => { e.stopPropagation(); onChat() }}><ChatIcon /></button>
@@ -72,13 +73,13 @@ function CardTile({ card, types, state, agent, agents, dropLabel, dragProps, onP
     {card.pending.questions > 0 && <button type="button" className="badge ask" onClick={(e) => { e.stopPropagation(); onPending() }}><span className="dot pulse" />{t.tile.questionsWaiting(card.pending.questions)}</button>}
     {card.pending.commits > 0 && <button type="button" className="badge ask" onClick={(e) => { e.stopPropagation(); onGit() }}><span className="dot pulse" />{t.tile.commitsWaiting(card.pending.commits)}</button>}
     {open && <span className="badge plan"><span className="dot" />{t.tile.inPlanning}</span>}
-    {run === 'planning' && <span className="badge plan"><span className="dot pulse" />{t.tile.planningWithAgent}</span>}
+    {run === 'planning' && runLine('plan', t.tile.planningWithAgent + ' · ' + t.tile.tapToView, agent)}
     {ready && <span className="badge ready"><span className="dot softpulse" />{t.tile.planReady}</span>}
     {run === 'paused' && <span className="badge paused"><span className="dot softpulse" />{t.tile.paused}</span>}
     {run === 'failed' && <button type="button" className="badge paused" data-tip={t.tile.failedTip(card.run.error ?? '')} onClick={(e) => { e.stopPropagation(); onRetry() }}><span className="dot" />{t.tile.failed}</button>}
     {run === 'finished' && <button type="button" className="badge fin" onClick={(e) => { e.stopPropagation(); onChat() }}><span className="dot pulse" />{t.tile.finishedViewChat}</button>}
-    {run === 'running' && <div className="running" data-purpose={card.run.purpose} role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onChat() }} onKeyDown={(e) => { if (e.key === 'Enter') onChat() }}><div className="row"><span className="spin" />{agent && <AgentIcon profile={agent} />}<span style={{ color: 'var(--muted)' }}>{card.execModel ?? ''}</span></div><span style={{ fontSize: 11, color: 'var(--accent)' }}>{card.run.purpose === 'test' ? t.tile.testingTap : t.tile.executionTap}</span></div>}
-    {run !== 'running' && card.testsRunning && <div className="running" data-purpose="test" role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onChat() }} onKeyDown={(e) => { if (e.key === 'Enter') onChat() }}><div className="row"><span className="spin" /><span style={{ fontSize: 11, color: 'var(--accent)' }}>{t.tile.autoTestsRunningTap}</span></div></div>}
+    {run === 'running' && runLine(card.run.purpose ?? 'execution', card.run.purpose === 'test' ? t.tile.testingTap : t.tile.executionTap, agent, card.execModel)}
+    {run !== 'running' && card.testsRunning && runLine('test', t.tile.autoTestsRunningTap)}
     <div className="cfoot">
       <span className="ownr">{(agents.length ? agents : agent ? [agent] : []).length > 0 && <span className="agentstack">{(agents.length ? agents : [agent!]).map((profile) => <AgentIcon key={profile.id} profile={profile} />)}</span>}{!open && <span className="cnt">{card.workflow === 'light' ? t.tile.oneAgentOnly : total ? t.tile.tasksCount(done, total) : t.tile.noTasks}</span>}</span>
       <div className="btns">

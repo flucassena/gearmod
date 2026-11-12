@@ -41,6 +41,7 @@ export const board: typeof source = {
     finishedViewChat: 'Finished · view chat',
     testingTap: 'Testing · tap to view',
     autoTestsRunningTap: 'Running automated tests · tap to view',
+    tapToView: 'tap to view',
     executionTap: 'Tap to view execution',
     oneAgentOnly: 'single agent',
     tasksCount: (done, total) => `${done}/${total} tasks`,
