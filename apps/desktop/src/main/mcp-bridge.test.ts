@@ -313,7 +313,7 @@ describe('collaboration tools', () => {
     expect((await developer.call('gearmod_propose_change', { titulo: 'só título' })).isError).toBe(true)
     expect((await developer.call('gearmod_answer_question', { numero: 1, resposta: 'x' })).isError).toBe(true)
     expect((await developer.call('gearmod_write_document', { tipo: 'duvidas', markdown: 'x' })).isError).toBe(true)
-    expect(board.card(card.id).pending).toEqual({ changes: 1, questions: 0, commits: 0, toSend: 0, testFailures: 0, decisions: 0 })
+    expect(board.card(card.id).pending).toEqual({ changes: 1, questions: 0, commits: 0, toSend: 0, testFailures: 0, testBlocked: 0, decisions: 0 })
     collab.afterRun({ cardId: card.id, chatId: dev.id, purpose: 'execution', status: 'completed' })
     const planner = mcpClient(bridge.register('r-plan', card.id, () => undefined, { id: planning.id, purpose: 'planning' }))
     expect((await planner.call('gearmod_ask_planner', { pergunta: 'eu?' })).isError).toBe(true)

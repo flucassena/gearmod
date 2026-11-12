@@ -11,12 +11,19 @@ function itemsOf(markdown: string): Array<{ key: string; checked: boolean }> {
   return markdown.split(/\r?\n/).flatMap((text) => { const match = line.exec(text); return match ? [{ key: checklistKey(match[4]!), checked: match[2] !== ' ' }] : [] })
 }
 
-/** Failure note the tester appends to an unchecked item: ` — failed: <reason>` (the word changes with the language, e.g. `falhou`). */
-const failureNote = /\s(?:—|–|--?)\s*\p{L}[\p{L} ]{0,20}:\s*\S/u
+/** Failure note the tester appends to an unchecked item: ` — failed: <reason>` (`falhou` in pt-BR). Only these words count: any other note (e.g. `pendente:`) is not a failure. */
+const failureNote = /\s(?:—|–|--?)\s*(?:fail(?:ed|ure|s)?|falh(?:ou|a|as)|erros?|errors?|reprovad[oa])\s*:\s*\S/iu
+/** Note for an item the tester could not verify (needs a manual check, missing tool...): ` — pending: <what is missing>`. It is not a failure. */
+const blockedNote = /\s(?:—|–|--?)\s*(?:pending|pendente|blocked|bloqueado|manual)\s*:\s*\S/iu
 
 /** Items the tester left unchecked with a failure note (not the ones simply not verified yet), as written in the checklist. */
 export function failedChecklistItems(markdown: string): string[] {
   return markdown.split(/\r?\n/).flatMap((text) => { const match = line.exec(text); return match && match[2] === ' ' && failureNote.test(match[4]!) ? [match[4]!.trim()] : [] })
+}
+
+/** Unchecked items the tester could not verify and explained why (`pending:`/`pendente:`): they wait for the user, nothing to send to the developer. */
+export function blockedChecklistItems(markdown: string): string[] {
+  return markdown.split(/\r?\n/).flatMap((text) => { const match = line.exec(text); return match && match[2] === ' ' && !failureNote.test(match[4]!) && blockedNote.test(match[4]!) ? [match[4]!.trim()] : [] })
 }
 
 /** Tester's checklist: what they will verify, checked off as they verify (by the agent or the user). The app shows it beside the test chat. */

@@ -7,7 +7,7 @@ import { basename, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { defaultAgentColor, geminiEnabled, type CardRunState, type AgentProfile, BoardColumn, Card, Project, ProjectBoard, ProjectSource } from '@gearmod/contracts'
 import type { AppDatabase } from './database'
-import { failedChecklistItems } from './checklists'
+import { blockedChecklistItems, failedChecklistItems } from './checklists'
 import { DocumentRepository } from './documents'
 import { countTasks } from './tasks'
 import type Database from 'better-sqlite3'
@@ -522,9 +522,9 @@ export class BoardRepository {
     return this.card(cardId)
   }
 
-  private pendingCounts(cardId: string): { changes: number; questions: number; commits: number; toSend: number; testFailures: number; decisions: number } {
+  private pendingCounts(cardId: string): { changes: number; questions: number; commits: number; toSend: number; testFailures: number; testBlocked: number; decisions: number } {
     const count = (sql: string): number => (this.database.db.prepare(sql).get(cardId) as { value: number }).value
-    return { changes: count("SELECT COUNT(*) AS value FROM card_changes WHERE card_id = ? AND status = 'pending'"), questions: count("SELECT COUNT(*) AS value FROM card_questions WHERE card_id = ? AND status = 'user'"), commits: count("SELECT COUNT(*) AS value FROM git_commit_requests WHERE card_id = ? AND status = 'pending'"), toSend: count("SELECT COUNT(*) AS value FROM card_changes WHERE card_id = ? AND status IN ('accepted', 'applied') AND sent_at IS NULL"), testFailures: this.testFailures(cardId), decisions: count("SELECT COUNT(*) AS value FROM card_decisions WHERE card_id = ? AND status = 'proposed'") }
+    return { changes: count("SELECT COUNT(*) AS value FROM card_changes WHERE card_id = ? AND status = 'pending'"), questions: count("SELECT COUNT(*) AS value FROM card_questions WHERE card_id = ? AND status = 'user'"), commits: count("SELECT COUNT(*) AS value FROM git_commit_requests WHERE card_id = ? AND status = 'pending'"), toSend: count("SELECT COUNT(*) AS value FROM card_changes WHERE card_id = ? AND status IN ('accepted', 'applied') AND sent_at IS NULL"), testFailures: this.testFailures(cardId), testBlocked: this.testBlocked(cardId), decisions: count("SELECT COUNT(*) AS value FROM card_decisions WHERE card_id = ? AND status = 'proposed'") }
   }
 
   /**
@@ -532,10 +532,19 @@ export class BoardRepository {
    * test run. Once the developer runs again (sent by the user or not), the badge goes away until the next test pass.
    */
   private testFailures(cardId: string): number {
+    return this.finishedTestChecklist(cardId, failedChecklistItems).length
+  }
+
+  /** Items the tester could not verify (needs the user), after a finished test run: no fix to send, just something for the user to check. */
+  private testBlocked(cardId: string): number {
+    return this.finishedTestChecklist(cardId, blockedChecklistItems).length
+  }
+
+  private finishedTestChecklist(cardId: string, pick: (markdown: string) => string[]): string[] {
     const last = this.database.db.prepare(`SELECT ch.purpose, r.status FROM runs r JOIN chats ch ON ch.id = r.chat_id WHERE r.card_id = ? AND ch.purpose <> 'planning' ORDER BY r.started_at DESC, r.rowid DESC LIMIT 1`).get(cardId) as { purpose: string; status: string } | undefined
-    if (last?.purpose !== 'test' || last.status === 'queued' || last.status === 'running') return 0
+    if (last?.purpose !== 'test' || last.status === 'queued' || last.status === 'running') return []
     const checklist = this.database.db.prepare("SELECT content_md FROM card_checklists WHERE card_id = ? AND purpose = 'test'").pluck().get(cardId) as string | undefined
-    return failedChecklistItems(checklist ?? '').length
+    return pick(checklist ?? '')
   }
 
   private execSettings(cardId: string): { execProfileId: string | null; execModel: string | null } {

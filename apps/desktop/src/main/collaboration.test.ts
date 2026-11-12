@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { AgentConfigRepository } from './agent-config'
-import { ChecklistRepository, failedChecklistItems } from './checklists'
+import { ChecklistRepository, blockedChecklistItems, failedChecklistItems } from './checklists'
 import { CollaborationService, type FollowUp } from './collaboration'
 import { ConversationRepository } from './conversations'
 import { AppDatabase } from './database'
@@ -147,6 +147,12 @@ describe('changes awaiting authorization', () => {
 })
 
 describe('test failures to the developer', () => {
+  it('does not treat a pending/unverifiable note as a failure', () => {
+    const md = '- [ ] Validação visual — pendente: sem Playwright CLI, precisa de teste manual\n- [ ] CA02 — pending: needs a browser\n- [ ] CA03 — falhou: erro no perfil\n'
+    expect(failedChecklistItems(md)).toEqual(['CA03 — falhou: erro no perfil'])
+    expect(blockedChecklistItems(md)).toEqual(['Validação visual — pendente: sem Playwright CLI, precisa de teste manual', 'CA02 — pending: needs a browser'])
+  })
+
   it('picks only unchecked items with a failure note, in any language', () => {
     expect(failedChecklistItems('- [x] Lint passou\n- [ ] CA01 botão aparece — falhou: não aparece no perfil admin\n- [ ] CA02 ainda não verificado\n  - [ ] sub — failed: timeout\n- [x] CA03 — falhou: corrigido\n')).toEqual(['CA01 botão aparece — falhou: não aparece no perfil admin', 'sub — failed: timeout'])
     expect(failedChecklistItems('')).toEqual([])

@@ -24,6 +24,8 @@ export const board = {
     changesWaiting: (n: number) => n === 1 ? 'Mudança aguardando sua autorização' : `${n} mudanças aguardando você`,
     sendTip: 'A mudança já foi autorizada. Clique para mandar o desenvolvedor implementar.',
     changesToSend: (n: number) => n === 1 ? 'Mudança autorizada · mandar implementar' : `${n} mudanças · mandar implementar`,
+    testBlocked: (n: number) => n === 1 ? 'Teste pendente · ver chat' : `${n} testes pendentes · ver chat`,
+    blockedTip: 'O testador não conseguiu verificar estes itens (falta algo, como teste manual). Não é falha: abra o chat para ver o que falta.',
     failuresTip: 'O testador marcou estes itens como falha no checklist. Clique para mandar o desenvolvedor corrigir; depois teste de novo.',
     failuresToSend: (n: number) => n === 1 ? 'Falha no teste · mandar corrigir' : `${n} falhas no teste · mandar corrigir`,
     failuresSent: 'Falhas enviadas ao desenvolvedor',

@@ -24,6 +24,8 @@ export const board: typeof source = {
     changesWaiting: (n) => n === 1 ? 'Change waiting for your authorization' : `${n} changes waiting for you`,
     sendTip: 'The change is already authorized. Click to have the developer implement it.',
     changesToSend: (n) => n === 1 ? 'Change authorized · send to implement' : `${n} changes · send to implement`,
+    testBlocked: (n) => n === 1 ? 'Test pending · see chat' : `${n} tests pending · see chat`,
+    blockedTip: 'The tester could not verify these items (something is missing, e.g. a manual check). Not a failure: open the chat to see what is missing.',
     failuresTip: 'The tester marked these items as failed in the checklist. Click to have the developer fix them; then test again.',
     failuresToSend: (n) => n === 1 ? 'Test failure · send to fix' : `${n} test failures · send to fix`,
     failuresSent: 'Failures sent to the developer',
