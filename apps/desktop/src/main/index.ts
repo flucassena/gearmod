@@ -46,6 +46,7 @@ import { ClaudeCliAdapter, CodexAppServerAdapter, nodeProcesses, listClaudeModel
 import { AgentOrchestrator } from './orchestrator'
 import { WorktreeService } from './worktrees'
 import { GitManager } from './git-manager'
+import { CommitConventionStore } from './commit-conventions'
 import { PullRequestService } from './pull-requests'
 import { GitAccounts } from './git-accounts'
 import { QualityService } from './quality'
@@ -121,6 +122,7 @@ const pluginDir = join(app.isPackaged ? process.resourcesPath : app.getAppPath()
 const approvals = new ApprovalService(database)
 const policy = new PolicyEngine(database)
 const gitManager = new GitManager(database, undefined, undefined, approvals, (path) => fileActions.trashItem(path), join(dataDir, 'git-undo'))
+gitManager.conventions = new CommitConventionStore(join(dataDir, 'commit-conventions.json'))
 gitManager.onFolderRemoved = (path) => { void codeIndex.forget(path).catch(() => undefined) }
 const gitAccounts = new GitAccounts(database, new SecretStore(join(dataDir, 'git-accounts.bin'), safeStorage))
 const pullRequests = new PullRequestService(database, undefined, undefined, gitAccounts)
@@ -163,7 +165,7 @@ const mcpBridge = new McpBridge({ board, context: agentContext, serverScript: mc
   // The SDD repository never leaves: the card's documents live in it.
   const card = board.card(cardId), sdd = await sddResolver.locate({ projectId: card.projectId, cardId }).then((location) => location.sourceId, () => null)
   return worktrees.trim(cardId, sdd ? [...new Set([...keep, sdd])] : keep)
-}, repositories: (cardId) => worktrees.repositories(cardId), agentMoveApproval: process.env.GEARMOD_AGENT_MOVE_APPROVAL === '1', codeIndex, codeRoots, codeEnabled })
+}, repositories: (cardId) => worktrees.repositories(cardId), agentMoveApproval: process.env.GEARMOD_AGENT_MOVE_APPROVAL === '1', codeIndex, codeRoots, codeEnabled, conventions: gitManager })
 const writeback = new AgentWriteback(board, mcpBridge)
 const shownNotifications = new Set<Notification>()
 const notifier = new Notifier({

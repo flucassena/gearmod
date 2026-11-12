@@ -13,6 +13,7 @@ import { nativeGit, type GitRunner } from './worktrees'
 import { ApprovalService } from './approvals'
 import { tm } from './i18n'
 import { entryLabel, sameState, UndoJournal, undoActions, type DiscardFile, type GitState, type UndoCtx, type UndoEntry, type UndoKind } from './git-undo'
+import { checkMessage, formatConvention, historySize, type CommitConvention, type CommitConventionStore } from './commit-conventions'
 
 interface Source { id: string; projectId: string; name: string; path: string }
 interface Member { cardId: string; title: string; branch: string; path: string; repoPath: string; baseRef: string; status: 'active' | 'failed'; error: string | null; prUrl: string | null }
@@ -106,6 +107,9 @@ export class GitManager {
 
   /** Called after a worktree folder is gone (the code index stops watching it). */
   onFolderRemoved?: (path: string) => void
+
+  /** Commit message convention of each repository (`commit-conventions.json`); without it, commits and suggestions check no pattern. */
+  conventions?: CommitConventionStore
 
   private async run(dir: string, args: string[]): Promise<string> {
     try { return (await this.git.run(['-c', 'core.quotepath=false', '-C', dir, ...args])).stdout } catch (error) { throw new Error(friendlyError(error)) }
@@ -649,12 +653,16 @@ export class GitManager {
   async suggestionContext(sourceId: string, cardId: string | null, paths: string[]): Promise<string> {
     const dir = (await this.target(this.source(sourceId), cardId)).dir, listed = paths.slice(0, 200)
     const recent = (await this.tryRun(dir, ['log', '-8', '--format=%s']))?.trim() ?? ''
+    const convention = await this.conventionOf(sourceId)
     const untracked = new Set((await this.tryRun(dir, ['ls-files', '--others', '--exclude-standard']))?.split(/\r?\n/).filter(Boolean) ?? [])
     const scope = listed.length ? ['--', ...listed] : []
     const stat = (await this.tryRun(dir, ['diff', 'HEAD', '--no-ext-diff', '--stat', ...scope]))?.trim() ?? ''
     const diff = ((await this.tryRun(dir, ['diff', 'HEAD', '--no-ext-diff', '-U2', ...scope])) ?? '').slice(0, 24_000)
     const added = paths.filter((path) => untracked.has(path)).slice(0, 60)
-    return `Commits recentes:
+    return `${convention ? `Padrão de commit do repositório (siga-o):
+${formatConvention(convention.entry)}
+
+` : ''}Commits recentes:
 ${recent || '(nenhum)'}
 
 Resumo:
@@ -1410,7 +1418,55 @@ ${diff}`
     return null
   }
 
-  async agentCommit(input: { cardId: string; chatId: string; message: string; files?: string[]; repo?: string; amend?: boolean }): Promise<{ rule: GitRule; text: string }> {
+  // ---------- commit message convention of each repository ----------
+  /** Recent commit subjects of the repository (main checkout, current branch), most recent first, without merges. */
+  private async historySubjects(source: Source): Promise<string[]> {
+    const out = await this.tryRun(source.path, ['log', '--no-merges', `-${historySize}`, '--format=%s'])
+    return out?.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) ?? []
+  }
+
+  private findRepo(projectId: string, ref: string | undefined): { source?: Source; repos: Source[] } {
+    const repos = this.database.db.prepare('SELECT id, project_id AS projectId, name, local_path AS path FROM project_sources WHERE project_id = ? AND is_git_repository = 1 ORDER BY sort_order').all(projectId) as Source[]
+    if (!ref?.trim()) return { source: repos.length === 1 ? repos[0] : undefined, repos }
+    const wanted = ref.trim().toLowerCase()
+    return { source: repos.find((item) => item.id === ref || item.name.toLowerCase() === wanted) ?? repos.find((item) => basename(item.path).toLowerCase() === wanted), repos }
+  }
+
+  /** The saved convention of the repository; with none, or an old one (about a month), analyzes the history again and saves it. */
+  async conventionOf(sourceId: string): Promise<{ entry: CommitConvention; refreshed: boolean } | null> {
+    if (!this.conventions) return null
+    const source = this.source(sourceId)
+    try { return await this.conventions.ensure({ path: source.path, name: source.name }, () => this.historySubjects(source)) } catch { return null }
+  }
+
+  /**
+   * Agent tool (`gearmod_commit_convention`): reads the convention of a project repository (analyzing it first when missing or old)
+   * or saves the agent's review of it. Returns the text for the agent.
+   */
+  async commitConvention(projectId: string, input: { repo?: string; description?: string; examples?: string[] }): Promise<string> {
+    const store = this.conventions
+    if (!store) throw new Error('The commit convention is not available')
+    const { source, repos } = this.findRepo(projectId, input.repo)
+    if (!repos.length) throw new Error('This project has no Git repository.')
+    const names = repos.map((item) => `"${item.name}"`).join(', ')
+    if (!source) throw new Error(input.repo?.trim() ? `Unknown repository "${input.repo}". Repositories: ${names}` : `repositorio is required. Repositories: ${names}`)
+    const repo = { path: source.path, name: source.name }, history = (): Promise<string[]> => this.historySubjects(source)
+    if (input.description !== undefined) {
+      if (!input.description.trim() || input.description.length > 4000) throw new Error('descricao must be a text of 1 to 4000 characters')
+      const examples = input.examples ?? []
+      if (!examples.length || examples.length > 12 || examples.some((item) => typeof item !== 'string' || !item.trim() || item.length > 300)) throw new Error('exemplos must be a list of 1 to 12 messages (up to 300 characters each)')
+      const saved = await store.save(repo, { description: input.description, examples }, history)
+      return `Saved. Agent commits and the commit-message suggestion of ${source.name} now follow it; it is analyzed again after about a month.\n\n${formatConvention(saved)}`
+    }
+    const { entry, refreshed } = await store.ensure(repo, history)
+    const recent = (await history()).slice(0, 15)
+    const review = entry.source === 'auto' && entry.sampleSize >= 3
+      ? `\n\nThis description was ${refreshed ? 'just ' : ''}deduced automatically from the history. Compare it with the recent commits below; if it misses something (ticket format, scope, verb form, language, body), save a better one with descricao and exemplos.`
+      : ''
+    return `${formatConvention(entry)}${review}\n\nRecent commits:\n${recent.map((item) => `- ${item}`).join('\n') || '(none)'}`
+  }
+
+  async agentCommit(input: { cardId: string; chatId: string; message: string; files?: string[]; repo?: string; amend?: boolean; ignoreConvention?: boolean }): Promise<{ rule: GitRule; text: string }> {
     const card = this.database.db.prepare('SELECT project_id AS projectId FROM cards WHERE id = ?').get(input.cardId) as { projectId: string } | undefined
     const wt = this.latestWorktree(input.cardId)
     if (!card || !wt) throw new Error('This card has no worktree yet; there is nothing to commit.')
@@ -1441,6 +1497,16 @@ ${diff}`
       const blocked = await this.amendBlocked(item.dir)
       if (blocked) throw new Error(`Cannot amend in ${item.source.name}: ${blocked}.`)
     }
+    // The repository's message convention (analyzed again on its own when old): a clear mismatch sends the message back to the agent.
+    const conventionNotes: string[] = []
+    if (message && this.conventions) for (const item of plan) {
+      const convention = await this.conventionOf(item.source.id)
+      if (!convention) continue
+      const check = checkMessage(message, convention.entry)
+      if (!check.ok && !input.ignoreConvention) throw new Error(`The message does not follow the commit convention of ${item.source.name}: ${check.problems.join('; ')}. Rewrite it and request again (or pass ignorar_padrao: true if the user asked for this exact message).\n\n${formatConvention(convention.entry)}`)
+      if (check.notes.length) conventionNotes.push(`${item.source.name}: ${check.notes.join('; ')}`)
+    }
+    const noteText = conventionNotes.length ? ` Convention notes — ${conventionNotes.join(' | ')}.` : ''
     // S13: a secret in what is about to be committed blocks the agent's commit (automatic or on request); the user decides on the Git page.
     const found = (await Promise.all(plan.map(async (item) => (await scanForSecrets(item.dir, item.paths)).map((hit) => `${hit.path}:${hit.line}`)))).flat()
     if (found.length) throw new Error(tm().git.secretsFound(found.slice(0, 5).join(', ')))
@@ -1451,7 +1517,7 @@ ${diff}`
         if (profileId) this.database.db.prepare('INSERT OR REPLACE INTO git_commit_agents(repo_path, hash, profile_id) VALUES (?, ?, ?)').run(item.source.path, hash, profileId)
         done.push(`${item.source.name} (${hash.slice(0, 7)}, ${item.paths.length} file${item.paths.length === 1 ? '' : 's'})`)
       }
-      return { rule, text: `${input.amend ? 'Amend' : 'Commit'} done (automatic rule): ${done.join('; ')}.` }
+      return { rule, text: `${input.amend ? 'Amend' : 'Commit'} done (automatic rule): ${done.join('; ')}.${noteText}` }
     }
     const insert = this.database.db.prepare(`INSERT INTO git_commit_requests(id, card_id, source_id, repo_name, repo_path, chat_id, profile_id, message, files, status, approval_id, created_at, amend) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`)
     const drop = this.database.db.prepare(`DELETE FROM git_commit_requests WHERE card_id = ? AND source_id = ? AND status = 'pending'`)
@@ -1467,7 +1533,7 @@ ${diff}`
         insert.run(requestId, input.cardId, item.source.id, item.source.name, item.source.path, input.chatId, profileId, message, JSON.stringify(item.paths), approval.id, new Date().toISOString(), input.amend ? 1 : 0)
       })()
     }
-    return { rule, text: `${input.amend ? 'Amend' : 'Commit'} request registered (${plan.map((item) => item.source.name).join(', ')}). The user authorizes it on the card; this branch's rule is to ask for permission. Do NOT run git commit. Continue with whatever does not depend on the commit.` }
+    return { rule, text: `${input.amend ? 'Amend' : 'Commit'} request registered (${plan.map((item) => item.source.name).join(', ')}). The user authorizes it on the card; this branch's rule is to ask for permission. Do NOT run git commit. Continue with whatever does not depend on the commit.${noteText}` }
   }
 
   async decide(requestId: string, decision: 'allow' | 'deny', message?: string): Promise<GitRequest> {

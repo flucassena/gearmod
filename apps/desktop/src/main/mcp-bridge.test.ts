@@ -117,7 +117,7 @@ describe('GearMod MCP server', () => {
     const listed = await client.request('tools/list')
     // Without a code index in the bridge, the gearmod_code_* tools do not appear (see code-index/mcp-code-tools.test.ts).
     // S14: run-1 is 'execution' (register() default); tools/list returns only that role's tools, not the 23 of the whole catalog.
-    expect((listed.result as { tools: Array<{ name: string }> }).tools.map((tool) => tool.name)).toEqual(['gearmod_read_skill', 'gearmod_card_context', 'gearmod_write_document', 'gearmod_mark_task', 'gearmod_update_card', 'gearmod_propose_change', 'gearmod_ask_planner', 'gearmod_read_constitution', 'gearmod_propose_constitution', 'gearmod_test_command', 'gearmod_move_card', 'gearmod_request_commit', 'gearmod_record_understanding', 'gearmod_record_exploration', 'gearmod_assess_complexity', 'gearmod_choose_workflow', 'gearmod_set_repositories', 'gearmod_record_decision'])
+    expect((listed.result as { tools: Array<{ name: string }> }).tools.map((tool) => tool.name)).toEqual(['gearmod_read_skill', 'gearmod_card_context', 'gearmod_write_document', 'gearmod_mark_task', 'gearmod_update_card', 'gearmod_propose_change', 'gearmod_ask_planner', 'gearmod_read_constitution', 'gearmod_propose_constitution', 'gearmod_test_command', 'gearmod_move_card', 'gearmod_commit_convention', 'gearmod_request_commit', 'gearmod_record_understanding', 'gearmod_record_exploration', 'gearmod_assess_complexity', 'gearmod_choose_workflow', 'gearmod_set_repositories', 'gearmod_record_decision'])
 
     expect((await client.call('gearmod_card_context', {})).content[0]!.text).toContain('"titulo": "MCP"')
     const bad = await client.call('gearmod_write_document', { tipo: 'tasks', markdown: 'sem itens' })
@@ -336,12 +336,34 @@ describe('collaboration tools', () => {
     const developer = mcpClient(bridge.register('r-dev', card.id, (change) => changes.push(change), { id: dev.id, purpose: 'execution' }))
     const ok = await developer.call('gearmod_request_commit', { mensagem: 'Cria a tela', arquivos: ['a.txt'], repositorio: 'repo' })
     expect(ok).toMatchObject({ isError: false }); expect(ok.content[0]!.text).toContain('Pedido de commit registrado')
-    expect(asked).toEqual([{ cardId: card.id, chatId: dev.id, message: 'Cria a tela', files: ['a.txt'], repo: 'repo', amend: false }]); expect(changes).toEqual([{ type: 'commit' }])
+    expect(asked).toEqual([{ cardId: card.id, chatId: dev.id, message: 'Cria a tela', files: ['a.txt'], repo: 'repo', amend: false, ignoreConvention: false }]); expect(changes).toEqual([{ type: 'commit' }])
     expect((await developer.call('gearmod_request_commit', { mensagem: 'recusa' }))).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('desligado') }] })
     expect((await developer.call('gearmod_request_commit', {})).isError).toBe(true)
     expect((await developer.call('gearmod_request_commit', { mensagem: 'x', arquivos: 'a.txt' })).isError).toBe(true)
     const planner = mcpClient(bridge.register('r-plan', card.id, () => undefined, { id: plan.id, purpose: 'planning' }))
     expect((await planner.call('gearmod_request_commit', { mensagem: 'x' })).content[0]!.text).toContain('developer')
     expect(asked).toHaveLength(2)
+  })
+
+  it('commit convention: reads or saves through the GitManager, for the project of the card or of the free chat', async () => {
+    const { board, card, project, database, projects } = await setup()
+    const conversations = new ConversationRepository(database), profiles = new ProfileRepository(database, tmpdir()); seedProfiles(profiles)
+    const profile = profiles.list()[0]!.id
+    projects.setProfiles(project.id, [profile])
+    const dev = conversations.createChat({ projectId: project.id, cardId: card.id, purpose: 'execution', profileId: profile })
+    const calls: Array<{ projectId: string; input: Record<string, unknown> }> = []
+    const bridge = new McpBridge({ board, conversations, context: new AgentContextService(board, new SettingsRepository(database), null), serverScript, runtime: process.execPath, conventions: { commitConvention: async (projectId, input) => { calls.push({ projectId, input }); if (input.repo === 'nope') throw new Error('Unknown repository "nope"'); return input.description ? 'Saved.' : 'Commit message convention of repo' } } }); await bridge.listen()
+    closers.push(async () => { await bridge.close() })
+    const developer = mcpClient(bridge.register('r-conv', card.id, () => undefined, { id: dev.id, purpose: 'execution' }))
+    expect((await developer.call('gearmod_commit_convention', {})).content[0]!.text).toContain('Commit message convention')
+    expect((await developer.call('gearmod_commit_convention', { repositorio: 'repo', descricao: 'feat(#T-1): Texto', exemplos: ['feat(#T-1): Um'] })).content[0]!.text).toBe('Saved.')
+    expect(await developer.call('gearmod_commit_convention', { repositorio: 'nope' })).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('Unknown repository') }] })
+    expect((await developer.call('gearmod_commit_convention', { exemplos: ['x'] })).isError).toBe(true)
+    expect((await developer.call('gearmod_commit_convention', { descricao: 'x', exemplos: 'x' })).isError).toBe(true)
+    expect(calls).toEqual([
+      { projectId: project.id, input: { repo: undefined, description: undefined, examples: undefined } },
+      { projectId: project.id, input: { repo: 'repo', description: 'feat(#T-1): Texto', examples: ['feat(#T-1): Um'] } },
+      { projectId: project.id, input: { repo: 'nope', description: undefined, examples: undefined } }
+    ])
   })
 })

@@ -1,13 +1,14 @@
 import { execFile } from 'node:child_process'
 import { access, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { promisify } from 'node:util'
 import { afterEach, describe, expect, it } from 'vitest'
 import { defaultGitPolicy, errorCodeOf } from '@gearmod/contracts'
 import { ConversationRepository } from './conversations'
 import { AppDatabase } from './database'
 import { assignLanes, friendlyError, GitManager, resolveRule } from './git-manager'
+import { CommitConventionStore } from './commit-conventions'
 import { BoardRepository, GitService, ProfileRepository, ProjectRepository } from './projects'
 import { seedProfiles } from './test-helpers'
 import { WorktreeService } from './worktrees'
@@ -590,5 +591,59 @@ describe('rename branch', () => {
     expect((await git(wt, 'branch', '--show-current')).stdout.trim()).toBe('feature/instalador-linux')
     expect((await git(repo, 'branch', '--list', branch)).stdout.trim()).toBe('')
     expect(database.db.prepare('SELECT branch FROM worktrees WHERE card_id = ?').pluck().get(cardId)).toBe('feature/instalador-linux')
+  })
+})
+
+describe('commit message convention', () => {
+  async function withHistory(): Promise<Awaited<ReturnType<typeof setup>> & { file: string }> {
+    const ctx = await setup()
+    for (const [index, subject] of ['feat(#ASF-9503): Nova análise de crédito', 'fix(#ASF-9028): Corrige o cálculo do limite', 'feat(#ASF-9411): Adiciona filtro por status', 'fix(#ASF-9300): Ajusta mensagem de erro', 'chore(#ASF-9100): Atualiza dependências', 'feat(#ASF-9200): Cria tela de histórico', 'refactor(#ASF-9150): Separa o serviço de propostas', 'fix(#ASF-9120): Remove validação duplicada', 'feat(#ASF-9110): Exporta relatório em CSV', 'fix(#ASF-9101): Evita erro quando não há contrato', 'feat(#ASF-9090): Inclui campo de observação'].entries()) {
+      await writeFile(join(ctx.repo, `h${index}.txt`), `${index}\n`); await git(ctx.repo, 'add', '.'); await git(ctx.repo, 'commit', '-m', subject)
+    }
+    const file = join(ctx.root, 'data', 'commit-conventions.json')
+    ctx.manager.conventions = new CommitConventionStore(file)
+    return { ...ctx, file }
+  }
+
+  it('the agent tool analyzes the history, saves it in the JSON and accepts an agent review', async () => {
+    const { manager, projectId, file, repo } = await withHistory()
+    const read = await manager.commitConvention(projectId, {})
+    expect(read).toContain('Conventional Commits'); expect(read).toContain('#ASF-9503'); expect(read).toContain('deduced automatically'); expect(read).toContain('- feat(#ASF-9090): Inclui campo de observação')
+    const saved = JSON.parse(await readFile(file, 'utf8')) as { repos: Record<string, { source: string; analyzedAt: string; repoPath: string }> }
+    expect(Object.values(saved.repos)).toMatchObject([{ source: 'auto', repoName: 'repo' }]); expect(Object.values(saved.repos)[0]!.repoPath.toLowerCase()).toContain(basename(repo).toLowerCase())
+    expect(Date.parse(Object.values(saved.repos)[0]!.analyzedAt)).toBeGreaterThan(Date.now() - 60_000)
+    await expect(manager.commitConvention(projectId, { repo: 'nope' })).rejects.toThrow('Unknown repository')
+    await expect(manager.commitConvention(projectId, { description: 'x', examples: [] })).rejects.toThrow('exemplos')
+    const reviewed = await manager.commitConvention(projectId, { description: 'tipo(#ASF-nnnn): Texto em português, com maiúscula', examples: ['feat(#ASF-9503): Nova análise de crédito'] })
+    expect(reviewed).toContain('Saved'); expect(reviewed).toContain('reviewed by an agent')
+    expect(await manager.commitConvention(projectId, {})).not.toContain('deduced automatically')
+  })
+
+  it('an agent commit outside the convention comes back to be rewritten; the right one goes through', async () => {
+    const { manager, projectId, cardId, chatId, wt } = await withHistory()
+    manager.setPolicy(projectId, { def: 'auto', rules: [] })
+    await writeFile(join(wt, 'n.txt'), 'n\n')
+    await expect(manager.agentCommit({ cardId, chatId, message: 'Cria a tela nova' })).rejects.toThrow(/does not follow the commit convention[\s\S]*Examples:/)
+    const done = await manager.agentCommit({ cardId, chatId, message: 'feat(#ASF-1): Cria a tela nova' })
+    expect(done.text).toContain('Commit done'); expect(done.text).not.toContain('Convention notes')
+    await writeFile(join(wt, 'm.txt'), 'm\n')
+    const forced = await manager.agentCommit({ cardId, chatId, message: 'Create the screen', ignoreConvention: true })
+    expect(forced.text).toContain('Commit done'); expect(forced.text).toContain('Convention notes')
+    expect((await git(wt, 'log', '-1', '--format=%s')).stdout.trim()).toBe('Create the screen')
+  })
+
+  it('the commit-message suggestion gets the convention', async () => {
+    const { manager, sourceId, cardId, wt } = await withHistory()
+    await writeFile(join(wt, 's.txt'), 's\n')
+    const context = await manager.suggestionContext(sourceId, cardId, [])
+    expect(context.startsWith('Padrão de commit do repositório')).toBe(true); expect(context).toContain('feat(#ASF-9090): Inclui campo de observação')
+  })
+
+  it('without the store, nothing is checked', async () => {
+    const { manager, projectId, cardId, chatId, wt, sourceId } = await setup()
+    manager.setPolicy(projectId, { def: 'auto', rules: [] })
+    await writeFile(join(wt, 'z.txt'), 'z\n')
+    expect((await manager.agentCommit({ cardId, chatId, message: 'qualquer' })).text).toContain('Commit done')
+    expect(await manager.conventionOf(sourceId)).toBeNull()
   })
 })

@@ -43,7 +43,7 @@ export class McpBridge {
   private readonly dir: string
   readonly socketPath: string
 
-  constructor(private readonly deps: { board: BoardRepository; context: Pick<AgentContextService, 'block' | 'skillInstructions'>; serverScript: string; runtime?: string; collab?: CollaborationService; conversations?: Pick<ConversationRepository, 'projectOf' | 'convertToPlanning'>; constitution?: Pick<ConstitutionRepository, 'get' | 'write' | 'propose'>; checklists?: Pick<ChecklistRepository, 'write' | 'get'>; git?: Pick<GitManager, 'agentCommit'>; history?: CardHistoryService; approvals?: ApprovalService; policy?: PolicyEngine; sddResolver?: Pick<SddResolver, 'constitution' | 'locate'>; sddWriter?: Pick<SddWriter, 'write'>; planReady?: (cardId: string) => { notices: string[] }; prepareWorktree?: (cardId: string) => Promise<unknown>; trimWorktree?: (cardId: string, keep: string[]) => Promise<{ removed: string[]; kept: Array<{ name: string; reason: string }> }>; repositories?: (cardId: string) => Array<{ path: string; status: string }>; agentMoveApproval?: boolean; codeIndex?: Pick<CodeIndexService, 'tool' | 'isTool' | 'prewarm'>; codeRoots?: (run: { cardId: string | null; chatId: string }) => string[]; codeEnabled?: (run: { cardId: string | null; chatId: string }) => boolean; testCommand?: { repos(projectId: string): Array<{ sourceId: string; repo: string; command: string; name: string; applicable: boolean }>; setRepo(projectId: string, sourceId: string, input: { command: string; name: string; applicable: boolean }): unknown; findRepo(projectId: string, ref: string): { id: string; name: string } | undefined; suggest(cardId: string): string } }) {
+  constructor(private readonly deps: { board: BoardRepository; context: Pick<AgentContextService, 'block' | 'skillInstructions'>; serverScript: string; runtime?: string; collab?: CollaborationService; conversations?: Pick<ConversationRepository, 'projectOf' | 'convertToPlanning'>; constitution?: Pick<ConstitutionRepository, 'get' | 'write' | 'propose'>; checklists?: Pick<ChecklistRepository, 'write' | 'get'>; git?: Pick<GitManager, 'agentCommit'>; conventions?: Pick<GitManager, 'commitConvention'>; history?: CardHistoryService; approvals?: ApprovalService; policy?: PolicyEngine; sddResolver?: Pick<SddResolver, 'constitution' | 'locate'>; sddWriter?: Pick<SddWriter, 'write'>; planReady?: (cardId: string) => { notices: string[] }; prepareWorktree?: (cardId: string) => Promise<unknown>; trimWorktree?: (cardId: string, keep: string[]) => Promise<{ removed: string[]; kept: Array<{ name: string; reason: string }> }>; repositories?: (cardId: string) => Array<{ path: string; status: string }>; agentMoveApproval?: boolean; codeIndex?: Pick<CodeIndexService, 'tool' | 'isTool' | 'prewarm'>; codeRoots?: (run: { cardId: string | null; chatId: string }) => string[]; codeEnabled?: (run: { cardId: string | null; chatId: string }) => boolean; testCommand?: { repos(projectId: string): Array<{ sourceId: string; repo: string; command: string; name: string; applicable: boolean }>; setRepo(projectId: string, sourceId: string, input: { command: string; name: string; applicable: boolean }): unknown; findRepo(projectId: string, ref: string): { id: string; name: string } | undefined; suggest(cardId: string): string } }) {
     const id = randomBytes(6).toString('hex')
     this.dir = join(tmpdir(), `gearmod-${id}`)
     this.socketPath = process.platform === 'win32' ? `\\\\.\\pipe\\gearmod-${id}` : join(this.dir, 'mcp.sock')
@@ -96,6 +96,23 @@ export class McpBridge {
     store.setRepo(projectId, repo.id, { command, name, applicable })
     if (run.cardId) run.notify({ type: 'card' })
     return { ok: true, text: !applicable ? `Saved: "${repo.name}" has no automated tests and is skipped.` : command.trim() ? `Test command of "${repo.name}" saved${name.trim() ? ` as "${name.trim()}"` : ''}: ${command.trim()}. It runs inside that repository's folder in the card worktree, only when the card changed it.` : `Test command of "${repo.name}" cleared.` }
+  }
+
+  /**
+   * Commit message convention of a project repository, kept by the app (one entry per repository, with the analysis date). Reading it
+   * analyzes the history first when there is none or it is about a month old; an agent can save a better description.
+   */
+  private async commitConvention(run: RunState, args: Record<string, unknown>): Promise<Reply> {
+    const conventions = this.deps.conventions
+    if (!conventions) return { ok: false, error: 'The commit convention is not available' }
+    const projectId = run.cardId ? this.deps.board.card(run.cardId).projectId : this.deps.conversations?.projectOf(run.chatId)
+    if (!projectId) return { ok: false, error: 'This conversation has no project' }
+    if (args.repositorio !== undefined && typeof args.repositorio !== 'string') return { ok: false, error: 'repositorio must be the repository name' }
+    if (args.descricao !== undefined && typeof args.descricao !== 'string') return { ok: false, error: 'descricao must be a text' }
+    if (args.exemplos !== undefined && (!Array.isArray(args.exemplos) || args.exemplos.some((item) => typeof item !== 'string'))) return { ok: false, error: 'exemplos must be a list of commit messages' }
+    if (args.exemplos !== undefined && args.descricao === undefined) return { ok: false, error: 'To save, pass descricao together with exemplos' }
+    try { return { ok: true, text: await conventions.commitConvention(projectId, { repo: args.repositorio as string | undefined, description: args.descricao as string | undefined, examples: args.exemplos as string[] | undefined }) } }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) } }
   }
 
   async close(): Promise<void> {
@@ -157,6 +174,7 @@ export class McpBridge {
       // code index: read-only, in this conversation's folders (card worktree or project folders); also applies in the free chat
       if (tool.startsWith('gearmod_code_')) return this.codeTool(run, tool, args)
       if (tool === 'gearmod_test_command') return this.testCommand(run, args)
+      if (tool === 'gearmod_commit_convention') return this.commitConvention(run, args)
       if (!run.cardId) return { ok: false, error: 'This conversation has no card yet. If the user asks to plan something, call gearmod_create_card first.' }
       if (tool === 'gearmod_request_commit') return this.requestCommit(run, args)
       if (historyTools.has(tool)) return this.history(run, tool, args)
@@ -375,8 +393,9 @@ export class McpBridge {
     if (typeof args.mensagem !== 'string' && !args.amend) return { ok: false, error: 'provide the commit mensagem' }
     if (args.arquivos !== undefined && (!Array.isArray(args.arquivos) || args.arquivos.some((item) => typeof item !== 'string'))) return { ok: false, error: 'arquivos must be a list of paths' }
     if (args.repositorio !== undefined && typeof args.repositorio !== 'string') return { ok: false, error: 'repositorio must be a text' }
+    if (args.ignorar_padrao !== undefined && typeof args.ignorar_padrao !== 'boolean') return { ok: false, error: 'ignorar_padrao must be true or false' }
     try {
-      const result = await this.deps.git.agentCommit({ cardId: run.cardId, chatId: run.chatId, message: typeof args.mensagem === 'string' ? args.mensagem : '', files: args.arquivos as string[] | undefined, repo: args.repositorio as string | undefined, amend: args.amend === true })
+      const result = await this.deps.git.agentCommit({ cardId: run.cardId, chatId: run.chatId, message: typeof args.mensagem === 'string' ? args.mensagem : '', files: args.arquivos as string[] | undefined, repo: args.repositorio as string | undefined, amend: args.amend === true, ignoreConvention: args.ignorar_padrao === true })
       run.notify({ type: 'commit' })
       return { ok: true, text: result.text }
     } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) } }

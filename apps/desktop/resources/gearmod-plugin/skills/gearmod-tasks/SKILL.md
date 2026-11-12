@@ -59,7 +59,7 @@ GearMod rejects a Tasks document with such a task and returns the error for you 
 
 ## Rules during execution
 
-- Follow the order. Make one commit per task or per logical group, if the project uses commits.
+- Follow the order. Make one commit per task or per logical group, if the project uses commits, with the message in the repository's convention (`gearmod_commit_convention`).
 - Mark a criterion `[x]` only after verifying it. Mark the task `[x]` only when all its criteria are marked.
 - Stop at each **Checkpoint** and confirm it holds before moving on.
 - Never delete tasks or criteria. New work becomes a task at the end of the phase with the suffix "(added during execution)" (in the language of `idioma`; pt-BR: "(adicionada na execução)"); tell the user in the chat.
