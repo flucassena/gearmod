@@ -389,7 +389,7 @@ export const git: typeof source = {
     commit: 'Commit',
     commitAll: 'All repositories',
     suggestWithAi: 'Suggest with AI',
-    suggestTip: 'The AI suggests the message from the checked changes (Haiku model)',
+    suggestTip: "The AI suggests the message in the repository's convention, with a simple model (Haiku or Codex's lightest)",
     suggesting: 'Generating…',
     commitCreatedIn: (n: number) => `Commit created in ${n} repositories`,
     amendOption: 'Amend (add to the last commit)',

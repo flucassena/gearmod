@@ -27,7 +27,7 @@ import type { PullRequestService } from './pull-requests'
 import type { GitAccounts } from './git-accounts'
 import { fileVersions } from './file-versions'
 import { grepProject } from './workspace-grep'
-import { suggestCommitMessage } from './adapters'
+import { suggestCommitMessage, suggestCommitMessageCodex } from './adapters'
 import { nativeGit } from './worktrees'
 import { allowedPath, createProjectItem, listProjectDirectory, readProjectFile, resolveProjectReferences, renameProjectItem, saveMarkdownImage, searchProjectFiles, trashablePath, writeProjectFile } from './file-viewer'
 import type { CardHistoryService } from './history'
@@ -680,15 +680,17 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     , 'git:stash-file': (input: { sourceId: string; cardId: string | null; path: string }) => services.gitManager.stashFile(input.sourceId, input.cardId, input.path)
     , 'git:ignore-file': (input: { sourceId: string; cardId: string | null; path: string; kind: 'file' | 'directory' | 'extension' }) => services.gitManager.ignoreFile(input.sourceId, input.cardId, input.path, input.kind)
     , 'git:suggest-message': async (input: { sourceId: string; cardId: string | null; paths?: string[] }) => {
-      // First the agents configured on the card itself; then any other Claude profile (one with an expired account must not block the rest).
-      const claude = services.profiles.list().filter((item) => item.provider === 'claude')
-      if (!claude.length) throw new Error(tm().adapters.commitSuggestNoClaude)
+      // A simple model of the first agent available: the card's own agents first, then any Claude (Haiku), then any Codex (its cheapest model).
+      // A profile that fails (expired account, missing CLI) does not block the next one.
+      const usable = services.profiles.list().filter((item) => item.provider === 'claude' || item.provider === 'codex')
+      if (!usable.length) throw new Error(tm().adapters.commitSuggestNoClaude)
       const cardAgents = input.cardId ? services.agentConfigs.get(input.cardId) : null
       const preferred = [cardAgents?.execution, cardAgents?.planning, cardAgents?.test].map((config) => config?.profileId)
-      const ordered = [...new Set([...preferred, ...claude.map((item) => item.id)])].map((id) => claude.find((item) => item.id === id)).filter((item): item is typeof claude[number] => Boolean(item))
+      const byProvider = [...usable.filter((item) => item.provider === 'claude'), ...usable.filter((item) => item.provider === 'codex')]
+      const ordered = [...new Set([...preferred, ...byProvider.map((item) => item.id)])].map((id) => usable.find((item) => item.id === id)).filter((item): item is typeof usable[number] => Boolean(item))
       const context = await services.gitManager.suggestionContext(input.sourceId, input.cardId, input.paths ?? [])
       let failure: unknown
-      for (const profile of ordered) { try { return { message: await suggestCommitMessage(profile, context) } } catch (error) { failure = error } }
+      for (const profile of ordered) { try { return { message: await (profile.provider === 'codex' ? suggestCommitMessageCodex : suggestCommitMessage)(profile, context) } } catch (error) { failure = error } }
       throw failure
     }
     , 'git:commit': (input: { sourceId: string; cardId: string | null; message: string; description?: string; amend?: boolean; paths?: string[] }) => services.gitManager.commit(input)

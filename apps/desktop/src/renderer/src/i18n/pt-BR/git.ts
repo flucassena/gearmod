@@ -403,7 +403,7 @@ export const git = {
     commit: 'Commit',
     commitAll: 'Todos os repositórios',
     suggestWithAi: 'Sugerir com IA',
-    suggestTip: 'A IA sugere a mensagem a partir das alterações marcadas (modelo Haiku)',
+    suggestTip: 'A IA sugere a mensagem no padrão do repositório, com um modelo simples (Haiku ou o mais leve do Codex)',
     suggesting: 'Gerando…',
     commitCreatedIn: (n: number) => `Commit criado em ${n} repositórios`,
     amendOption: 'Amend (juntar ao último commit)',

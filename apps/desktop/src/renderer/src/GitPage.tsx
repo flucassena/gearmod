@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Chevron, WarningIcon } from './icons'
+import { Chevron, SparkIcon, WarningIcon } from './icons'
 import { errorCodeOf, withoutErrorCode, type AgentProfile, type GitChange, type GitCommitFile, type GitGraph, type GitRepo, type GitRow, type ProjectBoard, type PullRequestSummary } from '@gearmod/contracts'
 import { AgentIcon } from './AgentIcon'
 import { GitSide } from './GitSide'
@@ -161,8 +161,9 @@ function Who({ row, profiles }: { row: GitRow; profiles: AgentProfile[] }): Reac
 
 /** WIP detail, as in GitKraken: unstaged and staged files and the commit below. */
 function WipForm({ row, graph, summary, setSummary, changed, openDiff }: { row: GitRow; graph: GitGraph; summary: string; setSummary(value: string): void; changed(): void; openDiff(file: GitChange): void }): React.JSX.Element {
-  const t = useT().git.page
+  const t = useT().git.page, tc = useT().git.cardPanel
   const sourceId = graph.repo.sourceId, cardId = row.cardId
+  const [suggesting, setSuggesting] = useState(false)
   const [files, setFiles] = useState<GitChange[]>([]), [last, setLast] = useState(''), [description, setDescription] = useState(''), [amend, setAmend] = useState(false)
   const [closed, setClosed] = useState<{ un?: boolean; on?: boolean }>({}), [error, setError] = useState(''), [busy, setBusy] = useState(false)
   const [split, setSplit] = useState(50), listsRef = useRef<HTMLDivElement>(null)
@@ -211,6 +212,13 @@ function WipForm({ row, graph, summary, setSummary, changed, openDiff }: { row: 
     setBusy(true); setError('')
     try { await window.gearmod.invoke('git:commit', { sourceId, cardId, message: summary.trim(), description: description.trim() || undefined, amend }); setSummary(''); setDescription(''); setAmend(false); await load(); changed() } catch (reason) { setError(plainError(reason)) } finally { setBusy(false) }
   }
+  // AI suggestion (a simple model, in the repository's commit convention) from what is staged, or from every change when nothing is.
+  const suggest = async (): Promise<void> => {
+    const paths = [...new Set((staged.length ? staged : files).map((file) => file.path))]
+    if (!paths.length) return setError(tc.checkOneFile)
+    setSuggesting(true); setError('')
+    try { setSummary((await window.gearmod.invoke('git:suggest-message', { sourceId, cardId, paths })).message) } catch (reason) { setError(plainError(reason)) } finally { setSuggesting(false) }
+  }
   const lines = (list: GitChange[], isStaged: boolean): React.JSX.Element => <>{list.map((file) => {
     const { dir, name } = splitPath(file.path), key = `${isStaged ? 's' : 'u'}:${file.path}`
     return <React.Fragment key={key}><div className="gwrow" data-tip={file.path} onContextMenu={(event) => { event.preventDefault(); setFileMenu({ x: event.clientX, y: event.clientY, file }) }}><span className={`st ${file.status}`}>{file.status === 'M' ? gitIcons.pen : file.status === 'A' ? '+' : '−'}</span>
@@ -227,7 +235,7 @@ function WipForm({ row, graph, summary, setSummary, changed, openDiff }: { row: 
   return <div className="gwform"><div className="gwtop"><span>{t.filesChangedIn(new Set(files.map((file) => file.path)).size)} <code>{row.wip?.branch}</code></span></div>
     <div className="gwlists" ref={listsRef}>{section('un', t.unstagedTitle, unstaged, false)}{!closed.un && !closed.on && <div className="gwresize" role="separator" aria-label={t.resizeLists} aria-orientation="horizontal" aria-valuemin={10} aria-valuemax={90} aria-valuenow={Math.round(split)} tabIndex={0} onPointerDown={resizeLists} onKeyDown={(event) => { if (event.key === 'ArrowUp' || event.key === 'ArrowDown') { event.preventDefault(); setSplit((value) => Math.max(10, Math.min(90, value + (event.key === 'ArrowUp' ? -5 : 5)))) } }} />}{section('on', t.stagedTitle, staged, true)}</div>
     <div className="gwcommit"><label className="gwamend"><GitCheck checked={amend} onChange={toggleAmend} label={t.amend} /> {t.amendWithHint}</label>
-      <div className="gwmsg"><div className="gwsumrow"><input maxLength={120} placeholder={t.summaryPlaceholder} value={summary} onChange={(e) => setSummary(e.target.value)} /><span className={`gwcount ${summary.length > 72 ? 'over' : ''}`}>{72 - summary.length}</span></div>
+      <div className="gwmsg"><div className="gwsumrow"><input maxLength={120} placeholder={t.summaryPlaceholder} value={summary} onChange={(e) => setSummary(e.target.value)} /><span className={`gwcount ${summary.length > 72 ? 'over' : ''}`}>{72 - summary.length}</span><button type="button" className="cgai" data-tip={suggesting ? tc.suggesting : tc.suggestTip} aria-label={tc.suggestWithAi} disabled={busy || suggesting || !files.length} onClick={() => void suggest()}><SparkIcon /></button></div>
         <textarea className="autogrow" placeholder={t.descriptionPlaceholder} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
       {error && <p className="error">{error}</p>}
       <button type="button" className="gwgo" disabled={!ready || busy || (!amend && !summary.trim())} onClick={() => void commit()}>{amend ? t.amend : staged.length ? t.commitFiles(count) : t.stageFirst}</button></div>

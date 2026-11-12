@@ -6,7 +6,7 @@ export const ptBR = {
     codexModelsTimeout: 'O Codex não respondeu a tempo ao listar os modelos.',
     commitSuggestEmpty: 'A IA não devolveu uma mensagem.',
     commitSuggestTimeout: 'A IA demorou demais para sugerir a mensagem.',
-    commitSuggestNoClaude: 'Nenhum perfil do Claude configurado para sugerir a mensagem.',
+    commitSuggestNoClaude: 'Nenhum perfil do Claude ou do Codex configurado para sugerir a mensagem.',
     unsupportedClaudeMode: (mode: string) => `Modo não suportado pelo Claude: ${mode}`,
     windowsExecutableRequired: 'No Windows, o agente deve apontar para um arquivo .exe, .cmd ou .bat',
     safeExecutableNotFound: (command: string) => `Executável seguro não encontrado no PATH: ${command}`,

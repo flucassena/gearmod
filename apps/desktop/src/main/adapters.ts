@@ -302,19 +302,46 @@ export async function listClaudeModels(profile: AgentProfile, processes: Process
   return claudeModelOptions((await claudeControl(profile, [], processes, timeoutMs)).initialize)
 }
 
-/** Asks Haiku (a cheap model) for a commit message for the changes; returns only the one-line summary. */
-export async function suggestCommitMessage(profile: AgentProfile, context: string, processes: ProcessFactory = nodeProcesses, timeoutMs = 60_000): Promise<string> {
-  const child = processes.start(profile.executablePath || 'claude', ['--print', '--output-format', 'text', '--model', 'haiku', '--no-session-persistence'], { cwd: tmpdir(), env: { ...applyEnvPolicy(profile, process.env), CLAUDE_CONFIG_DIR: profile.configDir } })
-  child.stdin.end(`Escreva a mensagem de commit destas alterações. Responda só com UMA linha (até 72 caracteres), sem aspas, sem ponto final, sem explicação, no mesmo idioma e estilo dos commits recentes.
+const commitPrompt = (context: string): string => `Escreva a mensagem de commit destas alterações. Responda só com UMA linha (até 72 caracteres), sem aspas, sem ponto final, sem explicação. Siga o padrão de commit do repositório quando ele vier abaixo (prefixo, ticket, idioma, maiúsculas); sem ele, use o mesmo idioma e estilo dos commits recentes.
 
-${context}`)
+${context}`
+/** First non-empty line of the model's answer, without quotes. */
+export const commitLine = (out: string): string => out.split(/\r?\n/).map((item) => item.trim()).find(Boolean)?.replace(/^["'`]+|["'`]+$/g, '').slice(0, 200) ?? ''
+
+/** Runs a one-shot CLI call and resolves with what `read` returns once it exits. */
+function oneShot(child: ChildProcessWithoutNullStreams, input: string, timeoutMs: number, read: (out: string) => string): Promise<string> {
+  child.stdin.end(input)
   return new Promise((resolve, reject) => {
     let out = '', done = false
-    const finish = (error?: Error): void => { if (done) return; done = true; clearTimeout(timer); if (!child.killed) child.kill(); const line = out.split(/\r?\n/).map((item) => item.trim()).find(Boolean)?.replace(/^["'`]+|["'`]+$/g, '') ?? ''; if (error) reject(error); else if (line) resolve(line.slice(0, 200)); else reject(new Error(tm().adapters.commitSuggestEmpty)) }
+    const finish = (error?: Error): void => { if (done) return; done = true; clearTimeout(timer); if (!child.killed) child.kill(); if (error) return reject(error); const line = commitLine(read(out)); if (line) resolve(line); else reject(new Error(tm().adapters.commitSuggestEmpty)) }
     const timer = setTimeout(() => finish(new Error(tm().adapters.commitSuggestTimeout)), timeoutMs)
     child.stdout.on('data', (chunk: Buffer | string) => { out += chunk.toString() })
     child.on('error', (error: Error) => finish(error)); child.on('exit', (code: number | null) => finish(code ? new Error(out.trim().slice(0, 300) || tm().adapters.commitSuggestEmpty) : undefined))
   })
+}
+
+/** Asks Haiku (a cheap model) for a commit message for the changes; returns only the one-line summary. */
+export async function suggestCommitMessage(profile: AgentProfile, context: string, processes: ProcessFactory = nodeProcesses, timeoutMs = 60_000): Promise<string> {
+  const child = processes.start(profile.executablePath || 'claude', ['--print', '--output-format', 'text', '--model', 'haiku', '--no-session-persistence'], { cwd: tmpdir(), env: { ...applyEnvPolicy(profile, process.env), CLAUDE_CONFIG_DIR: profile.configDir } })
+  return oneShot(child, commitPrompt(context), timeoutMs, (out) => out)
+}
+
+/** The cheapest Codex model of the list (nano, then mini), with its lowest effort; null keeps the profile default. */
+export function cheapestCodexModel(models: ModelOption[]): { id: string; effort: Effort | null } | null {
+  const rank = (id: string): number => /nano/i.test(id) ? 0 : /mini/i.test(id) ? 1 : 2
+  const model = [...models].sort((a, b) => rank(a.id) - rank(b.id))[0]
+  if (!model || rank(model.id) === 2) return null
+  const order: Effort[] = ['minimal', 'low', 'medium', 'high'] as Effort[]
+  return { id: model.id, effort: order.find((effort) => model.efforts.includes(effort)) ?? null }
+}
+
+/** Same suggestion through Codex (`codex exec`), with its cheapest model, read-only and without saving the session. */
+export async function suggestCommitMessageCodex(profile: AgentProfile, context: string, processes: ProcessFactory = nodeProcesses, timeoutMs = 90_000): Promise<string> {
+  const cheap = cheapestCodexModel(readCodexModelsCache(profile))
+  const dir = mkdtempSync(join(tmpdir(), 'gearmod-commit-')), answer = join(dir, 'answer.txt')
+  const args = ['exec', '--skip-git-repo-check', '--ephemeral', '--sandbox', 'read-only', '--color', 'never', '--output-last-message', answer, ...(cheap ? ['--model', cheap.id] : []), '-c', `model_reasoning_effort="${cheap?.effort ?? 'low'}"`, '-']
+  const child = processes.start(profile.executablePath || 'codex', args, { cwd: dir, env: { ...applyEnvPolicy(profile, process.env), CODEX_HOME: profile.configDir } })
+  try { return await oneShot(child, commitPrompt(context), timeoutMs, (out) => { try { return readFileSync(answer, 'utf8') } catch { return out } }) } finally { rmSync(dir, { recursive: true, force: true }) }
 }
 
 /**

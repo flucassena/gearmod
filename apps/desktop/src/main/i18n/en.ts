@@ -7,7 +7,7 @@ export const en: typeof ptBR = {
     codexModelsTimeout: 'Codex did not respond in time when listing models.',
     commitSuggestEmpty: 'The AI did not return a message.',
     commitSuggestTimeout: 'The AI took too long to suggest the message.',
-    commitSuggestNoClaude: 'No Claude profile is set up to suggest the message.',
+    commitSuggestNoClaude: 'No Claude or Codex profile is set up to suggest the message.',
     unsupportedClaudeMode: (mode: string) => `Mode not supported by Claude: ${mode}`,
     windowsExecutableRequired: 'On Windows, the agent must point to an .exe, .cmd or .bat file',
     safeExecutableNotFound: (command: string) => `Safe executable not found on PATH: ${command}`,
