@@ -3474,3 +3474,4 @@ span.cgamend{font:700 10px var(--mono);text-transform:uppercase;padding:2px 6px;
 /* The pin is the bar's last span, so round the ends by position. */
 .sbar-lbar .seg{border-radius:0}.sbar-lbar .seg:first-child{border-radius:8px 0 0 8px}.sbar-lbar .seg:nth-child(3){border-radius:0 8px 8px 0}
 .chatlog>.msg.flowrecord,.msg.sys.flowrecord{justify-self:stretch;width:100%;max-width:none}
+.gtitleedit{width:100%;font-size:15px;font-weight:700;line-height:1.35}
