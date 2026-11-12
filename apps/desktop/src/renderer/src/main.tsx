@@ -11,6 +11,7 @@ import { ProjectAgentsDialog, ProjectConfigDialog, ProjectDialog } from './Proje
 import { AgentDialog, applySettings, applyTheme, SettingsDialog, settingsChangedEvent } from './SettingsDialog'
 import { markInviteSeen, readInviteSeen, shouldInviteAgent } from './agentLogin'
 import { RunLimitPrompt } from './RunLimitPrompt'
+import { UpdateReadyPrompt } from './appUpdate'
 import { projectTheme, projectThemeEvent } from './projectTheme'
 import { Sidebar } from './Sidebar'
 import { FolderGlyph, MoreIcon, TerminalIcon } from './icons'
@@ -192,6 +193,7 @@ function App(): React.JSX.Element {
     {settingsOpen && <SettingsDialog profiles={profiles} settings={settings} initialTab={settingsTab} close={() => { setSettingsOpen(false); setSettingsTab(undefined) }} changed={refresh} settingsChanged={setSettings} />}
     {agentInvite && !settingsOpen && !newProject && !addingAgent && <ConfirmDialog eyebrow={t.common.agent} title={t.settings.agentInvite.title} text={t.settings.agentInvite.text} ok={t.settings.agentInvite.ok} cancel={() => setAgentInvite(undefined)} confirm={() => { setAgentInvite(undefined); setAddingAgent(true) }} />}
     {addingAgent && <AgentDialog close={() => setAddingAgent(false)} changed={refresh} />}
+    {!pop && <UpdateReadyPrompt />}
     <RunLimitPrompt openSettings={() => { setSettingsTab('general'); setSettingsOpen(true) }} />
     {agentsPrompt && !settingsOpen && !newProject && projects.find((item) => item.id === agentsPrompt) && <ProjectAgentsDialog project={projects.find((item) => item.id === agentsPrompt)!} profiles={profiles} close={() => setAgentsPrompt(undefined)} saved={async () => { setAgentsPrompt(undefined); await refresh() }} openSettings={() => { setSettingsTab('agents'); setSettingsOpen(true) }} />}
     {configProject && <ProjectConfigDialog initialTab={configTab} initialFocus={configFocus} project={configProject} profiles={profiles} renamed={() => void reloadProjects()} saved={async () => { setProjectConfig(undefined); await refresh() }} openConstitutionChat={(prompt) => { setProjectConfig(undefined); setSelected(configProject.id); setConstitutionRequest({ projectId: configProject.id, prompt, at: Date.now() }) }} openTestSetupChat={(prompt, config) => { setProjectConfig(undefined); setSelected(configProject.id); setConstitutionRequest({ projectId: configProject.id, prompt, at: Date.now(), mode: 'test-setup', config }) }} />}

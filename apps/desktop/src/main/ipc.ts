@@ -321,6 +321,7 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'updates:state': () => services.updates.get(),
     'updates:check': () => services.updates.check(),
     'updates:install': () => services.updates.install(),
+    'updates:download': () => services.updates.download(),
     'app:info': () => ({ appVersion: services.appVersion, schemaVersion: services.database.schemaVersion(), dataDir: services.dataDir }),
     'notes:list': () => services.notes.list(),
     'notes:create': (input: { body: string }) => services.notes.create(input.body),

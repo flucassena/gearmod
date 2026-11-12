@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { compareVersions, installerFor, parseChecksums, releaseNotes, UpdateService } from './updater'
+import { compareVersions, installerFor, parseChecksums, releaseNotes, UpdateService, versionOfInstaller } from './updater'
 
 const roots: string[] = []
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))) })
@@ -15,10 +15,11 @@ const bytes = Buffer.from('installer-bytes')
 const names = ['GearMod-Setup-0.2.0-x64.exe', 'GearMod-0.2.0-x86_64.AppImage', 'GearMod-0.2.0-amd64.deb']
 const sha = (data: Buffer): string => createHash('sha256').update(data).digest('hex')
 
-function fakeFetch(options: { sums?: string | null; installer?: Buffer; tag?: string } = {}): typeof fetch {
+function fakeFetch(options: { sums?: string | null; installer?: Buffer; tag?: string; downloads?: string[] } = {}): typeof fetch {
   const tag = options.tag ?? 'v0.2.0'
   return (async (input: string | URL | Request) => {
     const url = String(input)
+    options.downloads?.push(url)
     if (url.endsWith('/releases/latest')) {
       const assets = names.map((name) => ({ name, browser_download_url: `${base}/${name}`, size: bytes.length }))
       if (options.sums !== null) assets.push({ name: 'SHA256SUMS.txt', browser_download_url: `${base}/SHA256SUMS.txt`, size: 100 })
@@ -125,5 +126,54 @@ describe('UpdateService', () => {
     await updates.check()
     expect((await updates.install()).error).toBe('checksum-missing')
     expect(calls.launched).toEqual([])
+  })
+
+  it('downloads the installer in the background after the check, without installing or quitting', async () => {
+    const { updates, calls, dir } = await service(fakeFetch())
+    await updates.check(true)
+    const state = await updates.download()
+    expect(state).toMatchObject({ ready: true, downloading: false, installing: false, error: null })
+    expect(calls.launched).toEqual([]); expect(calls.quit).toBe(0)
+    expect(await readdir(dir)).toEqual(['GearMod-Setup-0.2.0-x64.exe'])
+  })
+
+  it('installs later without downloading again, and reuses a verified file left by an earlier session', async () => {
+    const downloads: string[] = []
+    const { updates, calls, dir } = await service(fakeFetch({ downloads }))
+    await updates.check(); await updates.download()
+    await updates.install()
+    expect(downloads.filter((url) => url.endsWith('.exe'))).toHaveLength(1)
+    expect(calls.launched).toEqual([join(dir, 'GearMod-Setup-0.2.0-x64.exe')])
+    const again: string[] = []
+    const next = new UpdateService({ currentVersion: '0.1.0', platform: 'win32', repo, downloadDir: dir, fetchImpl: fakeFetch({ downloads: again }), emit: () => undefined, launch: () => undefined, quit: () => undefined })
+    await next.check(); expect((await next.download()).ready).toBe(true)
+    expect(again.filter((url) => url.endsWith('.exe'))).toHaveLength(0)
+  })
+
+  it('deletes the previous installer once the new one is ready, and at start only what is older than the running version', async () => {
+    const { updates, dir } = await service(fakeFetch())
+    await writeFile(join(dir, 'GearMod-Setup-0.1.0-x64.exe'), 'old')
+    await writeFile(join(dir, 'GearMod-Setup-0.1.5-x64.exe.partial'), 'half')
+    await updates.check(); await updates.download()
+    expect(await readdir(dir)).toEqual(['GearMod-Setup-0.2.0-x64.exe'])
+    const started = await service(fakeFetch(), '0.2.0')
+    await writeFile(join(started.dir, 'GearMod-Setup-0.1.0-x64.exe'), 'old'); await writeFile(join(started.dir, 'GearMod-Setup-0.2.0-x64.exe'), 'current'); await writeFile(join(started.dir, 'x.partial'), '')
+    started.updates.start(60_000); started.updates.stop()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(await readdir(started.dir)).toEqual(['GearMod-Setup-0.2.0-x64.exe'])
+  })
+
+  it('does not run an installer changed on disk after the download', async () => {
+    const { updates, calls, dir } = await service(fakeFetch())
+    await updates.check(); await updates.download()
+    await writeFile(join(dir, 'GearMod-Setup-0.2.0-x64.exe'), 'tampered')
+    expect((await updates.install()).error).toBe('checksum-mismatch')
+    expect(calls.launched).toEqual([]); expect(calls.quit).toBe(0)
+  })
+
+  it('reads the version from installer names', () => {
+    expect(versionOfInstaller('GearMod-Setup-1.2.3-x64.exe')).toBe('1.2.3')
+    expect(versionOfInstaller('GearMod-1.2.3-amd64.deb')).toBe('1.2.3')
+    expect(versionOfInstaller('notes.txt')).toBeNull()
   })
 })

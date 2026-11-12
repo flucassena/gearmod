@@ -232,12 +232,15 @@ function watchEvent(eventType: string, payload: Record<string, unknown> | undefi
 function aboutBuildDate(): string | null { try { return app.isPackaged ? statSync(join(process.resourcesPath, 'app.asar')).mtime.toISOString() : null } catch { return null } }
 
 // The installer runs apart from the app, which quits right after it starts (the Windows installer cannot replace files in use).
+let pendingInstaller: string | null = null
 const updates = new UpdateService({
   currentVersion: appVersion, platform: process.platform, repo: 'flucassena/gearmod', downloadDir: join(app.getPath('temp'), 'gearmod-update'),
   emit: (state) => pushEvent('gearmod/app-update', { ...state }),
   appImagePath: process.env.APPIMAGE,
   launch: async (file) => {
-    if (process.platform === 'win32') { spawn(file, [], { detached: true, stdio: 'ignore' }).unref(); return }
+    // Silent install (`/S`, no installer window); `--updated` keeps it an update and `--force-run` reopens GearMod when it ends.
+    // It starts only on `will-quit`: if the quit is cancelled (an unsaved file), nothing was installed and the app stays open.
+    if (process.platform === 'win32') { pendingInstaller = file; return }
     const appImage = process.env.APPIMAGE
     if (appImage) {
       // Replacing the file (rename) is safe while it runs; the next start already uses the new one. `execPath` because the running copy lives in a temporary mount.
@@ -353,6 +356,7 @@ async function createWindow(popout?: { target: PopoutTarget; bounds: Electron.Re
     const response = dialog.showMessageBoxSync(window, { type: 'warning', title: tm().app.unsavedTitle, message: tm().app.unsavedMessage, detail: tm().app.unsavedDetail, buttons: [quitting ? tm().app.discardAndQuit : tm().app.discardAndClose, tm().app.cancel], defaultId: 1, cancelId: 1, noLink: true })
     if (response === 0) { event.preventDefault(); return }
     quitting = false  // the quit was cancelled: the main window's X goes back to only hiding in the tray
+    if (pendingInstaller) { pendingInstaller = null; updates.cancelInstall() }  // the update stays downloaded, to install later
   })
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   window.webContents.on('will-navigate', (event) => event.preventDefault())
@@ -553,4 +557,6 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 // can still cancel the quit (see `will-prevent-unload`).
 app.on('before-quit', () => { quitting = true })
 // Only after all windows have closed (nobody cancelled) are agents, terminals, tray and database shut down.
-app.on('will-quit', () => { updates.stop(); orchestrator.shutdown(); autoResume.stop(); terminals.dispose(); fileWatch.dispose(); codeIndex.dispose(); tray?.destroy(); disposeIpc?.(); void mcpBridge.close(); void dbSessions.closeAll(); database.close() })
+app.on('will-quit', () => {
+  if (pendingInstaller) { spawn(pendingInstaller, ['/S', '--updated', '--force-run'], { detached: true, stdio: 'ignore' }).unref(); pendingInstaller = null }
+  updates.stop(); orchestrator.shutdown(); autoResume.stop(); terminals.dispose(); fileWatch.dispose(); codeIndex.dispose(); tray?.destroy(); disposeIpc?.(); void mcpBridge.close(); void dbSessions.closeAll(); database.close() })

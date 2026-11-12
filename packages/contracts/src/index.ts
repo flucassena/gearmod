@@ -34,8 +34,13 @@ export const appUpdateSchema = z.object({
   manualCommand: z.string().nullable(),
   checkedAt: z.string().nullable(),
   checking: z.boolean(),
-  /** Download progress (0 to 1) while `installing`. */
+  /** Download progress (0 to 1) while `downloading`. */
   progress: z.number().min(0).max(1).nullable(),
+  /** The installer of `latest` is being downloaded in the background. */
+  downloading: z.boolean(),
+  /** The installer of `latest` is on disk and matches the Release checksum: installing needs no download. */
+  ready: z.boolean(),
+  /** The installer was started and the app is quitting. */
   installing: z.boolean(),
   error: z.string().nullable()
 })
@@ -457,6 +462,7 @@ export const ipcContracts = {
   'updates:state': { input: z.undefined(), output: appUpdateSchema },
   'updates:check': { input: z.undefined(), output: appUpdateSchema },
   'updates:install': { input: z.undefined(), output: appUpdateSchema },
+  'updates:download': { input: z.undefined(), output: appUpdateSchema },
   'approvals:list': { input: z.object({ cardId: uuid.optional() }).strict(), output: z.array(approvalSchema) },
   'approvals:decide': { input: z.object({ id: uuid, approve: z.boolean(), note: z.string().max(4000).optional(), choice: z.object({ workflow: workflowKindSchema, method: z.enum(['native', 'speckit']).optional() }).strict().optional() }).strict(), output: approvalSchema },
   'approvals:apply-constitution': { input: z.object({ id: uuid }).strict(), output: approvalSchema },

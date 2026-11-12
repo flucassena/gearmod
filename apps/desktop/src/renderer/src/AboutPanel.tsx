@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import type { AppAbout } from '@gearmod/contracts'
-import { checkAppUpdate, installAppUpdate, useAppUpdate } from './appUpdate'
+import { checkAppUpdate, downloadAppUpdate, installAppUpdate, useAppUpdate } from './appUpdate'
 import { ConfirmDialog } from './ConfirmDialog'
 import { dateLocale, useT } from './i18n'
 import { BranchIcon } from './icons'
@@ -15,7 +15,7 @@ export function AboutPanel(): React.JSX.Element {
   useEffect(() => { void window.gearmod.invoke('app:about', undefined).then(setAbout).catch(() => undefined) }, [])
   const open = (url: string): void => { void window.gearmod.invoke('app:open-link', { url }).catch(() => undefined) }
   const copy = (text: string, what: 'info' | 'command'): void => { void navigator.clipboard.writeText(text).then(() => { setCopied(what); window.setTimeout(() => setCopied(undefined), 1800) }).catch(() => undefined) }
-  const busy = Boolean(update?.checking || update?.installing)
+  const busy = Boolean(update?.checking || update?.installing), fetching = Boolean(update?.downloading)
   const percent = Math.round((update?.progress ?? 0) * 100)
   const error = update?.error ? ta.errors[update.error] ?? update.error : ''
   const built = about?.buildDate ? new Date(about.buildDate).toLocaleString(dateLocale(), { dateStyle: 'long', timeStyle: 'short' }) : ''
@@ -43,11 +43,15 @@ export function AboutPanel(): React.JSX.Element {
         {update?.available && update.latest ? <b>{ta.available(update.latest)}</b> : update?.checkedAt ? <span>{ta.upToDate}</span> : null}
         {update?.checkedAt && <small className="hint">{ta.lastChecked(new Date(update.checkedAt).toLocaleString(dateLocale()))}</small>}
       </div>
-      {update?.installing && <div className="about-progress" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${percent}%` }} /><span>{ta.downloading(percent)}</span></div>}
+      {update?.available && update.ready && update.latest && !update.installing && <p className="hint" style={{ margin: '0 0 10px' }}>{ta.ready(update.latest)}</p>}
+      {fetching && <div className="about-progress" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${percent}%` }} /><span>{ta.downloading(percent)}</span></div>}
+      {fetching && <p className="hint" style={{ margin: '0 0 10px' }}>{ta.downloadingHint}</p>}
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions" style={{ justifyContent: 'flex-start' }}>
         <button type="button" className="secondary" disabled={busy} onClick={() => void checkAppUpdate()}>{update?.checking ? ta.checking : ta.checkNow}</button>
-        {update?.available && update.canInstall && <button type="button" disabled={busy} onClick={() => setConfirming(true)}>{ta.install}</button>}
+        {update?.available && update.canInstall && !fetching && (update.ready || !update.error
+          ? <button type="button" disabled={busy} onClick={() => setConfirming(true)}>{update.ready ? ta.installNow : ta.install}</button>
+          : <button type="button" disabled={busy} onClick={() => void downloadAppUpdate()}>{ta.retryDownload}</button>)}
         {update?.available && <button type="button" className={update.canInstall ? 'secondary' : undefined} onClick={() => open(update.url)}>{ta.openRelease}</button>}
       </div>
       {update?.available && update.manualCommand && <div className="about-command"><small className="hint">{ta.manualHint}</small><div><code>{update.manualCommand}</code><button type="button" className="mini secondary" onClick={() => copy(update.manualCommand!, 'command')}>{copied === 'command' ? ta.copied : ta.copyCommand}</button></div></div>}
