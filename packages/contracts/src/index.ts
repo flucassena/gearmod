@@ -748,7 +748,7 @@ export const ipcContracts = {
   , 'app:set-titlebar-theme': { input: z.object({ light: z.boolean() }).strict(), output: z.object({ ok: z.literal(true) }) }
   , 'app:set-brand-color': { input: z.object({ color: z.string().regex(/^#[0-9a-fA-F]{6}$/) }).strict(), output: z.object({ ok: z.literal(true) }) }
   , 'app:open-link': { input: z.object({ url: z.string().min(1).max(2048) }).strict(), output: z.object({ opened: z.literal(true) }) }
-  , 'git:sync': { input: z.object({ ...gitTarget, action: z.enum(['fetch', 'pull', 'push', 'stash', 'pop']), pull: z.enum(['ff', 'ff-only', 'rebase']).optional(), force: z.boolean().optional() }).strict(), output: z.object({ output: z.string(), conflicts: z.number().int().nonnegative().optional() }) }
+  , 'git:sync': { input: z.object({ ...gitTarget, action: z.enum(['fetch', 'pull', 'push', 'stash', 'pop']), pull: z.enum(['ff', 'ff-only', 'rebase']).optional(), force: z.boolean().optional(), branch: z.string().regex(/^[A-Za-z0-9_][A-Za-z0-9._\/-]{0,254}$/).optional() }).strict(), output: z.object({ output: z.string(), conflicts: z.number().int().nonnegative().optional() }) }
   , 'git:card': { input: cardIdInput, output: gitCardSchema }
   , 'git:base-options': { input: z.object({ sourceId: uuid }).strict(), output: z.array(z.string()) }
   , 'git:set-base': { input: z.object({ cardId: uuid, sourceId: uuid, baseRef: z.string().trim().min(1).max(200) }).strict(), output: z.object({ baseRef: z.string() }) }

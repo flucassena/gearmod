@@ -325,6 +325,26 @@ describe('GitManager with real repositories', () => {
     await manager.sync(sourceId, null, 'pull')
   })
 
+  it('pushes and pulls a picked branch that is not the one checked out, without switching branches', async () => {
+    const { manager, root, sourceId, repo } = await setup()
+    const remote = join(root, 'remote.git'); await mkdir(remote); await exec('git', ['init', '--bare', '-b', 'main', remote])
+    await git(repo, 'remote', 'add', 'origin', remote); await git(repo, 'push', '-u', 'origin', 'main')
+    await git(repo, 'branch', 'lateral'); await git(repo, 'worktree', 'add', join(root, 'lateral-wt'), 'lateral')
+    await writeFile(join(root, 'lateral-wt', 'l.txt'), 'l'); await git(join(root, 'lateral-wt'), 'add', 'l.txt'); await git(join(root, 'lateral-wt'), 'commit', '-m', 'Commit lateral')
+    await git(repo, 'worktree', 'remove', '--force', join(root, 'lateral-wt'))
+    // Main folder is on `main`; Push with the picked branch publishes `lateral` and leaves `main` checked out.
+    await manager.sync(sourceId, null, 'push', 'ff-only', false, 'lateral')
+    expect((await exec('git', ['ls-remote', '--heads', remote, 'lateral'])).stdout).toContain('refs/heads/lateral')
+    expect((await exec('git', ['-C', repo, 'branch', '--show-current'])).stdout.trim()).toBe('main')
+    // Someone else advances `lateral` on the remote; Pull with the picked branch fast-forwards it without checking it out.
+    const other = join(root, 'other'); await exec('git', ['clone', '-b', 'lateral', remote, other])
+    await git(other, 'config', 'user.email', 'o@o.o'); await git(other, 'config', 'user.name', 'o')
+    await writeFile(join(other, 'm.txt'), 'm'); await git(other, 'add', 'm.txt'); await git(other, 'commit', '-m', 'Remoto avancou'); await git(other, 'push', 'origin', 'lateral')
+    await manager.sync(sourceId, null, 'pull', 'ff-only', false, 'lateral')
+    expect((await exec('git', ['-C', repo, 'log', '-1', '--format=%s', 'lateral'])).stdout.trim()).toBe('Remoto avancou')
+    expect((await exec('git', ['-C', repo, 'branch', '--show-current'])).stdout.trim()).toBe('main')
+  })
+
   it('rebasing the card branch onto another branch does not mix its commits into the card ones', async () => {
     const { manager, projectId, sourceId, cardId, wt, repo } = await setup()
     await git(repo, 'branch', 'outra'); await git(repo, 'worktree', 'add', join(repo, '..', 'outra'), 'outra')
@@ -352,8 +372,11 @@ describe('delete card worktree', () => {
   it('deletes the folder, keeps the branch with unpushed commits and preserves the card', async () => {
     const { manager, database, projectId, sourceId, cardId, wt, branch, repo } = await setup()
     await writeFile(join(wt, 'c.txt'), 'c\n'); await manager.commit({ sourceId, cardId, message: 'Commit do card', paths: ['c.txt'] })
+    const refreshed: string[] = []; manager.onWorktreeDeleted = (id) => refreshed.push(id)
     const out = await manager.deleteWorktree(projectId, cardId, false)
     expect(out.keptBranches).toEqual([])
+    // every window is told, so an open card stops showing the deleted worktree
+    expect(refreshed).toEqual([cardId])
     expect(await folderExists(wt)).toBe(false)
     expect((await git(repo, 'branch', '--list', branch)).stdout).toContain(branch)
     expect(database.db.prepare('SELECT cleanup_state FROM worktrees WHERE card_id = ?').pluck().get(cardId)).toBe('removed')

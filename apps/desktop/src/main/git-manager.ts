@@ -697,7 +697,7 @@ ${diff}`
     return { hash }
   }
 
-  async sync(sourceId: string, cardId: string | null, action: 'fetch' | 'pull' | 'push' | 'stash' | 'pop', pull: 'ff' | 'ff-only' | 'rebase' = 'ff-only', force = false): Promise<{ output: string; conflicts?: number }> {
+  async sync(sourceId: string, cardId: string | null, action: 'fetch' | 'pull' | 'push' | 'stash' | 'pop', pull: 'ff' | 'ff-only' | 'rebase' = 'ff-only', force = false, branch?: string): Promise<{ output: string; conflicts?: number }> {
     const source = this.source(sourceId), target = await (action === 'fetch' || action === 'push' ? this.target(source, cardId) : this.busyTarget(source, cardId))
     if (action === 'stash') {
       // Also stashes untracked files (-u): they leave the folder, so the message says how many went along.
@@ -711,18 +711,27 @@ ${diff}`
     if (action === 'pop') { await this.forget(this.keyOf(sourceId, cardId)); return this.applyStash(target.dir, ['stash', 'pop'], tm().git.stashAppliedRemoved) }
     if (!(await this.tryRun(source.path, ['remote']))?.trim()) throw new Error(tm().git.noRemoteAddOrigin)
     if (action === 'fetch') return { output: (await this.run(source.path, ['fetch', '--all', '--prune'])).trim() || tm().git.allUpToDate }
+    // A branch picked in the side list that is not the one checked out: push needs no checkout; pull fast-forwards it with `fetch remote branch:branch` (git refuses if it would not be a fast-forward).
+    const current = target.branch ?? (await this.tryRun(target.dir, ['branch', '--show-current']))?.trim() ?? ''
+    if (action === 'pull' && branch && branch !== current) {
+      const remote = (await this.tryRun(source.path, ['config', `branch.${branch}.remote`]))?.trim() || 'origin'
+      const merge = (await this.tryRun(source.path, ['config', `branch.${branch}.merge`]))?.trim() || `refs/heads/${branch}`
+      const output = (await this.run(source.path, ['fetch', remote, `${merge}:refs/heads/${branch}`])).trim()
+      await this.forget(this.keyOf(sourceId, cardId))
+      return { output: output || tm().git.allUpToDate }
+    }
     if (action === 'pull') { await this.forget(this.keyOf(sourceId, cardId)); return { output: (await this.run(target.dir, ['pull', pull === 'rebase' ? '--rebase' : pull === 'ff' ? '--ff' : '--ff-only'])).trim() || tm().git.allUpToDate } }
-    const branch = target.branch ?? (await this.run(target.dir, ['branch', '--show-current'])).trim()
-    if (!branch) throw new Error(tm().git.detachedHeadBeforePublish)
+    const pushed = branch || current
+    if (!pushed) throw new Error(tm().git.detachedHeadBeforePublish)
     // Force uses --force-with-lease: it only overwrites if the remote is still as of the last fetch (it does not trample what arrived later).
     let output: string
-    try { output = (await this.run(target.dir, ['push', '-u', ...(force ? ['--force-with-lease'] : []), 'origin', branch])).trim() || (force ? tm().git.branchForcePublished(branch) : tm().git.branchPublished(branch)) }
+    try { output = (await this.run(target.dir, ['push', '-u', ...(force ? ['--force-with-lease'] : []), 'origin', pushed])).trim() || (force ? tm().git.branchForcePublished(pushed) : tm().git.branchPublished(pushed)) }
     catch (error) {
       // The lease was stale: someone published on this branch after our last fetch. Fetches only that branch (reads, changes nothing local)
       // and says what is there now; forcing again uses the fresh lease, so it only overwrites what the user has just seen.
       if (!force || errorCodeOf(error instanceof Error ? error.message : '') !== 'git-push-stale') throw error
-      await this.tryRun(target.dir, ['fetch', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`])
-      const remote = (await this.tryRun(target.dir, ['log', '-1', '--format=%h · %an · %s', `refs/remotes/origin/${branch}`]))?.trim() ?? ''
+      await this.tryRun(target.dir, ['fetch', 'origin', `+refs/heads/${pushed}:refs/remotes/origin/${pushed}`])
+      const remote = (await this.tryRun(target.dir, ['log', '-1', '--format=%h · %an · %s', `refs/remotes/origin/${pushed}`]))?.trim() ?? ''
       throw new Error(withErrorCode('git-push-stale', tm().git.pushStale(remote)))
     }
     await this.forget(this.keyOf(sourceId, cardId))
