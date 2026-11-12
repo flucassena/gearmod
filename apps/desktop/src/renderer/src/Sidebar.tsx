@@ -11,6 +11,7 @@ import { plainError } from './NoticeDialog'
 import { useEscape } from './useEscape'
 import { useAsk } from './useAsk'
 import { dateLocale, tr, useT } from './i18n'
+import { projectStatus } from './sidebarStatus'
 
 const level = (percent: number): string => (percent >= 90 ? 'hi' : percent >= 70 ? 'mid' : 'ok')
 function left(iso: string | null): string {
@@ -50,17 +51,27 @@ function VoiceInstallCard(): React.JSX.Element | null {
   </div>
 }
 
-function UsedAgents({ profiles }: { profiles: AgentProfile[] }): React.JSX.Element {
+function UsedAgents({ profiles, rail }: { profiles: AgentProfile[]; rail: boolean }): React.JSX.Element {
   const t = useT(), [open, setOpen] = useState(false), [usage, setUsage] = useState<AgentUsage[]>([]), [detail, setDetail] = useState<string>(), [refreshing, setRefreshing] = useState(false)
+  const hoverTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), [])
+  useEffect(() => { window.clearTimeout(hoverTimer.current); setOpen(false) }, [rail])
+  const hover = (inside: boolean): void => {
+    if (!rail) return
+    window.clearTimeout(hoverTimer.current)
+    if (detail) return
+    hoverTimer.current = window.setTimeout(() => setOpen(inside), inside ? 220 : 180)
+  }
+  const visible = open || Boolean(detail)
   const load = useCallback(async () => { try { setUsage(await window.gearmod.invoke('usage:list', undefined)) } catch { /* usage is informational */ } }, [])
   // Shows what is already known right away and updates behind the scenes (Claude only reports the limit when it runs).
   useEffect(() => {
-    if (!open && !detail) return
+    if (!visible) return
     let alive = true
     void load(); setRefreshing(true)
     void window.gearmod.invoke('usage:refresh', undefined).then((fresh) => { if (alive) setUsage(fresh) }).catch(() => undefined).finally(() => { if (alive) setRefreshing(false) })
     return () => { alive = false }
-  }, [open, detail, load])
+  }, [visible, load])
   useEffect(() => window.gearmod.onRunEvent((event) => { if ((open || detail) && event.eventType === 'gearmod/run-completed') void load() }), [open, detail, load])
   const root = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -72,12 +83,12 @@ function UsedAgents({ profiles }: { profiles: AgentProfile[] }): React.JSX.Eleme
   useEscape(() => setOpen(false), open)
   const shown = profiles.slice(0, 4), extra = profiles.length - shown.length
   const windowOf = (profileId: string, id: 'five_hour' | 'seven_day') => usage.find((item) => item.profileId === profileId)?.windows.find((window) => window.id === id)
-  return <div className="used" ref={root}>
-    <button type="button" className="usedbtn tip" data-tip={t.shell.sidebar.usedTip} aria-expanded={open} aria-label={t.shell.sidebar.usedTip} onClick={() => setOpen(!open)}><span className="avstack">{shown.map((profile) => <span key={profile.id} className={`av ptl ${profile.provider}`} style={{ color: profile.color, background: `color-mix(in srgb, ${profile.color} 22%, var(--surface-2))` }}><ProviderLogo provider={profile.provider} /></span>)}{extra > 0 && <span className="av ptl more">+{extra}</span>}</span><ChevronUpIcon className={`uchev ${open ? 'open' : ''}`} /></button>
+  return <div className="used" ref={root} onMouseEnter={() => hover(true)} onMouseLeave={() => hover(false)}>
+    <button type="button" className="usedbtn tip" data-tip={t.shell.sidebar.usedTip} aria-expanded={open} aria-label={t.shell.sidebar.usedTip} onClick={() => { window.clearTimeout(hoverTimer.current); setOpen(!open) }}><span className="avstack">{shown.map((profile) => <span key={profile.id} className={`av ptl ${profile.provider}`} style={{ color: profile.color, background: `color-mix(in srgb, ${profile.color} 22%, var(--surface-2))` }}><ProviderLogo provider={profile.provider} /></span>)}{extra > 0 && <span className="av ptl more">+{extra}</span>}</span><ChevronUpIcon className={`uchev ${open ? 'open' : ''}`} /></button>
     {open && <div className="upop"><div className="sectitle">{t.shell.sidebar.sessionUsage}{refreshing && <span className="refreshing">{t.shell.sidebar.updating}</span>}</div>{profiles.length === 0 && <p className="hint">{t.shell.sidebar.noAgents}</p>}{profiles.map((profile) => {
       // Session (5 h) and week, one labeled bar each; the reset time of the session stays on one line under the name.
       const window = windowOf(profile.id, 'five_hour'), week = windowOf(profile.id, 'seven_day')
-      return <button type="button" className="urow" key={profile.id} onClick={() => { setDetail(profile.id); setOpen(false) }}><AgentIcon profile={profile} tip={false} /><span className="un"><b>{profile.label}</b>
+      return <button type="button" className="urow" key={profile.id} onClick={() => { globalThis.clearTimeout(hoverTimer.current); setDetail(profile.id); setOpen(false) }}><AgentIcon profile={profile} tip={false} /><span className="un"><b>{profile.label}</b>
         <small className="rs">{window ? <>{t.shell.sidebar.resetsIn} <span>{left(window.resetsAt)}</span></> : t.shell.sidebar.noDataYet}</small>
         {window && <span className="ulim" data-tip={t.shell.sidebar.resetsAt(left(window.resetsAt), at(window.resetsAt))}><small>{t.shell.sidebar.sessionShort}</small><Bar percent={window.usedPercent} /><em>{window.usedPercent}%</em></span>}
         {week && <span className="ulim" data-tip={t.shell.sidebar.resetsAt(left(week.resetsAt), at(week.resetsAt))}><small>{t.shell.sidebar.weekShort}</small><Bar percent={week.usedPercent} /><em>{week.usedPercent}%</em></span>}</span></button>
@@ -170,12 +181,19 @@ export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onO
   const [peek, setPeek] = useState<{ project: Project; x: number; y: number }>(), peekTimer = useRef<number | undefined>(undefined)
   const showPeek = (project: Project, row: HTMLElement): void => {
     window.clearTimeout(peekTimer.current)
-    if (!project.activity.alerts?.length || drag) { setPeek(undefined); return }
+    if ((!collapsed && !project.activity.alerts?.length) || drag) { setPeek(undefined); return }
     const box = row.getBoundingClientRect()
     peekTimer.current = window.setTimeout(() => setPeek({ project, x: box.right + 6, y: Math.min(box.top, window.innerHeight - 320) }), 220)
   }
   const hidePeek = (): void => { window.clearTimeout(peekTimer.current); peekTimer.current = window.setTimeout(() => setPeek(undefined), 180) }
   useEffect(() => () => window.clearTimeout(peekTimer.current), [])
+  useEffect(() => { window.clearTimeout(peekTimer.current); setPeek(undefined) }, [collapsed])
+  const statusText = (project: Project): string => {
+    const { primary, extra } = projectStatus(project.activity)
+    const text = primary === 'waiting' ? t.shell.sidebar.waitingCount(project.activity.waiting ?? 0) : primary === 'finished' ? t.shell.sidebar.finishedCount(project.activity.finished) : primary === 'running' ? t.shell.sidebar.running(project.activity.running) : undefined
+    const git = project.sources.filter((source) => source.isGitRepository).length
+    return text ? `${text}${extra ? ` +${extra}` : ''}` : git ? t.shell.sidebar.repositories(git) : t.shell.sidebar.folderWithoutGit
+  }
   const ordered = drag ? (() => { const rest = projects.filter((item) => item.id !== drag.id), moving = projects.find((item) => item.id === drag.id)!; rest.splice(drag.over, 0, moving); return rest })() : projects
   const drop = (): void => { if (drag && ordered.some((item, index) => item.id !== projects[index]?.id)) onReorder(ordered.map((item) => item.id)); setDrag(undefined) }
   useEffect(() => {
@@ -193,15 +211,15 @@ export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onO
   }, [menu, onNewChat, onProjectSettings, onDelete])
   useEscape(() => setMenu(undefined), Boolean(menu))
   return <>
-    <button type="button" className="side-toggle tip" data-tip={collapsed ? t.shell.sidebar.showSidebar : t.shell.sidebar.hideSidebar} aria-label={collapsed ? t.shell.sidebar.showSidebar : t.shell.sidebar.hideSidebar} onClick={onToggle}><ChevronLeftIcon />{collapsed && <span>{t.shell.sidebar.menu}</span>}</button>
-    <aside>
-      <button className="secondary newproj" onClick={onNew}>{t.shell.sidebar.newProject}</button>
+    <button type="button" className="side-toggle tip" data-tip={collapsed ? t.shell.sidebar.showSidebar : t.shell.sidebar.hideSidebar} aria-label={collapsed ? t.shell.sidebar.showSidebar : t.shell.sidebar.hideSidebar} onClick={onToggle}><ChevronLeftIcon /></button>
+    <aside className={collapsed ? 'rail' : undefined}>
+      <button className="secondary newproj" data-tip={collapsed ? t.shell.sidebar.newProjectTip : undefined} aria-label={t.shell.sidebar.newProjectTip} onClick={onNew}>{collapsed ? <PlusIcon /> : t.shell.sidebar.newProject}</button>
       <nav className="projs" onDragOver={(e) => { if (drag) e.preventDefault() }} onDrop={(e) => { e.preventDefault(); drop() }}>{ordered.map((project, index) => {
         const { running, finished } = project.activity, waiting = project.activity.waiting ?? 0, git = project.sources.filter((source) => source.isGitRepository).length
         // One status only, the most important (needs you > finished > running), so the row never overflows;
         // the full list is in the tooltip and in the alerts that open on hover.
         const parts = [waiting ? { kind: 'wait', text: t.shell.sidebar.waitingCount(waiting) } : null, finished ? { kind: 'fin', text: t.shell.sidebar.finishedCount(finished) } : null, running ? { kind: 'run', text: t.shell.sidebar.running(running) } : null].filter((part) => part !== null)
-        const top = parts[0], more = parts.length - 1
+        const status = projectStatus(project.activity), top = parts.find((part) => part.kind === ({ waiting: 'wait', finished: 'fin', running: 'run' } as const)[status.primary ?? 'running']), more = status.extra
         const sub = top ? <small className="salerts" data-tip={parts.map((part) => part.text).join(' · ')}><span className={`s${top.kind}`}>{top.text}</span>{more > 0 && <span className="ssep"> +{more}</span>}</small> : <small>{git ? t.shell.sidebar.repositories(git) : t.shell.sidebar.folderWithoutGit}</small>
         return <div className={`projrow ${drag?.id === project.id ? 'dragging' : ''}`} key={project.id} draggable
           onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setMenu(undefined); setDrag({ id: project.id, over: index }) }}
@@ -217,14 +235,15 @@ export function Sidebar({ projects, profiles, selected, collapsed, onSelect, onO
           onDragEnd={() => setDrag(undefined)}
           onContextMenu={(e) => { e.preventDefault(); setPeek(undefined); setMenu({ project, x: e.clientX, y: e.clientY }) }}
           onMouseEnter={(e) => showPeek(project, e.currentTarget)} onMouseLeave={hidePeek}>
-          <button type="button" className={`proj ${selected === project.id ? 'on' : ''} ${finished ? 'fin' : ''} ${running ? 'busy' : ''} ${waiting ? 'wait' : ''}`} onClick={() => onSelect(project.id)}><ProjectAvatar name={project.name} icon={project.icon} /><span title={project.name}>{project.name}{sub}</span>{waiting > 0 ? <b className="pdot wait" data-tip={t.shell.sidebar.waitingTip} /> : finished > 0 ? <b className="pdot" data-tip={t.shell.sidebar.finishedTip} /> : running > 0 && <span className="spin sm" data-tip={t.shell.sidebar.runningTip} />}</button>
+          <button type="button" className={`proj ${selected === project.id ? 'on' : ''} ${finished ? 'fin' : ''} ${running ? 'busy' : ''} ${waiting ? 'wait' : ''}`} aria-label={`${project.name} · ${statusText(project)}`} data-tip={collapsed ? project.name : undefined} onClick={() => onSelect(project.id)}><ProjectAvatar name={project.name} icon={project.icon} /><span className="proj-label" data-tip={collapsed ? undefined : project.name}>{project.name}{sub}</span>{waiting > 0 ? <b className="pdot wait" data-tip={t.shell.sidebar.waitingTip} /> : finished > 0 ? <b className="pdot" data-tip={t.shell.sidebar.finishedTip} /> : !collapsed && running > 0 && <span className="spin sm" data-tip={t.shell.sidebar.runningTip} />}{collapsed && running > 0 && <span className="spin sm rail-running" data-tip={t.shell.sidebar.runningTip} />}</button>
           <button type="button" className="projnew tip" data-tip={t.shell.sidebar.newFreeChatTip} aria-label={t.shell.sidebar.newFreeChatIn(project.name)} onClick={() => onNewChat(project.id)}><ChatPlusIcon /></button></div>
       })}</nav>
       <VoiceInstallCard />
-      <div className="side-foot"><button className="iconbtn gearwrap" data-tip={appUpdate ? t.shell.sidebar.settingsWithAppUpdate : agentUpdates ? t.shell.sidebar.settingsWithUpdate : t.common.settings} aria-label={appUpdate ? t.shell.sidebar.settingsWithAppUpdate : agentUpdates ? t.shell.sidebar.settingsLabelWithUpdate : t.common.settings} onClick={onSettings}>⚙{(agentUpdates || appUpdate) && <i className="gear-dot" aria-hidden="true" />}</button>{profiles.length ? <UsedAgents profiles={profiles} /> : <button type="button" className="mini secondary withicon side-addagent" onClick={onAddAgent}><PlusIcon />{t.shell.sidebar.addAgent}</button>}</div>
+      <div className="side-foot"><button className="iconbtn gearwrap" data-tip={appUpdate ? t.shell.sidebar.settingsWithAppUpdate : agentUpdates ? t.shell.sidebar.settingsWithUpdate : t.common.settings} aria-label={appUpdate ? t.shell.sidebar.settingsWithAppUpdate : agentUpdates ? t.shell.sidebar.settingsLabelWithUpdate : t.common.settings} onClick={onSettings}>⚙{(agentUpdates || appUpdate) && <i className="gear-dot" aria-hidden="true" />}</button>{profiles.length ? <UsedAgents profiles={profiles} rail={collapsed} /> : <button type="button" className="mini secondary withicon side-addagent" data-tip={t.shell.sidebar.addAgent} aria-label={t.shell.sidebar.addAgent} onClick={onAddAgent}><PlusIcon />{!collapsed && t.shell.sidebar.addAgent}</button>}</div>
     </aside>
     {peek && !menu && <div className="projmenu projalerts" role="menu" aria-label={t.shell.sidebar.alertsOf(peek.project.name)} style={{ left: peek.x, top: peek.y }} onMouseEnter={() => window.clearTimeout(peekTimer.current)} onMouseLeave={hidePeek}>
       <div className="ctxtitle">{peek.project.name}</div>
+      {collapsed && <p className="proj-summary">{statusText(projects.find((project) => project.id === peek.project.id) ?? peek.project)}</p>}
       {(peek.project.activity.alerts ?? []).map((alert) => <button type="button" role="menuitem" key={alert.cardId} className={`palert ${alert.kind}`} onClick={() => { setPeek(undefined); onOpenCard(peek.project.id, alert.cardId) }}>
         {alert.kind === 'running' ? <span className="spin sm" /> : <span className={`dot ${alert.kind === 'failed' ? '' : 'pulse'}`} />}<span className="pa-title">{alert.title || t.shell.sidebar.untitledCard}</span><small>{t.shell.sidebar.alertKind[alert.kind]}</small></button>)}
     </div>}

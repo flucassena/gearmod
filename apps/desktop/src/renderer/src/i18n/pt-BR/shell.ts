@@ -185,6 +185,7 @@ export const shell = {
     hideSidebar: 'Ocultar barra lateral',
     menu: 'Menu',
     newProject: '＋ Novo projeto',
+    newProjectTip: 'Novo projeto',
     running: (n: number) => `${n} executando`,
     finishedClickToSee: 'Terminou · clique para ver',
     waitingCount: (n: number) => n === 1 ? '1 precisa de você' : `${n} precisam de você`,

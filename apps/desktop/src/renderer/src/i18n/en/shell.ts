@@ -186,6 +186,7 @@ export const shell: typeof source = {
     hideSidebar: 'Hide sidebar',
     menu: 'Menu',
     newProject: '＋ New project',
+    newProjectTip: 'New project',
     running: (n: number) => `${n} running`,
     finishedClickToSee: 'Finished · click to see',
     waitingCount: (n) => n === 1 ? '1 needs you' : `${n} need you`,
