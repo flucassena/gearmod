@@ -1,11 +1,12 @@
-import type { ToolsStatus } from '@gearmod/contracts'
+import { toolsStatusSchema, type ToolsStatus } from '@gearmod/contracts'
 
 /** Fired on `window` (detail: project id) whenever the tools were probed again, so the panel, the tab dot and the gear dot all follow the new result. */
 export const toolsChangedEvent = 'gearmod:tools-changed'
 
 const statusKey = (projectId: string): string => `gearmod.tools-status.${projectId}`
+/** The saved result may come from an older version of the app: it goes through the schema, which fills the fields added since (or drops it when it no longer fits) instead of breaking the screen. */
 export const cachedStatus = (projectId: string): ToolsStatus | undefined => {
-  try { const raw = localStorage.getItem(statusKey(projectId)); return raw ? JSON.parse(raw) as ToolsStatus : undefined } catch { return undefined }
+  try { const raw = localStorage.getItem(statusKey(projectId)); return raw ? toolsStatusSchema.safeParse(JSON.parse(raw)).data : undefined } catch { return undefined }
 }
 const saveStatus = (projectId: string, status: ToolsStatus): void => { try { localStorage.setItem(statusKey(projectId), JSON.stringify(status)) } catch { /* the cache is just a visual convenience */ } }
 
