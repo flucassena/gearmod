@@ -247,6 +247,8 @@ export function cardWaiting(db: Database.Database, cardId: string): number {
     // A commit approval only counts while its commit request is still pending (a newer request replaces the older one).
     + count(`SELECT COUNT(*) AS n FROM approval_records a WHERE a.card_id = ? AND a.status = 'requested' AND (a.expires_at IS NULL OR a.expires_at > ?)
       AND (a.kind <> 'git-commit' OR EXISTS (SELECT 1 FROM git_commit_requests g WHERE g.approval_id = a.id AND g.status = 'pending'))`, cardId, new Date().toISOString())
+    // Agents without the question tool (Antigravity/Gemini) ask with a gearmod-perguntas block in the text: waiting while that message is the chat's last one.
+    + count("SELECT COUNT(*) AS n FROM chats c WHERE c.card_id = ? AND (SELECT m.role || m.body FROM chat_messages m WHERE m.chat_id = c.id ORDER BY m.created_at DESC, m.rowid DESC LIMIT 1) LIKE 'assistant%```gearmod-perguntas%'", cardId)
     + (live.length ? count(`SELECT COUNT(*) AS n FROM chats WHERE card_id = ? AND id IN (${live.map(() => '?').join(',')})`, cardId, ...live) : 0)
 }
 
@@ -260,13 +262,10 @@ export class ProjectRepository {
     const sources = this.database.db.prepare(`SELECT id, project_id AS projectId, name, local_path AS localPath,
       is_git_repository AS isGitRepository, current_branch AS currentBranch, NULLIF(base_branch, '') AS baseBranch, sort_order AS sortOrder FROM project_sources WHERE project_id = ? ORDER BY sort_order`)
     // Sidebar: chats with an agent working (any step, including free chat and Constitution) and cards whose last run
-    // (planning, implementation or test) finished after the last time the user opened the card.
+    // (implementation or test) finished after the last time the user opened the card; "finished" follows `cardRunState`, the same rule as the hover list.
     // Automated tests running count too, one per card (they run without a chat).
     const running = this.database.db.prepare(`SELECT (SELECT COUNT(DISTINCT r.chat_id) FROM runs r JOIN chats c ON c.id = r.chat_id WHERE c.project_id = ? AND r.status IN ('queued', 'running'))
       + (SELECT COUNT(*) FROM cards k WHERE k.project_id = ? AND k.archived_at IS NULL AND (SELECT t.status FROM test_runs t WHERE t.card_id = k.id ORDER BY t.started_at DESC, t.rowid DESC LIMIT 1) = 'running') AS n`)
-    const finished = this.database.db.prepare(`SELECT COUNT(*) AS n FROM cards k WHERE k.project_id = ? AND k.archived_at IS NULL AND EXISTS (
-      SELECT 1 FROM runs r WHERE r.id = (SELECT id FROM runs WHERE card_id = k.id ORDER BY started_at DESC, rowid DESC LIMIT 1)
-      AND r.status = 'completed' AND r.ended_at > COALESCE(k.viewed_at, ''))`)
     const cards = this.database.db.prepare('SELECT id, title FROM cards WHERE project_id = ? AND archived_at IS NULL ORDER BY updated_at DESC')
     const order = { waiting: 0, failed: 1, finished: 2, running: 3 } as const
     // Card by card, what is there for the user (the project's hover menu); a card shows once, with what matters most.
@@ -274,10 +273,10 @@ export class ProjectRepository {
       const state = cardRunState(this.database.db, card.id).state
       const kind = cardWaiting(this.database.db, card.id) > 0 ? 'waiting' as const : state === 'failed' ? 'failed' as const : state === 'finished' ? 'finished' as const : state === 'running' || state === 'planning' || cardTestsRunning(this.database.db, card.id) ? 'running' as const : null
       return kind ? [{ cardId: card.id, title: card.title, kind }] : []
-    }).sort((a, b) => order[a.kind] - order[b.kind]).slice(0, 20)
-    return rows.map((row) => { const types = projectCardTypes(this.database.db, row.id), list = alerts(row.id); return { ...row,
+    }).sort((a, b) => order[a.kind] - order[b.kind])
+    return rows.map((row) => { const types = projectCardTypes(this.database.db, row.id), everything = alerts(row.id), list = everything.slice(0, 20); return { ...row,
       cardTypes: types.types, customCardTypes: types.custom,
-      activity: { running: (running.get(row.id, row.id) as { n: number }).n, finished: (finished.get(row.id) as { n: number }).n, waiting: list.filter((item) => item.kind === 'waiting').length, alerts: list },
+      activity: { running: (running.get(row.id, row.id) as { n: number }).n, finished: everything.filter((item) => item.kind === 'finished').length, waiting: list.filter((item) => item.kind === 'waiting').length, alerts: list },
       allowedProfileIds: (allowed.all(row.id) as { profileId: string }[]).map((item) => item.profileId),
       sources: (sources.all(row.id) as Array<Omit<ProjectSource, 'isGitRepository'> & { isGitRepository: number }>).map((item) => ({ ...item, isGitRepository: Boolean(item.isGitRepository) }))
     } })
