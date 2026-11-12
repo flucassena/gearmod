@@ -75,6 +75,10 @@ import { CodeIndexSettings } from './code-index/project-setting'
 import { loadShellPath } from './shell-path'
 import { titleBarOverlay } from './title-bar'
 import { appMenuTemplate, primaryModifier, titleBarOptions } from './mac'
+import { ignoreBrokenPipe } from './broken-pipe'
+
+// A closed console pipe (the app opened from a terminal that is gone) must not crash the main process on the next console.error.
+ignoreBrokenPipe(process.stdout, process.stderr)
 
 // Linux and macOS: the PATH of the user's shell (Homebrew, nvm, ~/.npm-global/bin...), so the agent CLIs are found when the app is opened from the menu or the Dock.
 loadShellPath()
