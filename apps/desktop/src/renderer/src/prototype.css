@@ -1073,6 +1073,7 @@ select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%
 .gref .gn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:12px}
 .gref .gcard{flex:none;font-size:10.5px;padding:1px 6px;border-radius:6px;background:color-mix(in srgb, var(--accent) 16%, var(--g26));color:var(--accent-strong);font-family:var(--sans);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gref .gwt{display:grid;gap:1px;min-width:0;flex:1}.gref .gwt small{font-size:10.5px;color:color-mix(in srgb, var(--accent) 7%, var(--g7a));font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gref.removing{opacity:.7;pointer-events:none}.gref .spin.del{border-color:color-mix(in srgb,var(--tone-danger) 30%,transparent);border-top-color:var(--tone-danger);margin-left:auto}
 .gref svg,.gtool svg,.gonly svg,.grepos svg,.cgsum svg,.cgrepo svg,.viewtoggle.sm svg,.gico{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .gcenter{display:flex;flex-direction:column;min-width:0;min-height:0}
 .gtools{display:flex;align-items:center;gap:4px;padding:8px 10px;border-bottom:1px solid color-mix(in srgb, var(--accent) 7%, var(--g27));flex-wrap:wrap}

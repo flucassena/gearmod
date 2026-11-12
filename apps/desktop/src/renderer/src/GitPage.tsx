@@ -450,8 +450,12 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
   const leaveConflicts = async (): Promise<boolean> => !conflictDirty.current || confirmAsk({ eyebrow: t.resolveConflicts, title: t.discardEditTitle, text: t.discardEditText, ok: t.discard, danger: true })
   const resolve = async (entry: ConflictTarget): Promise<void> => { if (resolveTarget && !(await leaveConflicts())) return; setRepoId(entry.sourceId); setViewer(undefined); setResolveTarget(entry) }
   /** Returns the error (or `null` on success) for the name dialog to show in place and stay open. */
+  // Branches being deleted right now (`remote:<name>` / `local:<name>`): their rows show a red spinner and cannot be used until the deletion ends.
+  const [removing, setRemoving] = useState<string[]>([])
   const branchAction = async (action: Exclude<BranchAction, 'copy'>, name: string, extra?: { newName?: string; force?: boolean }): Promise<string | null> => {
     if (!graph) return null
+    const mark = action === 'delete-remote' ? `remote:${name}` : action === 'delete' ? `local:${name}` : ''
+    if (mark) setRemoving((current) => [...current, mark])
     setBusy(action); setNotice('')
     let retryForce = false
     try { const out = await window.gearmod.invoke('git:branch-action', { sourceId: graph.repo.sourceId, cardId: worktree, action, name, ...extra }); report(action, true, out.output.split(/\r?\n/).filter(Boolean).slice(-1)[0] ?? t.done); await load(); return null } catch (reason) {
@@ -459,7 +463,7 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
       // Branch with commits that are in no other branch: instead of just failing, asks whether to delete anyway.
       if (action === 'delete' && !extra?.force && errorCodeOf(message) === 'branch-not-merged') retryForce = true
       else { report(action, false, withoutErrorCode(message)); return withoutErrorCode(message) }
-    } finally { setBusy('') }
+    } finally { setBusy(''); if (mark) setRemoving((current) => current.filter((item) => item !== mark)) }
     if (retryForce && await confirmAsk({ eyebrow: t.deleteBranchEyebrow, title: t.deleteUnmergedTitle(name), text: t.deleteUnmergedText, ok: t.deleteUnmergedOk, danger: true })) return branchAction(action, name, { ...extra, force: true })
     return null
   }
@@ -596,7 +600,7 @@ export function GitPage({ board, prs, profiles, openCardGit, focusRequest }: { b
     }
     void branchAction('checkout', name)
   }
-  const side = <GitSide graph={graph} worktree={worktree} selectWorktree={goWorktree} title={title} icons={gitIcons} picked={picked} onPick={pickBranch} onPickStash={(ref) => { const row = rows.find((item) => item.stash?.ref === ref); if (!row) return; setPicked(`stash:${ref}`); setSel(row.hash); setOpen(true); window.requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-hash="${row.hash}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })) }} onOpen={(kind, name, current) => { if (current) toast.info(t.alreadyOn(name)); else openLocalBranch(name) }} onMenu={(kind, name, event) => { event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, kind, name }) }} onFolderMenu={(kind, folder, names, event) => setFolderMenu({ x: event.clientX, y: event.clientY, folder, names, remote: kind === 'remote' })} onWorktreeMenu={(cardId, branch, event) => setWtMenu({ x: event.clientX, y: event.clientY, cardId, branch })} onExternalMenu={(path, name, event) => setExtMenu({ x: event.clientX, y: event.clientY, path, name })} prs={repoId ? { list: prs.lists[repoId], isUnread: (pr) => prs.isUnread(repoId, pr), open: (pr) => { setPrFocus(pr ? { number: pr.number, at: Date.now() } : undefined); setPrOpen(true) } } : undefined} />
+  const side = <GitSide removing={removing} graph={graph} worktree={worktree} selectWorktree={goWorktree} title={title} icons={gitIcons} picked={picked} onPick={pickBranch} onPickStash={(ref) => { const row = rows.find((item) => item.stash?.ref === ref); if (!row) return; setPicked(`stash:${ref}`); setSel(row.hash); setOpen(true); window.requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-hash="${row.hash}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })) }} onOpen={(kind, name, current) => { if (current) toast.info(t.alreadyOn(name)); else openLocalBranch(name) }} onMenu={(kind, name, event) => { event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, kind, name }) }} onFolderMenu={(kind, folder, names, event) => setFolderMenu({ x: event.clientX, y: event.clientY, folder, names, remote: kind === 'remote' })} onWorktreeMenu={(cardId, branch, event) => setWtMenu({ x: event.clientX, y: event.clientY, cardId, branch })} onExternalMenu={(path, name, event) => setExtMenu({ x: event.clientX, y: event.clientY, path, name })} prs={repoId ? { list: prs.lists[repoId], isUnread: (pr) => prs.isUnread(repoId, pr), open: (pr) => { setPrFocus(pr ? { number: pr.number, at: Date.now() } : undefined); setPrOpen(true) } } : undefined} />
   const tool = (icon: React.JSX.Element, label: string, action: 'push' | 'stash' | 'pop', remote = true): React.JSX.Element => <button type="button" className="gtool" disabled={Boolean(busy) || (remote && !graph?.repo.hasRemote)} data-tip={remote && !graph?.repo.hasRemote ? T.git.view.noRemote : undefined} onClick={() => { if (action === 'push' && (graph?.branches.local.find((item) => otherBranch ? item.name === otherBranch : item.head)?.behind ?? 0) > 0) setPushRejected(''); else void sync(action) }}>{icon}{busy === action ? '…' : label}</button>
   // The outer button runs the default; each menu option runs its own right away (without changing the default).
   const pullNow = (mode: PullMode = pullMode): void => {
