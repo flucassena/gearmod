@@ -56,3 +56,22 @@ describe('ToolUpdateService', () => {
     expect(result).toMatchObject({ checkedAt: null, error: 'Não foi possível verificar atualizações', versions: { claude: null, specify: null } })
   })
 })
+
+describe('ToolUpdateService.compat', () => {
+  const manifest = { generatedAt: '2026-11-12T00:00:00Z', versions: { '1.4.0': { ok: true, issues: [] }, '1.5.0': { ok: false, issues: [{ severity: 'error', detail: '[claude] skill speckit-plan is missing' }] } } }
+  it('reads the CI verdicts, caches them for an hour and keeps them offline', async () => {
+    const file = await temp(); let calls = 0, now = 1_000_000_000_000, online = true
+    const service = new ToolUpdateService(file, async () => { calls++; if (!online) throw new Error('offline'); return manifest }, () => now)
+    expect((await service.compat()).versions['1.4.0']).toMatchObject({ ok: true })
+    await service.compat(); expect(calls).toBe(1)
+    now += 2 * 60 * 60 * 1000; online = false
+    expect((await service.compat()).versions['1.5.0']).toMatchObject({ ok: false })
+    // a new instance (app restart) offline still has the last good answer from disk
+    const again = new ToolUpdateService(file, async () => { throw new Error('offline') }, () => now)
+    expect((await again.compat()).versions['1.4.0']).toMatchObject({ ok: true })
+  })
+  it('treats a malformed file as no verdict', async () => {
+    const service = new ToolUpdateService(await temp(), async () => ({ versions: { 'not-a-version': { ok: true, issues: [] } } }))
+    expect((await service.compat()).versions).toEqual({})
+  })
+})

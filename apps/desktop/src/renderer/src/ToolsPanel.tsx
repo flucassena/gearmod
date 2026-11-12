@@ -7,7 +7,8 @@ import { terminal } from './terminalStore'
 import { SpecKitRunDialog } from './SpecKitRunDialog'
 import { cachedStatus, probeTools, toolsChangedEvent } from './toolsStatusCache'
 import { checkedAgo, isOutdated, loadLatest, useLatestVersions } from './toolUpdates'
-import { rememberVerifiedSpecKit, specKitBaseline, specKitInstallCommand, specKitUpdateState, verifiedSpecKitVersions } from './specKitUpdates'
+import { rememberIncompatibleSpecKit, rememberVerifiedSpecKit, specKitBaseline, specKitInstallCommand, specKitUpdateState, specKitVerdict } from './specKitUpdates'
+import { useSpecCompat } from './specCompat'
 import { useT } from './i18n'
 
 const pendingByProject = new Map<string, boolean>()
@@ -26,12 +27,13 @@ async function playwrightOutdated(projectId: string, latest: string | null | und
 
 /** The gear and the tab share the last result, without waiting for another check when the dialog opens. They light up for Spec Kit and Playwright CLI. */
 export function useToolsPending(projectId: string): boolean {
-  const latest = useLatestVersions(), [state, setState] = useState(() => ({ projectId, pending: pendingByProject.get(projectId) ?? false }))
+  const latest = useLatestVersions(), compat = useSpecCompat(), [state, setState] = useState(() => ({ projectId, pending: pendingByProject.get(projectId) ?? false }))
   useEffect(() => {
     const listen = (id: string, pending: boolean): void => { if (id === projectId) setState({ projectId: id, pending }) }
     pendingListeners.add(listen); setState({ projectId, pending: pendingByProject.get(projectId) ?? false })
     const compute = (): Promise<void> => Promise.all([Promise.resolve(cachedStatus(projectId)), playwrightOutdated(projectId, latest?.versions.playwright)]).then(([tools, playwright]) => {
-      const pending = Boolean((tools && isOutdated(tools.specify.version, latest?.versions.specify ?? null)) || playwright)
+      // A Spec Kit version known not to fit GearMod yet does not light the dot: there is nothing the user can do about it.
+      const pending = Boolean((tools && isOutdated(tools.specify.version, latest?.versions.specify ?? null) && specKitVerdict(latest?.versions.specify ?? null, compat).state !== 'incompatible') || playwright)
       pendingByProject.set(projectId, pending); pendingListeners.forEach((listener) => listener(projectId, pending))
     }).catch(() => undefined)
     const key = `${projectId}:${latest?.checkedAt}`
@@ -40,7 +42,7 @@ export function useToolsPending(projectId: string): boolean {
     const changed = (event: Event): void => { if (latest && (event as CustomEvent<string>).detail === projectId) void compute() }
     window.addEventListener('gearmod:playwright-changed', changed); window.addEventListener(toolsChangedEvent, changed)
     return () => { pendingListeners.delete(listen); window.removeEventListener('gearmod:playwright-changed', changed); window.removeEventListener(toolsChangedEvent, changed) }
-  }, [projectId, latest?.checkedAt])
+  }, [projectId, latest?.checkedAt, compat])
   return state.projectId === projectId ? state.pending : pendingByProject.get(projectId) ?? false
 }
 
@@ -98,7 +100,7 @@ export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; o
     setError(''); setCompat({ version, state: 'running', issues: [] })
     try {
       const result = await window.gearmod.invoke('tools:probe-spec-kit', { version })
-      if (!result.ok) { setCompat({ version, state: 'failed', issues: result.issues }); return }
+      if (!result.ok) { rememberIncompatibleSpecKit(version); setCompat({ version, state: 'failed', issues: result.issues }); window.dispatchEvent(new CustomEvent(toolsChangedEvent, { detail: projectId })); return }
       rememberVerifiedSpecKit(version)
       setCompat(result.issues.length ? { version, state: 'warnings', issues: result.issues } : undefined)
       setSpecRun({ input: { kind: 'update-cli', version }, title: tt.updateCli(version) })
@@ -135,13 +137,15 @@ export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; o
   </div> : null
   const specOld = status ? upToDate(status.specify.version) : null
   const specUpdate = specKitUpdateState(status?.specify.version ?? null, latest?.versions.specify ?? null)
+  const verdict = specKitVerdict(latest?.versions.specify ?? null, specCompat)
   const specSteps: Step[] = !status ? [] : [
     ...(!status.uv ? [{ label: tt.installUv, command: windows ? 'winget install --id=astral-sh.uv -e' : 'curl -LsSf https://astral.sh/uv/install.sh | sh', next: specKitInstallCommand(specKitBaseline), run: { kind: 'install-uv' as const } }] : []),
     ...(status.uv && !status.specify.installed ? [{ label: tt.installCli, command: specKitInstallCommand(specKitBaseline), next: 'specify init --here', run: { kind: 'install-cli' as const, version: specKitBaseline } }] : []),
     ...(status.specify.installed && spec && !spec.specKit ? [{ label: needsRepo ? tt.createRepoAndStart : tt.startInRepo, command: needsRepo ? 'git init; specify init --here' : 'specify init --here', run: { kind: needsRepo ? 'init-with-git' as const : 'init' as const } }] : []),
     ...(specUpdate.canUpdate && latest?.versions.specify ? (() => {
       const target = latest.versions.specify
-      const verified = verifiedSpecKitVersions().includes(target)
+      if (verdict.state === 'incompatible') return []
+      const verified = verdict.state === 'verified'
       return [{ label: verified ? tt.updateCli(target) : tt.verifyAndUpdate(target), command: `${specKitInstallCommand(target)} --force`, disabled: compat?.state === 'running' ? tt.checking : undefined, ...(verified ? { run: { kind: 'update-cli' as const, version: target } } : { action: () => void verifyAndUpdate(target) }) }]
     })() : []),
     ...(status.specify.installed && spec?.specKit ? (() => {
@@ -171,6 +175,8 @@ export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; o
         </div>
         <div className="tl-reporow">{specPicker}{specSteps.length > 0 && buttons(specSteps, specRepo)}</div>
         {notice(specOld)}
+        {specUpdate.canUpdate && verdict.state === 'verified' && !compat && <span className="pw-chip ok" data-tip={tt.verifiedTip}>{tt.verifiedChip}</span>}
+        {specUpdate.canUpdate && verdict.state === 'incompatible' && !compat && latest?.versions.specify && <div className="pw-warn" role="status"><p>{tt.incompatible(latest.versions.specify)}</p>{verdict.issues.length > 0 && <ul>{verdict.issues.map((issue, index) => <li key={index}>{issue.detail}</li>)}</ul>}</div>}
         {compat && <div className="pw-warn" role="status">
           <p>{compat.state === 'running' ? tt.probing(compat.version) : compat.state === 'failed' ? tt.probeFailed(compat.version) : tt.probeWarnings(compat.version)}</p>
           {compat.issues.length > 0 && <ul>{compat.issues.map((issue, index) => <li key={index}>{issue.detail}</li>)}</ul>}

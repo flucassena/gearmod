@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 /**
@@ -62,4 +63,27 @@ export function checkSpecKitContract(repo: string, provider: SpecKitContractProv
   if (tasks !== null && !/^\s*- \[ \] T\d+/m.test(tasks)) add('error', 'tasks-format', 'tasks-template.md no longer uses the "- [ ] T001" checkbox format')
 
   return { ok: !issues.some((issue) => issue.severity === 'error'), issues }
+}
+
+export interface SpecKitProbeReport { version: string; ok: boolean; issues: SpecKitContractIssue[]; checkedAt: string }
+export type ProbeRunner = (command: string, args: string[], cwd: string, timeoutMs: number) => Promise<string>
+
+/**
+ * Initializes a candidate Spec Kit version in throwaway folders (one per supported agent) with `uv tool run` and checks the result against the contract.
+ * Nothing is installed and the folders are always removed. Shared by the app (local probe) and the scheduled CI job that publishes the verdicts.
+ */
+export async function probeSpecKitVersion(version: string, run: ProbeRunner): Promise<SpecKitProbeReport> {
+  const source = `git+https://github.com/github/spec-kit.git@v${version}`
+  const issues: SpecKitContractIssue[] = []
+  for (const provider of ['claude', 'codex'] as SpecKitContractProvider[]) {
+    const dir = mkdtempSync(join(tmpdir(), 'gearmod-speckit-probe-'))
+    try {
+      const args = ['tool', 'run', '--from', source, 'specify', 'init', '--here', '--force', '--non-interactive', '--integration', provider, ...(provider === 'codex' ? ['--integration-options=--skills'] : [])]
+      await run('uv', args, dir, 300_000)
+      issues.push(...checkSpecKitContract(dir, provider).issues.map((issue) => ({ ...issue, detail: `[${provider}] ${issue.detail}` })))
+    } catch (reason) {
+      issues.push({ severity: 'error', code: 'init-failed', detail: `[${provider}] ${reason instanceof Error ? reason.message.split(/[\r\n]+/).slice(-3).join(' ').slice(0, 300) : 'specify init failed'}` })
+    } finally { try { rmSync(dir, { recursive: true, force: true }) } catch { /* temp folder left behind: harmless */ } }
+  }
+  return { version, ok: !issues.some((issue) => issue.severity === 'error'), issues, checkedAt: new Date().toISOString() }
 }

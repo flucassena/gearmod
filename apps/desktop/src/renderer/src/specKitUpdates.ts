@@ -1,4 +1,4 @@
-import { isOutdated } from '@gearmod/contracts'
+import { isOutdated, type SpecKitCompat } from '@gearmod/contracts'
 
 // Last version reviewed by hand (v1.3.2, 6 Nov 2026); used for a first install. Updating no longer depends on it: before any update the app runs the
 // compatibility probe (see `SpecToolsService.probe`), which initializes the candidate version in a throwaway folder and checks what GearMod relies on.
@@ -17,4 +17,24 @@ export function verifiedSpecKitVersions(): string[] {
 }
 export function rememberVerifiedSpecKit(version: string): void {
   try { localStorage.setItem(verifiedKey, JSON.stringify([...new Set([...verifiedSpecKitVersions(), version])].slice(-20))) } catch { /* no storage: the probe just runs again next time */ }
+}
+
+const failedKey = 'gearmod.specKit.incompatibleVersions'
+/** Versions whose local probe failed on this machine (the CI verdict, when it exists, wins over this). */
+export function incompatibleSpecKitVersions(): string[] {
+  try { const value: unknown = JSON.parse(localStorage.getItem(failedKey) ?? '[]'); return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [] } catch { return [] }
+}
+export function rememberIncompatibleSpecKit(version: string): void {
+  try { localStorage.setItem(failedKey, JSON.stringify([...new Set([...incompatibleSpecKitVersions(), version])].slice(-20))) } catch { /* the probe just runs again */ }
+}
+
+export interface SpecKitVerdict { state: 'verified' | 'incompatible' | 'unknown'; issues: Array<{ severity: 'error' | 'warning'; detail: string }> }
+/** What is known about a Spec Kit version: the CI verdict first, then what this machine's own probe found; otherwise nothing yet. */
+export function specKitVerdict(version: string | null, compat: SpecKitCompat | undefined): SpecKitVerdict {
+  if (!version) return { state: 'unknown', issues: [] }
+  const entry = compat?.versions[version]
+  if (entry) return { state: entry.ok ? 'verified' : 'incompatible', issues: entry.issues }
+  if (verifiedSpecKitVersions().includes(version)) return { state: 'verified', issues: [] }
+  if (incompatibleSpecKitVersions().includes(version)) return { state: 'incompatible', issues: [] }
+  return { state: 'unknown', issues: [] }
 }

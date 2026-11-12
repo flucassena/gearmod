@@ -325,6 +325,12 @@ export type SpecKitRunInput = z.output<typeof specKitRunInputSchema>
 /** Result of the compatibility probe of a Spec Kit version: `ok` means no structural error; warnings are optional pieces. */
 export const specKitProbeResultSchema = z.object({ version: z.string(), ok: z.boolean(), issues: z.array(z.object({ severity: z.enum(['error', 'warning']), code: z.string(), detail: z.string() })), checkedAt: z.string() })
 export type SpecKitProbeResult = z.output<typeof specKitProbeResultSchema>
+/** Verdicts published by the scheduled CI job (`speckit-compat.json` on the `speckit-compat` release): does a Spec Kit version still fit what GearMod relies on? */
+export const specKitCompatSchema = z.object({
+  checkedAt: z.string().nullable(),
+  versions: z.record(z.string().regex(/^\d+\.\d+\.\d+$/), z.object({ ok: z.boolean(), issues: z.array(z.object({ severity: z.enum(['error', 'warning']), detail: z.string().max(400) })).max(40) }))
+})
+export type SpecKitCompat = z.output<typeof specKitCompatSchema>
 export const toolKeys = ['claude', 'codex', 'gemini', 'specify', 'openspec', 'playwright'] as const
 export const toolVersionsSchema = z.object({ checkedAt: z.string().nullable(), versions: z.object({ claude: z.string().nullable(), codex: z.string().nullable(), gemini: z.string().nullable(), specify: z.string().nullable(), openspec: z.string().nullable(), playwright: z.string().nullable() }), error: z.string().nullable() })
 export type ToolVersions = z.output<typeof toolVersionsSchema>
@@ -572,6 +578,7 @@ export const ipcContracts = {
   , 'speckit:request-move': { input: z.object({ cardId: uuid }).strict(), output: specKitStateSchema }
   , 'tools:status': { input: projectIdInput, output: toolsStatusSchema }
   , 'tools:run-terminal': { input: specKitRunInputSchema, output: z.object({ id: z.string() }) }
+  , 'tools:spec-compat': { input: z.undefined(), output: specKitCompatSchema }
   , 'tools:probe-spec-kit': { input: z.object({ version: z.string().regex(/^\d+\.\d+\.\d+$/) }).strict(), output: specKitProbeResultSchema }
   , 'tools:inspect-folder': { input: z.object({ path: z.string().trim().min(1).max(2048) }).strict(), output: toolsFolderInfoSchema }
   , 'mcp:presets': { input: z.undefined(), output: z.array(mcpPresetSchema) }

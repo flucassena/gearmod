@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { toolKeys, type ToolVersions } from '@gearmod/contracts'
+import { specKitCompatSchema, toolKeys, type SpecKitCompat, type ToolVersions } from '@gearmod/contracts'
 import { tm } from './i18n'
 
 type Key = typeof toolKeys[number]
@@ -10,6 +10,9 @@ const sources: Record<Key, { kind: 'npm'; name: string } | { kind: 'github'; rep
   playwright: { kind: 'npm', name: '@playwright/cli' }, specify: { kind: 'github', repo: 'github/spec-kit' }
 }
 const day = 24 * 60 * 60 * 1000
+/** Verdicts of the scheduled CI job, published as an asset of a fixed release so no commit or site deploy is needed. */
+export const specCompatUrl = 'https://github.com/flucassena/gearmod/releases/download/speckit-compat/speckit-compat.json'
+const compatTtl = 60 * 60 * 1000
 export type FetchJson = (url: string, timeoutMs: number) => Promise<unknown>
 const nativeFetch: FetchJson = async (url, timeoutMs) => {
   const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers: { accept: 'application/json', 'user-agent': 'GearMod' } })
@@ -30,6 +33,24 @@ export class ToolUpdateService {
     if (this.cache) return this.cache
     try { const saved = JSON.parse(readFileSync(this.file, 'utf8')) as ToolVersions; this.cache = { ...empty(), ...saved, versions: { ...empty().versions, ...saved.versions }, error: null } } catch { this.cache = empty() }
     return this.cache
+  }
+
+  private compatCache: { at: number; value: SpecKitCompat } | null = null
+  /**
+   * Which Spec Kit versions the CI job verified against GearMod's contract. Read at most once an hour; the content goes through the schema (anything
+   * malformed counts as "no verdict"), and offline it keeps the last good answer. It only decides whether the update button shows: the install command stays fixed in the app.
+   */
+  async compat(): Promise<SpecKitCompat> {
+    const file = `${this.file}.compat`
+    if (!this.compatCache) { try { this.compatCache = { at: 0, value: specKitCompatSchema.parse(JSON.parse(readFileSync(file, 'utf8'))) } } catch { this.compatCache = { at: 0, value: { checkedAt: null, versions: {} } } } }
+    if (this.now() - this.compatCache.at < compatTtl) return this.compatCache.value
+    try {
+      const data = await this.fetchJson(specCompatUrl, 8000) as { generatedAt?: unknown; versions?: unknown }
+      const parsed = specKitCompatSchema.safeParse({ checkedAt: typeof data.generatedAt === 'string' ? data.generatedAt : null, versions: data.versions ?? {} })
+      if (parsed.success) { this.compatCache = { at: this.now(), value: parsed.data }; try { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, JSON.stringify(parsed.data)) } catch { /* only the offline copy */ } }
+      else this.compatCache = { at: this.now(), value: this.compatCache.value }
+    } catch { this.compatCache = { at: this.now() - compatTtl + 5 * 60_000, value: this.compatCache.value } }
+    return this.compatCache.value
   }
 
   /** Returns only the last saved result; does not query the network. */
