@@ -609,6 +609,8 @@ export const settings: typeof source = {
     startInRepo: 'Initialize in repository',
     updateCli: (version) => `Update CLI to ${version}`,
     updateFiles: (name) => `Update project files${name ? ` (${name})` : ''}`,
+    updateFilesOne: (name) => `Update ${name}`,
+    updateFilesAll: (names) => `Update all (${names})`,
     updateFilesDisabled: 'Updating the project files is disabled until the version is validated; your existing settings will be preserved.',
     integrationNotDetected: 'The integration used in this repository was not detected.',
     updateAvailable: (from, to) => `Update available: ${from} → ${to}`,
@@ -649,7 +651,8 @@ export const settings: typeof source = {
         'update-cli': 'Spec Kit was updated successfully.',
         init: 'Spec Kit was installed successfully in this repository.',
         'init-with-git': 'The repository was created and Spec Kit was installed successfully in it.',
-        'upgrade-integration': 'The integration was updated successfully.'
+        'upgrade-integration': 'The integration was updated successfully.',
+        'upgrade-integrations': 'The integrations were updated successfully.'
       } as Record<string, string>,
       showTerminal: 'Show terminal output',
       failed: 'The command ended with an error. See the terminal below.',

@@ -313,11 +313,13 @@ export type ToolsStatus = z.output<typeof toolsStatusSchema>
 export const toolsFolderInfoSchema = z.object({ isRepo: z.boolean(), parentRepo: z.string().nullable(), hasSpecKit: z.boolean(), integrations: z.array(z.string()), integrationVersions: z.record(z.string(), z.string()).default({}) })
 export type ToolsFolderInfo = z.output<typeof toolsFolderInfoSchema>
 /** The Spec Kit steps the app runs for the user in a terminal inside a dialog. Each one maps to a fixed command; the screen never sends a command line. */
-export const specKitRunKindSchema = z.enum(['install-uv', 'install-cli', 'update-cli', 'init', 'init-with-git', 'upgrade-integration'])
+export const specKitRunKindSchema = z.enum(['install-uv', 'install-cli', 'update-cli', 'init', 'init-with-git', 'upgrade-integration', 'upgrade-integrations'])
 export type SpecKitRunKind = z.output<typeof specKitRunKindSchema>
 export const specKitRunInputSchema = z.object({
   kind: specKitRunKindSchema, path: z.string().trim().min(1).max(2048).optional(),
-  version: z.string().regex(/^\d+\.\d+\.\d+$/).optional(), integration: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/).optional()
+  version: z.string().regex(/^\d+\.\d+\.\d+$/).optional(), integration: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/).optional(),
+  /** `upgrade-integrations`: every listed integration is updated one after the other in the same terminal. */
+  integrations: z.array(z.string().regex(/^[A-Za-z0-9_-]{1,40}$/)).min(1).max(12).optional()
 }).strict()
 export type SpecKitRunInput = z.output<typeof specKitRunInputSchema>
 /** Result of the compatibility probe of a Spec Kit version: `ok` means no structural error; warnings are optional pieces. */

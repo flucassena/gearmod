@@ -108,6 +108,11 @@ export class SpecToolsService {
       case 'update-cli': line = install(' --force'); break
       case 'init': cwd = folder(); line = 'specify init --here'; break
       case 'init-with-git': cwd = folder(); line = windows ? 'git init; if ($?) { specify init --here }' : 'git init && specify init --here'; break
+      case 'upgrade-integrations': {
+        const names = input.integrations ?? []
+        if (!names.length || !names.every((name) => /^[A-Za-z0-9_-]{1,40}$/.test(name))) throw new Error(tm().speckit.runNeedsIntegration)
+        cwd = folder(); line = names.map((name) => `specify integration upgrade ${name}`).join(windows ? '; ' : ' && '); break
+      }
       case 'upgrade-integration': {
         if (!input.integration) throw new Error(tm().speckit.runNeedsIntegration)
         cwd = folder(); line = `specify integration upgrade ${input.integration}`; break

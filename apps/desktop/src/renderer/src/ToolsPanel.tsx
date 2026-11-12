@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { SpecKitRunInput, ToolsFolderInfo, ToolsStatus, WorkflowConfig } from '@gearmod/contracts'
 import { plainError } from './NoticeDialog'
 import { Select } from './Select'
@@ -48,13 +48,15 @@ const windows = typeof navigator !== 'undefined' && /Win/i.test(navigator.platfo
 const safeName = (value: string): boolean => /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)
 
 /** `run` makes the button open the terminal dialog; without it the command goes to the terminal panel at the bottom, as before. */
-interface Step { label: string; command: string; next?: string | undefined; disabled?: string | undefined; run?: SpecKitRunInput | undefined; action?: (() => void) | undefined }
+interface Step { label: string; command: string; next?: string | undefined; disabled?: string | undefined; run?: SpecKitRunInput | undefined; action?: (() => void) | undefined; menu?: Array<{ label: string; command: string; run: SpecKitRunInput }> | undefined }
 
 /** Project Tools tab: Spec Kit runs in the app terminal. The tools are probed when the tab opens (a few quick `--version` calls); "Search for updates" repeats it and asks for the latest versions. */
 export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; openedTerminal(): void }): React.JSX.Element {
   const t = useT(), tt = t.settings.tools
   const [status, setStatus] = useState<ToolsStatus | undefined>(() => cachedStatus(projectId)), [error, setError] = useState(''), [checking, setChecking] = useState(false), [config, setConfig] = useState<WorkflowConfig>()
-  const [specRepo, setSpecRepo] = useState(''), latest = useLatestVersions()
+  const [specRepo, setSpecRepo] = useState(''), latest = useLatestVersions(), specCompat = useSpecCompat()
+  const [filesMenu, setFilesMenu] = useState(false), filesBox = useRef<HTMLSpanElement>(null)
+  useEffect(() => { if (!filesMenu) return; const out = (event: MouseEvent): void => { if (!filesBox.current?.contains(event.target as Node)) setFilesMenu(false) }; document.addEventListener('mousedown', out); return () => document.removeEventListener('mousedown', out) }, [filesMenu])
   const [probing, setProbing] = useState(false), [compat, setCompat] = useState<{ version: string; state: 'running' | 'failed' | 'warnings'; issues: Array<{ severity: 'error' | 'warning'; detail: string }> }>(), [specRun, setSpecRun] = useState<{ input: SpecKitRunInput; title: string }>(), [custom, setCustom] = useState<{ path: string; name: string; info: ToolsFolderInfo }>(), [folderBusy, setFolderBusy] = useState(false)
   const refresh = useCallback(async (): Promise<void> => {
     try { const next = await probeTools(projectId); setStatus(next); setError(''); setSpecRepo((current) => next.repos.some((repo) => repo.sourceId === current) ? current : next.repos.find((repo) => repo.specKit)?.sourceId ?? next.repos[0]?.sourceId ?? '') } catch (reason) { setError(plainError(reason)) }
@@ -105,7 +107,10 @@ export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; o
   const upToDate = (installed: string | null): { from: string; to: string } | null => installed && latest?.versions.specify && isOutdated(installed, latest.versions.specify) ? { from: installed, to: latest.versions.specify } : null
 
   // The buttons sit side by side; each one's "Next step" goes on its own line below (otherwise it widens the first button's column and pushes the others away).
-  const buttons = (steps: Step[], repoId: string): React.JSX.Element => <div className="tl-steps"><div className="tl-btns">{steps.map((step) => <button key={step.label + step.command} type="button" className="mini" disabled={Boolean(step.disabled) || !folder(repoId)} data-tip={step.disabled ?? tt.runTip(folder(repoId), step.command)} onClick={() => { if (step.action) step.action(); else if (step.run) setSpecRun({ input: { ...step.run, ...(step.run.kind === 'init' || step.run.kind === 'init-with-git' || step.run.kind === 'upgrade-integration' ? { path: folder(repoId) } : {}) }, title: step.label }); else void run(step.command, repoId) }}>{step.label}</button>)}</div>
+  const buttons = (steps: Step[], repoId: string): React.JSX.Element => <div className="tl-steps"><div className="tl-btns">{steps.map((step) => step.menu ? <span key={step.label} className="tl-split" ref={filesBox}>
+      <button type="button" className="mini" aria-haspopup="menu" aria-expanded={filesMenu} disabled={!folder(repoId)} onClick={() => setFilesMenu(!filesMenu)}>{step.label} ▾</button>
+      {filesMenu && <div className="tl-menu" role="menu">{step.menu.map((item) => <button key={item.label} type="button" role="menuitem" data-tip={tt.runTip(folder(repoId), item.command)} onClick={() => { setFilesMenu(false); setSpecRun({ input: { ...item.run, path: folder(repoId) }, title: item.label }) }}>{item.label}</button>)}</div>}
+    </span> : <button key={step.label + step.command} type="button" className="mini" disabled={Boolean(step.disabled) || !folder(repoId)} data-tip={step.disabled ?? tt.runTip(folder(repoId), step.command)} onClick={() => { if (step.action) step.action(); else if (step.run) setSpecRun({ input: { ...step.run, ...(step.run.kind === 'init' || step.run.kind === 'init-with-git' || step.run.kind === 'upgrade-integration' ? { path: folder(repoId) } : {}) }, title: step.label }); else void run(step.command, repoId) }}>{step.label}</button>)}</div>
 </div>
   // Only repositories that have the tool become a chip; the rest are summarized in one sentence (names appear on hover).
   type RepoInfo = NonNullable<typeof status>['repos'][number]
@@ -139,7 +144,15 @@ export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; o
       const verified = verifiedSpecKitVersions().includes(target)
       return [{ label: verified ? tt.updateCli(target) : tt.verifyAndUpdate(target), command: `${specKitInstallCommand(target)} --force`, disabled: compat?.state === 'running' ? tt.checking : undefined, ...(verified ? { run: { kind: 'update-cli' as const, version: target } } : { action: () => void verifyAndUpdate(target) }) }]
     })() : []),
-    ...(status.specify.installed && spec?.specKit ? (spec.specKitIntegrations.filter(safeName).length ? spec.specKitIntegrations.filter(safeName).filter((name) => filesOutdated(spec.specKitVersions?.[name])).map((name) => ({ label: tt.updateFiles(spec.specKitIntegrations.length > 1 ? name : ''), command: `specify integration upgrade ${name}`, run: { kind: 'upgrade-integration' as const, integration: name } })) : [{ label: tt.updateFiles(''), command: 'specify integration upgrade', disabled: tt.integrationNotDetected }]) : [])
+    ...(status.specify.installed && spec?.specKit ? (() => {
+      const names = spec.specKitIntegrations.filter(safeName)
+      if (!names.length) return [{ label: tt.updateFiles(''), command: 'specify integration upgrade', disabled: tt.integrationNotDetected }]
+      const outdated = names.filter((name) => filesOutdated(spec.specKitVersions?.[name]))
+      const one = (name: string): { label: string; command: string; run: SpecKitRunInput } => ({ label: tt.updateFilesOne(name), command: `specify integration upgrade ${name}`, run: { kind: 'upgrade-integration', integration: name } })
+      // One button for the project files; with several integrations out of date it opens a menu: each one, or all in a row.
+      if (outdated.length > 1) return [{ label: tt.updateFiles(''), command: 'specify integration upgrade', menu: [...outdated.map(one), { label: tt.updateFilesAll(outdated.join(' + ')), command: outdated.map((name) => `specify integration upgrade ${name}`).join(windows ? '; ' : ' && '), run: { kind: 'upgrade-integrations' as const, integrations: outdated } }] }]
+      return outdated.map((name) => ({ label: tt.updateFiles(names.length > 1 ? name : ''), command: `specify integration upgrade ${name}`, run: { kind: 'upgrade-integration' as const, integration: name } }))
+    })() : [])
   ]
   const notice = (old: { from: string; to: string } | null): React.JSX.Element | null => old ? <p className="pw-warn" role="status">{tt.updateAvailable(old.from, old.to)}</p> : null
   return <div className="cx-wfpanel">

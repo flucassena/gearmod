@@ -609,6 +609,8 @@ export const settings = {
     startInRepo: 'Iniciar no repositório',
     updateCli: (version: string) => `Atualizar CLI para ${version}`,
     updateFiles: (name: string) => `Atualizar arquivos do projeto${name ? ` (${name})` : ''}`,
+    updateFilesOne: (name: string) => `Atualizar ${name}`,
+    updateFilesAll: (names: string) => `Atualizar todos (${names})`,
     updateFilesDisabled: 'A atualização dos arquivos do projeto está desativada até a versão ser validada; suas configurações existentes serão preservadas.',
     integrationNotDetected: 'A integração usada neste repositório não foi detectada.',
     updateAvailable: (from: string, to: string) => `Atualização disponível: ${from} → ${to}`,
@@ -649,7 +651,8 @@ export const settings = {
         'update-cli': 'O Spec Kit foi atualizado com sucesso.',
         init: 'O Spec Kit foi instalado com sucesso neste repositório.',
         'init-with-git': 'O repositório foi criado e o Spec Kit foi instalado com sucesso nele.',
-        'upgrade-integration': 'A integração foi atualizada com sucesso.'
+        'upgrade-integration': 'A integração foi atualizada com sucesso.',
+        'upgrade-integrations': 'As integrações foram atualizadas com sucesso.'
       } as Record<string, string>,
       showTerminal: 'Ver saída do terminal',
       failed: 'O comando terminou com erro. Veja o terminal abaixo.',
