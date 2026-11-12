@@ -315,6 +315,9 @@ export const specKitRunInputSchema = z.object({
   version: z.string().regex(/^\d+\.\d+\.\d+$/).optional(), integration: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/).optional()
 }).strict()
 export type SpecKitRunInput = z.output<typeof specKitRunInputSchema>
+/** Result of the compatibility probe of a Spec Kit version: `ok` means no structural error; warnings are optional pieces. */
+export const specKitProbeResultSchema = z.object({ version: z.string(), ok: z.boolean(), issues: z.array(z.object({ severity: z.enum(['error', 'warning']), code: z.string(), detail: z.string() })), checkedAt: z.string() })
+export type SpecKitProbeResult = z.output<typeof specKitProbeResultSchema>
 export const toolKeys = ['claude', 'codex', 'gemini', 'specify', 'openspec', 'playwright'] as const
 export const toolVersionsSchema = z.object({ checkedAt: z.string().nullable(), versions: z.object({ claude: z.string().nullable(), codex: z.string().nullable(), gemini: z.string().nullable(), specify: z.string().nullable(), openspec: z.string().nullable(), playwright: z.string().nullable() }), error: z.string().nullable() })
 export type ToolVersions = z.output<typeof toolVersionsSchema>
@@ -503,6 +506,7 @@ export const ipcContracts = {
   , 'speckit:request-move': { input: z.object({ cardId: uuid }).strict(), output: specKitStateSchema }
   , 'tools:status': { input: projectIdInput, output: toolsStatusSchema }
   , 'tools:run-terminal': { input: specKitRunInputSchema, output: z.object({ id: z.string() }) }
+  , 'tools:probe-spec-kit': { input: z.object({ version: z.string().regex(/^\d+\.\d+\.\d+$/) }).strict(), output: specKitProbeResultSchema }
   , 'tools:inspect-folder': { input: z.object({ path: z.string().trim().min(1).max(2048) }).strict(), output: toolsFolderInfoSchema }
   , 'mcp:presets': { input: z.undefined(), output: z.array(mcpPresetSchema) }
   , 'mcp:list': { input: z.object({ projectId: uuid.optional() }).strict(), output: z.array(mcpServerSchema) }

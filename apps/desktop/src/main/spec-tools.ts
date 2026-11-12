@@ -1,10 +1,11 @@
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { SpecKitRunInput, ToolsFolderInfo, ToolsStatus } from '@gearmod/contracts'
+import type { SpecKitProbeResult, SpecKitRunInput, ToolsFolderInfo, ToolsStatus } from '@gearmod/contracts'
 import type { AppDatabase } from './database'
 import { nativeCommands, type CommandRunner } from './playwright-cli'
 import { tm } from './i18n'
+import { checkSpecKitContract, type SpecKitContractIssue, type SpecKitContractProvider } from './spec-contract'
 
 /** First `x.y.z` version in a `--version` output; `null` if there is none. */
 const versionOf = (output: string): string | null => /(\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?)/.exec(output)?.[1] ?? null
@@ -113,6 +114,27 @@ export class SpecToolsService {
       }
     }
     return windows ? { file: 'powershell.exe', args: ['-NoLogo', '-NoProfile', '-Command', line], env, cwd, title: 'Spec Kit' } : { file: 'sh', args: ['-c', line], env, cwd, title: 'Spec Kit' }
+  }
+
+  /**
+   * Compatibility probe: initializes a candidate Spec Kit version in throwaway folders (one per supported agent) with `uv tool run`, without touching
+   * the installed CLI or any project, and checks the result against what GearMod relies on. Nothing is installed; the folders are always removed.
+   */
+  async probe(version: string): Promise<SpecKitProbeResult> {
+    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(tm().speckit.runNeedsVersion)
+    const source = `git+https://github.com/github/spec-kit.git@v${version}`
+    const issues: SpecKitContractIssue[] = []
+    for (const provider of ['claude', 'codex'] as SpecKitContractProvider[]) {
+      const dir = mkdtempSync(join(tmpdir(), 'gearmod-speckit-probe-'))
+      try {
+        const args = ['tool', 'run', '--from', source, 'specify', 'init', '--here', '--force', '--non-interactive', '--integration', provider, ...(provider === 'codex' ? ['--integration-options=--skills'] : [])]
+        await this.commands.run('uv', args, dir, 300_000)
+        issues.push(...checkSpecKitContract(dir, provider).issues.map((issue) => ({ ...issue, detail: `[${provider}] ${issue.detail}` })))
+      } catch (reason) {
+        issues.push({ severity: 'error', code: 'init-failed', detail: `[${provider}] ${reason instanceof Error ? reason.message.split(/\r?\n/).slice(-3).join(' ').slice(0, 300) : 'specify init failed'}` })
+      } finally { try { rmSync(dir, { recursive: true, force: true }) } catch { /* temp folder left behind: harmless */ } }
+    }
+    return { version, ok: !issues.some((issue) => issue.severity === 'error'), issues, checkedAt: new Date().toISOString() }
   }
 
   async status(projectId: string): Promise<ToolsStatus> {

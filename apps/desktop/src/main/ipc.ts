@@ -350,6 +350,7 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     'profiles:update-provider': (input: { provider: 'codex' | 'claude' }) => services.agentProbes.updateProvider(input.provider),
     'profiles:update-terminal': (input: { provider: 'codex' | 'claude' | 'gemini' }) => ({ id: services.terminals.run(services.agentProbes.updatePlan(input.provider)) }),
     'tools:status': (input: { projectId: string }) => services.specTools.status(input.projectId),
+    'tools:probe-spec-kit': (input: { version: string }) => services.specTools.probe(input.version),
     'tools:inspect-folder': (input: { path: string }) => services.specTools.inspectFolder(input.path),
     'tools:run-terminal': (input: Parameters<SpecToolsService['terminalPlan']>[0]) => ({ id: services.terminals.run(services.specTools.terminalPlan(input)) }),
     'tools:cached': () => services.toolUpdates.cached(),

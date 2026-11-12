@@ -7,7 +7,7 @@ import { terminal } from './terminalStore'
 import { SpecKitRunDialog } from './SpecKitRunDialog'
 import { cachedStatus, probeTools, toolsChangedEvent } from './toolsStatusCache'
 import { checkedAgo, isOutdated, loadLatest, useLatestVersions } from './toolUpdates'
-import { specKitInstallCommand, specKitUpdateCeiling, specKitUpdateState } from './specKitUpdates'
+import { rememberVerifiedSpecKit, specKitBaseline, specKitInstallCommand, specKitUpdateState, verifiedSpecKitVersions } from './specKitUpdates'
 import { useT } from './i18n'
 
 const pendingByProject = new Map<string, boolean>()
@@ -48,14 +48,14 @@ const windows = typeof navigator !== 'undefined' && /Win/i.test(navigator.platfo
 const safeName = (value: string): boolean => /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value)
 
 /** `run` makes the button open the terminal dialog; without it the command goes to the terminal panel at the bottom, as before. */
-interface Step { label: string; command: string; next?: string | undefined; disabled?: string | undefined; run?: SpecKitRunInput | undefined }
+interface Step { label: string; command: string; next?: string | undefined; disabled?: string | undefined; run?: SpecKitRunInput | undefined; action?: (() => void) | undefined }
 
 /** Project Tools tab: Spec Kit runs in the app terminal. The tools are probed when the tab opens (a few quick `--version` calls); "Search for updates" repeats it and asks for the latest versions. */
 export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; openedTerminal(): void }): React.JSX.Element {
   const t = useT(), tt = t.settings.tools
   const [status, setStatus] = useState<ToolsStatus | undefined>(() => cachedStatus(projectId)), [error, setError] = useState(''), [checking, setChecking] = useState(false), [config, setConfig] = useState<WorkflowConfig>()
   const [specRepo, setSpecRepo] = useState(''), latest = useLatestVersions()
-  const [probing, setProbing] = useState(false), [specRun, setSpecRun] = useState<{ input: SpecKitRunInput; title: string }>(), [custom, setCustom] = useState<{ path: string; name: string; info: ToolsFolderInfo }>(), [folderBusy, setFolderBusy] = useState(false)
+  const [probing, setProbing] = useState(false), [compat, setCompat] = useState<{ version: string; state: 'running' | 'failed' | 'warnings'; issues: Array<{ severity: 'error' | 'warning'; detail: string }> }>(), [specRun, setSpecRun] = useState<{ input: SpecKitRunInput; title: string }>(), [custom, setCustom] = useState<{ path: string; name: string; info: ToolsFolderInfo }>(), [folderBusy, setFolderBusy] = useState(false)
   const refresh = useCallback(async (): Promise<void> => {
     try { const next = await probeTools(projectId); setStatus(next); setError(''); setSpecRepo((current) => next.repos.some((repo) => repo.sourceId === current) ? current : next.repos.find((repo) => repo.specKit)?.sourceId ?? next.repos[0]?.sourceId ?? '') } catch (reason) { setError(plainError(reason)) }
   }, [projectId])
@@ -91,10 +91,21 @@ export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; o
   const togglePlaywright = (value: boolean): void => { if (!config) return; const next = { ...config, playwrightCli: value }; setConfig(next); void window.gearmod.invoke('workflow:set', { projectId, config: next }).then((state) => setConfig(state.config)).catch((reason) => setError(plainError(reason))) }
   const folder = (id: string): string => (id === '__custom__' ? custom?.path : status?.repos.find((repo) => repo.sourceId === id)?.path) ?? ''
   const run = async (command: string, id: string): Promise<void> => { const path = folder(id); if (!path) return; setError(''); if (await terminal.runIn({ projectId, cardId: null, path }, command)) openedTerminal(); else setError(tt.cannotOpenTerminal) }
+  // Compatibility probe: the candidate version is initialized in a throwaway folder and checked against what GearMod relies on. Passing opens the update; failing says what changed.
+  const verifyAndUpdate = async (version: string): Promise<void> => {
+    setError(''); setCompat({ version, state: 'running', issues: [] })
+    try {
+      const result = await window.gearmod.invoke('tools:probe-spec-kit', { version })
+      if (!result.ok) { setCompat({ version, state: 'failed', issues: result.issues }); return }
+      rememberVerifiedSpecKit(version)
+      setCompat(result.issues.length ? { version, state: 'warnings', issues: result.issues } : undefined)
+      setSpecRun({ input: { kind: 'update-cli', version }, title: tt.updateCli(version) })
+    } catch (reason) { setCompat(undefined); setError(plainError(reason)) }
+  }
   const upToDate = (installed: string | null): { from: string; to: string } | null => installed && latest?.versions.specify && isOutdated(installed, latest.versions.specify) ? { from: installed, to: latest.versions.specify } : null
 
   // The buttons sit side by side; each one's "Next step" goes on its own line below (otherwise it widens the first button's column and pushes the others away).
-  const buttons = (steps: Step[], repoId: string): React.JSX.Element => <div className="tl-steps"><div className="tl-btns">{steps.map((step) => <button key={step.label + step.command} type="button" className="mini" disabled={Boolean(step.disabled) || !folder(repoId)} data-tip={step.disabled ?? tt.runTip(folder(repoId), step.command)} onClick={() => { if (step.run) setSpecRun({ input: { ...step.run, ...(step.run.kind === 'init' || step.run.kind === 'init-with-git' || step.run.kind === 'upgrade-integration' ? { path: folder(repoId) } : {}) }, title: step.label }); else void run(step.command, repoId) }}>{step.label}</button>)}</div>
+  const buttons = (steps: Step[], repoId: string): React.JSX.Element => <div className="tl-steps"><div className="tl-btns">{steps.map((step) => <button key={step.label + step.command} type="button" className="mini" disabled={Boolean(step.disabled) || !folder(repoId)} data-tip={step.disabled ?? tt.runTip(folder(repoId), step.command)} onClick={() => { if (step.action) step.action(); else if (step.run) setSpecRun({ input: { ...step.run, ...(step.run.kind === 'init' || step.run.kind === 'init-with-git' || step.run.kind === 'upgrade-integration' ? { path: folder(repoId) } : {}) }, title: step.label }); else void run(step.command, repoId) }}>{step.label}</button>)}</div>
 </div>
   // Only repositories that have the tool become a chip; the rest are summarized in one sentence (names appear on hover).
   type RepoInfo = NonNullable<typeof status>['repos'][number]
@@ -120,10 +131,14 @@ export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; o
   const specOld = status ? upToDate(status.specify.version) : null
   const specUpdate = specKitUpdateState(status?.specify.version ?? null, latest?.versions.specify ?? null)
   const specSteps: Step[] = !status ? [] : [
-    ...(!status.uv ? [{ label: tt.installUv, command: windows ? 'winget install --id=astral-sh.uv -e' : 'curl -LsSf https://astral.sh/uv/install.sh | sh', next: specKitInstallCommand, run: { kind: 'install-uv' as const } }] : []),
-    ...(status.uv && !status.specify.installed ? [{ label: tt.installCli, command: specKitInstallCommand, next: 'specify init --here', run: { kind: 'install-cli' as const, version: specKitUpdateCeiling } }] : []),
+    ...(!status.uv ? [{ label: tt.installUv, command: windows ? 'winget install --id=astral-sh.uv -e' : 'curl -LsSf https://astral.sh/uv/install.sh | sh', next: specKitInstallCommand(specKitBaseline), run: { kind: 'install-uv' as const } }] : []),
+    ...(status.uv && !status.specify.installed ? [{ label: tt.installCli, command: specKitInstallCommand(specKitBaseline), next: 'specify init --here', run: { kind: 'install-cli' as const, version: specKitBaseline } }] : []),
     ...(status.specify.installed && spec && !spec.specKit ? [{ label: needsRepo ? tt.createRepoAndStart : tt.startInRepo, command: needsRepo ? 'git init; specify init --here' : 'specify init --here', run: { kind: needsRepo ? 'init-with-git' as const : 'init' as const } }] : []),
-    ...(specUpdate.canUpdate ? [{ label: tt.updateCli(specKitUpdateCeiling), command: `${specKitInstallCommand} --force`, run: { kind: 'update-cli' as const, version: specKitUpdateCeiling } }] : []),
+    ...(specUpdate.canUpdate && latest?.versions.specify ? (() => {
+      const target = latest.versions.specify
+      const verified = verifiedSpecKitVersions().includes(target)
+      return [{ label: verified ? tt.updateCli(target) : tt.verifyAndUpdate(target), command: `${specKitInstallCommand(target)} --force`, disabled: compat?.state === 'running' ? tt.checking : undefined, ...(verified ? { run: { kind: 'update-cli' as const, version: target } } : { action: () => void verifyAndUpdate(target) }) }]
+    })() : []),
     ...(status.specify.installed && spec?.specKit ? (spec.specKitIntegrations.filter(safeName).length ? spec.specKitIntegrations.filter(safeName).filter((name) => filesOutdated(spec.specKitVersions?.[name])).map((name) => ({ label: tt.updateFiles(spec.specKitIntegrations.length > 1 ? name : ''), command: `specify integration upgrade ${name}`, run: { kind: 'upgrade-integration' as const, integration: name } })) : [{ label: tt.updateFiles(''), command: 'specify integration upgrade', disabled: tt.integrationNotDetected }]) : [])
   ]
   const notice = (old: { from: string; to: string } | null): React.JSX.Element | null => old ? <p className="pw-warn" role="status">{tt.updateAvailable(old.from, old.to)}</p> : null
@@ -143,7 +158,10 @@ export function ToolsPanel({ projectId, openedTerminal }: { projectId: string; o
         </div>
         <div className="tl-reporow">{specPicker}{specSteps.length > 0 && buttons(specSteps, specRepo)}</div>
         {notice(specOld)}
-        {specUpdate.newerAvailable && <p className="pw-warn" role="status">{tt.newerThanCeiling(specKitUpdateCeiling)}</p>}
+        {compat && <div className="pw-warn" role="status">
+          <p>{compat.state === 'running' ? tt.probing(compat.version) : compat.state === 'failed' ? tt.probeFailed(compat.version) : tt.probeWarnings(compat.version)}</p>
+          {compat.issues.length > 0 && <ul>{compat.issues.map((issue, index) => <li key={index}>{issue.detail}</li>)}</ul>}
+        </div>}
       </> : <><p className="cx-muted">{probing ? tt.checking : tt.noSavedCheck}</p></>}
     </section>
     <PlaywrightSection projectId={projectId} enabled={config?.playwrightCli ?? false} toggle={togglePlaywright} latest={latest?.versions.playwright ?? null} />
