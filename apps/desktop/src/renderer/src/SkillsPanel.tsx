@@ -10,7 +10,7 @@ import { Select } from './Select'
 import { ImportSkillDialog } from './ImportSkillDialog'
 import { useT } from './i18n'
 
-const providerName = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' } as const
+const providerName = { claude: 'Claude', codex: 'Codex', gemini: 'Antigravity' } as const
 const skillCatalogs = [{ key: 'skillsSh', url: 'https://skills.sh' }, { key: 'anthropic', url: 'https://github.com/anthropics/skills' }] as const
 
 /** Global skills (each agent's folder) or project ones (detected in the repository): import and convert to the other agent. */
@@ -40,10 +40,12 @@ export function SkillsPanel({ scope, projectId, profiles, globalCount }: { scope
           <div className="skname"><b>{skill.name}</b>{skill.origin && <small className="path">{skill.origin}{skill.detected ? ts.detectedInRepo : ''}</small>}</div>
           <div className="provs" onClick={(e) => e.stopPropagation()}>{(['claude', 'codex', 'gemini'] as const).map((provider) => {
             const state = skill.providers[provider]
-            if (state === 'ready') return <span key={provider} className={`ptile on ${provider} tip`} data-tip={providerName[provider]}><ProviderLogo provider={provider} /></span>
-            if (state === 'converting') return <span key={provider} className="ptile busy tip" data-tip={ts.convertingTo(providerName[provider])}><span className="spin" /></span>
-            if (provider === 'gemini') return null
-            return <button type="button" key={provider} className={`ptile off ${provider} tip`} data-tip={ts.addTo(providerName[provider])} aria-label={ts.addTo(providerName[provider])} onClick={() => { setConverting({ name: skill.name, to: provider }); setReviewer(profiles.find((item) => item.provider === provider)?.id ?? profiles[0]?.id ?? '') }}><ProviderLogo provider={provider} /></button>
+            // In the project Codex and Antigravity share `.agents/skills`: the Codex button adds to both and Antigravity has no button of its own.
+            const shared = scope === 'project' && provider !== 'claude', name = shared ? ts.sharedProjectAgents : providerName[provider]
+            if (state === 'ready') return <span key={provider} className={`ptile on ${provider} tip`} data-tip={name}><ProviderLogo provider={provider} /></span>
+            if (state === 'converting') return <span key={provider} className="ptile busy tip" data-tip={ts.convertingTo(name)}><span className="spin" /></span>
+            if (shared && provider === 'gemini') return null
+            return <button type="button" key={provider} className={`ptile off ${provider} tip`} data-tip={ts.addTo(name)} aria-label={ts.addTo(name)} onClick={() => { setConverting({ name: skill.name, to: provider }); setReviewer(profiles.find((item) => item.provider === provider)?.id ?? profiles[0]?.id ?? '') }}><ProviderLogo provider={provider} /></button>
           })}</div></div>
         {expanded && <div className="skdetail"><p>{skill.description || ts.noDescription}</p><div className="skactions"><button type="button" className="mini danger" onClick={() => setDeleting(skill)}>{ts.deleteSkill}</button></div></div>}
         {running?.name === skill.name && <div className="running"><div className="row"><span className="spin" /><b>{ts.convertingReviewing}</b></div><div className="bar"><i /></div><span style={{ fontSize: 11, color: 'var(--accent)' }}>{ts.agentChecks}</span></div>}

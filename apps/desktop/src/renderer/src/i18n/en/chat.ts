@@ -118,9 +118,9 @@ export const chat: typeof source = {
     },
     gemini: {
       plan: { label: 'Plan', description: 'Only reads and plans; does not change files.' },
-      manual: { label: 'Default', description: 'Asks before acting: each pending action shows up in the chat for you to approve or deny (Gemini CLI in ACP mode).' },
-      accept_edits: { label: 'Accept edits', description: 'Edits files without asking; shell commands are denied.' },
-      auto: { label: 'Automatic (yolo)', description: 'Approves everything on its own, including commands. Gemini CLI does not ask for confirmation; use it with the card worktree.' }
+      manual: { label: 'Default', description: 'Asks before running commands: each one shows up in the chat for you to approve or deny. Edits in the card folder and MCP tools run without asking.' },
+      accept_edits: { label: 'Accept edits', description: 'Edits files without asking; shell commands ask for approval in the chat.' },
+      auto: { label: 'Automatic (yolo)', description: 'Approves everything on its own, including commands. Antigravity does not ask for confirmation; use it with the card worktree.' }
     },
     codex: {
       plan: { label: 'Plan', description: 'Read-only, only plans.' },
@@ -135,6 +135,7 @@ export const chat: typeof source = {
     recommended: 'Recommended',
     mostUsed: 'Most used',
     defaultModel: 'Default model',
+    moreModels: 'More models',
     agentDefault: 'Agent default',
     listFailed: (reason?: string) => `Could not list the models right now.${reason ? ` Reason: ${reason}` : ''}`,
     agent: 'Agent',

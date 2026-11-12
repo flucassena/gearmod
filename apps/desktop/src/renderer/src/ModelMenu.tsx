@@ -6,6 +6,7 @@ import { useFitInView } from './useFitInView'
 import { useEscape } from './useEscape'
 import { plainError } from './NoticeDialog'
 import { tr, useT } from './i18n'
+import { splitModels } from './modelFamilies'
 
 /** Effort labels in the current language (read at time of use, so they follow language changes). */
 export const effortLabel = new Proxy({} as Record<Effort, string>, { get: (_target, key) => tr().chat.effort[key as Effort] })
@@ -84,7 +85,7 @@ export function useAgentConfig(cardId: string, purpose: AgentPurpose, profiles: 
 export function ModelMenu({ profiles, purpose, state, noAgent = false, field = false, lockProfile = false, onLockedPick }: { profiles: AgentProfile[]; purpose: AgentPurpose; state: ReturnType<typeof useAgentConfig>; noAgent?: boolean; field?: boolean; lockProfile?: boolean; onLockedPick?(profile: AgentProfile): void }): React.JSX.Element {
   const t = useT(), m = t.chat.model
   const { config, options, update, error } = state
-  const [open, setOpen] = useState(false), [sub, setSub] = useState<'agent' | 'effort' | null>(null), [pos, setPos] = useState<{ right: number; bottom?: number; top?: number; maxHeight?: number }>(), [subPos, setSubPos] = useState<React.CSSProperties>()
+  const [open, setOpen] = useState(false), [sub, setSub] = useState<'agent' | 'effort' | 'more' | null>(null), [pos, setPos] = useState<{ right: number; bottom?: number; top?: number; maxHeight?: number }>(), [subPos, setSubPos] = useState<React.CSSProperties>()
   const button = useRef<HTMLButtonElement>(null), pop = useRef<HTMLDivElement>(null), row = useRef<HTMLButtonElement | null>(null), wrap = useRef<HTMLDivElement>(null), subBox = useRef<HTMLDivElement>(null)
   useFitInView(pop, open); useFitInView(subBox, open && sub !== null)
   useLayoutEffect(() => {
@@ -112,16 +113,21 @@ export function ModelMenu({ profiles, purpose, state, noAgent = false, field = f
   const modelBadges = (id: string, recommended: boolean): React.ReactNode => <>{recommended && <em>{m.recommended}</em>}{used?.model === id && <em className="used">{m.mostUsed}</em>}</>
   const model = options?.models.find((item) => item.id === config.model)
   const efforts = model?.efforts ?? []
+  // Newest version of each family on the list; the older ones in "More models".
+  const { main, older } = splitModels(options?.models ?? [])
+  const pick = (item: (typeof main)[number]): void => { setSub(null); void update({ model: item.id, effort: item.efforts.includes(config.effort as Effort) ? config.effort : item.defaultEffort }) }
   return <div className="mm" ref={wrap}>
     <button type="button" ref={button} className={`mmbtn ${field ? 'field' : ''} ${open ? 'on' : ''}`} aria-haspopup="menu" aria-expanded={open} onClick={() => { setOpen(!open); setSub(null) }}>{!noAgent && <AgentIcon profile={profile} size="sm" tip={false} />}{field && !noAgent && <span className="mag">{profile.label}</span>}<span className="mname">{model?.label ?? config.model ?? m.defaultModel}</span>{config.effort && <span className="meff">{effortLabel[config.effort]}</span>}{field && <span className="chev">▾</span>}</button>
     {open && pos && <div className="mmpop" ref={pop} role="menu" style={{ right: pos.right, bottom: pos.bottom, top: pos.top, maxHeight: field ? pos.maxHeight : undefined, overflowY: field ? 'auto' : undefined }}>
       <button type="button" role="menuitem" className="mmi" onClick={() => void update({ model: null, effort: null })}><span>{m.agentDefault}</span><small>{config.model === null ? <CheckIcon /> : ''}</small></button>
-      {options?.models.map((item, index) => <button type="button" role="menuitem" key={item.id} className="mmi" onClick={() => void update({ model: item.id, effort: item.efforts.includes(config.effort as Effort) ? config.effort : item.defaultEffort })}><span>{item.label}{modelBadges(item.id, item.recommendedFor.includes(purpose))}</span><small>{config.model === item.id ? <CheckIcon /> : index + 1}</small></button>)}
+      {main.map((item, index) => <button type="button" role="menuitem" key={item.id} className="mmi" onClick={() => pick(item)}><span>{item.label}{modelBadges(item.id, item.recommendedFor.includes(purpose))}</span><small>{config.model === item.id ? <CheckIcon /> : index + 1}</small></button>)}
+      {older.length > 0 && <button type="button" role="menuitem" ref={sub === 'more' ? row : undefined} className={`mmi sub ${sub === 'more' ? 'mmact' : ''}`} onClick={() => setSub(sub === 'more' ? null : 'more')}><span>{m.moreModels}</span><small>{older.some((item) => item.id === config.model) ? `${model?.label} ›` : '›'}</small></button>}
       {options && !options.models.length && <p className="mmnote">{m.listFailed(options.error)}</p>}
       <div className="mmsep" />
       {!noAgent && <button type="button" role="menuitem" ref={sub === 'agent' ? row : undefined} className={`mmi sub ${sub === 'agent' ? 'mmact' : ''}`} onClick={() => setSub(sub === 'agent' ? null : 'agent')}><span>{m.agent}</span><small>{profile.label} ›</small></button>}
       {efforts.length > 0 && <button type="button" role="menuitem" ref={sub === 'effort' ? row : undefined} className={`mmi sub ${sub === 'effort' ? 'mmact' : ''}`} onClick={() => setSub(sub === 'effort' ? null : 'effort')}><span>{m.effort}</span><small>{config.effort ? effortLabel[config.effort] : m.default} ›</small></button>}
     </div>}
+    {open && sub === 'more' && subPos && <div className="mmpop mmsub" ref={subBox} style={subPos}>{older.map((item) => <button type="button" key={item.id} className="mmi" onClick={() => pick(item)}><span>{item.label}{modelBadges(item.id, item.recommendedFor.includes(purpose))}</span><small>{config.model === item.id && <CheckIcon />}</small></button>)}</div>}
     {open && sub === 'effort' && subPos && <div className="mmpop mmsub" ref={subBox} style={subPos}><p className="mmnote">{m.effortNote}</p>{efforts.map((item) => <button type="button" key={item} className="mmi" onClick={() => void update({ effort: item })}><span>{effortLabel[item]}{used?.model === config.model && used.effort === item && <em className="used">{m.mostUsed}</em>}{model?.defaultEffort === item && <em>{m.recommended}</em>}</span><small>{config.effort === item && <CheckIcon />}</small></button>)}</div>}
     {open && sub === 'agent' && subPos && <div className="mmpop mmsub" ref={subBox} style={subPos}>{lockProfile && <p className="mmnote">{m.lockedNote(profile.label)}</p>}{profiles.map((item) => <button type="button" key={item.id} className="mmi" onClick={() => { setSub(null); if (lockProfile && item.id !== profile.id) { setOpen(false); onLockedPick?.(item); return } void update({ profileId: item.id, model: null, effort: null, mode: defaultPermissionMode(item.provider, purpose) }) }}><span className="mmag"><AgentIcon profile={item} size="sm" tip={false} />{item.label}</span><small>{item.id === profile.id && <CheckIcon />}</small></button>)}</div>}
     {error && <small className="error">{error}</small>}

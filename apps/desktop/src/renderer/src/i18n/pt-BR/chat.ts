@@ -117,9 +117,9 @@ export const chat = {
     },
     gemini: {
       plan: { label: 'Plano', description: 'Só lê e planeja; não altera arquivos.' },
-      manual: { label: 'Padrão', description: 'Pergunta antes de agir: cada ação pendente aparece no chat para você aprovar ou negar (Gemini CLI em modo ACP).' },
-      accept_edits: { label: 'Aceitar edições', description: 'Edita arquivos sem perguntar; comandos de shell são negados.' },
-      auto: { label: 'Automático (yolo)', description: 'Aprova tudo sozinho, inclusive comandos. O Gemini CLI não pede confirmação; use com a worktree do card.' }
+      manual: { label: 'Padrão', description: 'Pergunta antes de rodar comandos: cada um aparece no chat para você aprovar ou negar. Edições na pasta do card e ferramentas MCP rodam sem perguntar.' },
+      accept_edits: { label: 'Aceitar edições', description: 'Edita arquivos sem perguntar; comandos de shell pedem aprovação no chat.' },
+      auto: { label: 'Automático (yolo)', description: 'Aprova tudo sozinho, inclusive comandos. O Antigravity não pede confirmação; use com a worktree do card.' }
     },
     codex: {
       plan: { label: 'Plano', description: 'Somente leitura, só planeja.' },
@@ -134,6 +134,7 @@ export const chat = {
     recommended: 'Recomendado',
     mostUsed: 'Mais usado',
     defaultModel: 'Modelo padrão',
+    moreModels: 'Mais modelos',
     agentDefault: 'Padrão do agente',
     listFailed: (reason?: string) => `Não foi possível listar os modelos agora.${reason ? ` Motivo: ${reason}` : ''}`,
     agent: 'Agente',

@@ -208,6 +208,7 @@ p{color:var(--muted);margin:0}
 .sourcePick:hover{border-color:var(--accent);filter:none}.sourcePick small{color:var(--muted);font-weight:500}
 .ck-line{display:flex;align-items:center;gap:10px;background:color-mix(in srgb, var(--accent) 6%, var(--g0e));border:1px solid color-mix(in srgb, var(--accent) 6%, var(--g27));border-radius:9px;padding:9px 11px}
 .ck-line span.t{flex:1;font-weight:600}.ck-line small{display:block;color:color-mix(in srgb, var(--accent) 8%, var(--g79));font-weight:500}
+.disabled-agents{margin-top:12px}.disabled-agents>.linklike{display:inline-flex;align-items:center;gap:4px;color:var(--muted)}.ck-line.off{opacity:.62}.ck-line.off:hover{opacity:1}
 .proj small{display:block;color:color-mix(in srgb, var(--accent) 8%, var(--g79))}
 .content{display:grid;grid-template-columns:1fr auto;min-width:0;height:100%}
 main{min-width:0;padding:28px 28px 0;overflow:auto;background:transparent}
@@ -285,7 +286,7 @@ h1{font:500 40px/1.05 Georgia,serif;margin:6px 0 4px}
 .av.gemini{background:var(--cb-22304a);color:var(--cf-7ba7ff)}
 .av.lg{width:36px;height:36px;border-radius:9px}.av.lg svg{width:21px;height:21px}
 .provcards{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-.provcards button{display:flex;align-items:center;gap:10px;text-align:left;background:color-mix(in srgb, var(--accent) 6%, var(--g1a));color:var(--text);border:1px solid var(--border);padding:11px}
+.provcards button{display:flex;align-items:center;justify-content:flex-start;gap:10px;text-align:left;background:color-mix(in srgb, var(--accent) 6%, var(--g1a));color:var(--text);border:1px solid var(--border);padding:11px}
 .provcards button.sel{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 13%, transparent)}
 .provcards small{display:block;color:var(--muted);font-weight:500}
 .skill-row{display:grid;gap:10px;padding:12px;background:color-mix(in srgb, var(--accent) 6%, var(--g0e));border:1px solid color-mix(in srgb, var(--accent) 6%, var(--g27));border-radius:10px}

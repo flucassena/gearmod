@@ -122,6 +122,8 @@ export class ProfileRepository {
    */
   create(input: { provider: 'codex' | 'claude' | 'gemini'; label: string; scope: string; color?: string }): AgentProfile {
     if (input.provider === 'gemini' && !geminiEnabled) throw new Error(tm().projects.geminiDisabled)
+    // Antigravity keeps one Google account per OS user: a second profile would only share (and switch) the same login.
+    if (input.provider === 'gemini' && this.database.db.prepare("SELECT 1 FROM agent_profiles WHERE provider = 'gemini' AND removed_at IS NULL").get()) throw new Error(tm().projects.antigravityOnlyOne)
     const id = randomUUID()
     const configDir = join(this.homeDir, '.gearmod', 'profiles', id)
     const now = new Date().toISOString()
@@ -161,10 +163,32 @@ export class ProfileRepository {
     })()
   }
 
-  /** Removed (deactivated) agents that still have history; only to show who ran. */
+  /**
+   * Turns an agent off or back on. Off it leaves every list and picker (it stays in the history and in the "Disabled" section of
+   * the agents screen); its projects and card settings are kept, so turning it on again restores it as it was.
+   */
+  setEnabled(id: string, enabled: boolean): AgentProfile {
+    const row = this.database.db.prepare('SELECT 1 FROM agent_profiles WHERE id = ? AND removed_at IS NULL').get(id)
+    if (!row) throw new Error(tm().common.profileNotFound)
+    if (!enabled) {
+      const running = this.database.db.prepare(`SELECT COALESCE(k.title, '') AS title FROM runs r LEFT JOIN cards k ON k.id = r.card_id WHERE r.profile_id = ? AND r.status IN ('queued', 'running')`).all(id) as Array<{ title: string }>
+      if (running.length) throw new Error(tm().projects.agentRunningDisable(running.map((item) => `“${item.title || tm().common.freeChat}”`).join(', ')))
+    }
+    this.database.db.prepare('UPDATE agent_profiles SET enabled = ?, updated_at = ? WHERE id = ?').run(enabled ? 1 : 0, new Date().toISOString(), id)
+    return enabled ? this.get(id) : this.disabled().find((profile) => profile.id === id)!
+  }
+
+  /** Agents turned off by the user (not removed). */
+  disabled(): AgentProfile[] {
+    return this.database.db.prepare(`SELECT id, provider, label, scope, color, config_dir AS configDir,
+      executable_path AS executablePath, billing_mode AS billingMode, api_key_source_hint AS apiKeySourceHint, env_passthrough AS envPassthroughRaw FROM agent_profiles WHERE enabled = 0 AND removed_at IS NULL ORDER BY created_at`).all()
+      .map((row) => ({ ...parseEnvPassthrough(row as Record<string, unknown>), enabled: false } as AgentProfile))
+  }
+
+  /** Removed or turned-off agents that may still have history; only to show who ran. */
   removed(): AgentProfile[] {
     return this.database.db.prepare(`SELECT id, provider, label, scope, color, config_dir AS configDir,
-      executable_path AS executablePath, billing_mode AS billingMode, api_key_source_hint AS apiKeySourceHint, env_passthrough AS envPassthroughRaw FROM agent_profiles WHERE removed_at IS NOT NULL ORDER BY created_at`).all()
+      executable_path AS executablePath, billing_mode AS billingMode, api_key_source_hint AS apiKeySourceHint, env_passthrough AS envPassthroughRaw FROM agent_profiles WHERE removed_at IS NOT NULL OR enabled = 0 ORDER BY created_at`).all()
       .map((row) => ({ ...parseEnvPassthrough(row as Record<string, unknown>), enabled: false } as AgentProfile))
   }
 

@@ -29,17 +29,20 @@ import { AgentContextService } from './agent-context'
 import { McpBridge } from './mcp-bridge'
 import { AgentWriteback } from './agent-writeback'
 import { ExecutionService } from './executions'
-import { AgentConfigRepository } from './agent-config'
+import { AgentConfigRepository, antigravityModelOptions } from './agent-config'
+import { checkAntigravity } from './antigravity-auth'
+import { readAntigravityUsage } from './antigravity-usage'
+import { applyEnvPolicy } from './env-policy'
 import { SkillService } from './skills'
 import { VoiceService } from './voice'
 import { UsageService } from './usage'
 import { CollaborationService } from './collaboration'
 import { BoardRepository, GitService, ProfileRepository, ProjectRepository, setLiveWaitingChats } from './projects'
-import { AgentProbeService } from './agents'
+import { AgentProbeService, resolveCommand } from './agents'
 import { finishNotice, Notifier } from './notifier'
 import { hiddenNotice, quitPrompt, trayTooltip } from './background'
 import { ConversationRepository } from './conversations'
-import { ClaudeCliAdapter, CodexAppServerAdapter, nodeProcesses, listCodexModels, probeClaudeLimits, readCodexQuota } from './adapters'
+import { ClaudeCliAdapter, CodexAppServerAdapter, nodeProcesses, listClaudeModels, listCodexModels, probeClaudeLimits, readCodexQuota } from './adapters'
 import { AgentOrchestrator } from './orchestrator'
 import { WorktreeService } from './worktrees'
 import { GitManager } from './git-manager'
@@ -142,11 +145,16 @@ const agentContext = new AgentContextService(board, settings, existsSync(pluginD
   const falhasDoTeste = failedChecklistItems(checklists.get(cardId).contentMd)
   return { ...(repositorios ? { repositorios, regraRepositorios: 'A worktree do card começa com todos os repositórios. Assim que souber quais o card vai mudar, chame gearmod_set_repositories só com eles: os outros saem da worktree (um repositório com alterações ou commits próprios fica). Se depois precisar de outro, chame de novo incluindo-o.' } : {}), ...(playwrightCli ? { playwrightCli } : {}), ...(falhasDoTeste.length ? { falhasDoTeste, regraFalhasDoTeste: 'Items the tester marked as failed in the last test pass. The developer fixes them when asked, following the documents; the tester verifies them again in the next pass.' } : {}) }
 }, sddResolver)
-const agentConfigs = new AgentConfigRepository(database, board, profiles, (profileId) => listCodexModels(profiles.get(profileId)))
+const agentConfigs = new AgentConfigRepository(database, board, profiles, (profileId) => listCodexModels(profiles.get(profileId)), async (profileId) => {
+  // Antigravity: the models of the signed-in account, read from an empty ACP session (no quota spent).
+  const env = applyEnvPolicy(profiles.get(profileId), process.env)
+  const account = await checkAntigravity(resolveCommand('agy', env), env)
+  return account.authenticated ? antigravityModelOptions(account.models, account.thoughtLevels) : []
+}, (profileId) => listClaudeModels(profiles.get(profileId)))
 const usageLedger = new UsageLedgerService(database)
 const cardUsageExport = new CardUsageExport(database, board, history, sddResolver, worktrees, sddWriter)
 board.setOnDone((cardId) => { void cardUsageExport.export(cardId).catch(() => console.error('Falha ao exportar consumo do card.')) })
-const usage = new UsageService(database, profiles, (profile) => probeClaudeLimits(profile), undefined, (profile) => readCodexQuota(profile), usageLedger)
+const usage = new UsageService(database, profiles, (profile) => probeClaudeLimits(profile), undefined, (profile) => readCodexQuota(profile), usageLedger, undefined, (profile) => { const env = applyEnvPolicy(profile, process.env); return readAntigravityUsage(resolveCommand('agy', env), env) })
 const appIcon = join(app.isPackaged ? process.resourcesPath : app.getAppPath(), app.isPackaged ? 'tray' : 'resources/tray', 'app.png')
 const mcpServerScript = join(app.isPackaged ? process.resourcesPath : app.getAppPath(), app.isPackaged ? 'gearmod-mcp' : 'resources/gearmod-mcp', 'server.mjs')
 const collab = new CollaborationService(database, board, conversations, agentConfigs, (cardId) => { BrowserWindow.getAllWindows().forEach((window) => window.webContents.send('runs:event-pushed', { runId: '', eventType: 'gearmod/card-updated', payload: { cardId, type: 'document' } })); watchWaiting(cardId) }, checklists)

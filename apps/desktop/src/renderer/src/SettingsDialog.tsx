@@ -18,6 +18,7 @@ import { dismissVoiceInstall, notifyVoiceChanged } from './voiceStore'
 import { Select } from './Select'
 import { useEscape } from './useEscape'
 import { ConfirmDialog } from './ConfirmDialog'
+import { Chevron } from './icons'
 import { Switch } from './Switch'
 import { ThemeCustomizerDialog } from './ThemeCustomizerDialog'
 import { applyThemeToRoot, customRef, deriveAccentVars, findCustomTheme, maxCustomThemes } from './customTheme'
@@ -74,6 +75,9 @@ export function AgentDialog({ profile, close, changed }: { profile?: AgentProfil
   const [step, setStep] = useState<'type' | 'details'>(profile ? 'details' : 'type'), [loginFor, setLoginFor] = useState<AgentProfile>()
   // `checked`: the automatic check finished (until then the dialog says it is checking, not that the CLI is missing).
   const [installing, setInstalling] = useState<'codex' | 'claude' | 'gemini'>(), [checked, setChecked] = useState(false)
+  // Antigravity allows a single profile (one Google account per computer): its card is disabled when one already exists.
+  const [hasAntigravity, setHasAntigravity] = useState(false)
+  useEffect(() => { if (!profile) void Promise.all([window.gearmod.invoke('profiles:list', undefined), window.gearmod.invoke('profiles:disabled', undefined)]).then(([list, off]) => setHasAntigravity([...list, ...off].some((item) => item.provider === 'gemini'))).catch(() => undefined) }, [profile])
   const run = async (action: () => Promise<void>): Promise<void> => { setBusy(true); setMessage(''); try { await action() } catch (error) { setMessage(plainError(error)) } finally { setBusy(false) } }
   // Not found: only asks to install (the technical detail stays out); after an install that still is not found, says so plainly.
   const checkInstall = async (which = provider, afterInstall = false): Promise<void> => {
@@ -119,7 +123,9 @@ export function AgentDialog({ profile, close, changed }: { profile?: AgentProfil
   return <div className="overlay top" role="dialog" aria-label={profile ? ta.edit : ta.new}><div className="modal" style={{ width: 'min(460px,100%)' }}>
     <header><div><div className="eyebrow">{t.common.agent}</div><h2>{profile ? ta.edit : ta.new}</h2></div><button className="x" onClick={() => void cancel()} aria-label={t.common.close}>×</button></header>
     <div className="stack">
-      {!profile && !pending && step === 'type' && <div className="f"><span>{ta.pickType}</span><div className="provcards two">{newAgentProviders.map((item) => <button type="button" key={item} onClick={() => { setProvider(item); setStep('details') }}><i className={`av lg ${item}`} style={{ color: defaultAgentColor(item) }}><ProviderLogo provider={item} /></i><span><b>{item === 'claude' ? 'Claude' : 'Codex'}</b><small>{item === 'claude' ? 'Anthropic' : 'OpenAI'}</small></span></button>)}</div></div>}
+      {!profile && !pending && step === 'type' && <div className="f"><span>{ta.pickType}</span><div className="provcards two">{newAgentProviders.map((item) => <button type="button" key={item} disabled={item === 'gemini' && hasAntigravity} title={item === 'gemini' && hasAntigravity ? ta.antigravityExists : undefined} onClick={() => { setProvider(item); setColor(defaultAgentColor(item)); setStep('details') }}><i className={`av lg ${item}`} style={{ color: defaultAgentColor(item) }}><ProviderLogo provider={item} /></i><span><b>{providerLabels[item]}</b><small>{providerVendors[item]}</small></span></button>)}</div>
+        <small className="hint" style={{ margin: 0 }}>{hasAntigravity ? `${ta.antigravityExists} ` : ''}{ta.antigravityOneAccount}</small></div>}
+      {!profile && !pending && step === 'details' && provider === 'gemini' && <p className="hint" style={{ margin: 0 }}>{ta.antigravityOneAccount}</p>}
       {!profile && !pending && step === 'details' && !installed && !checked && <p role="status" className="hint">{ta.checkingInstall(item(provider))}</p>}
       {!profile && !pending && step === 'details' && !installed && checked && <div className="convbox"><p>{ta.askInstall(item(provider))}</p><div className="actions" style={{ margin: 0 }}><button type="button" className="secondary" disabled={busy} onClick={() => { setMessage(''); setStep('type') }}>{ta.notNow}</button><button type="button" disabled={busy} onClick={() => setInstalling(provider)}>{ta.install(item(provider))}</button></div></div>}
       {(profile || installed) && !pending && step === 'details' && <>
@@ -170,8 +176,9 @@ function GroqKeyField(): React.JSX.Element {
 }
 
 const item = (provider: 'codex' | 'claude' | 'gemini'): string => (providerLabels[provider])
-// Gemini is hidden when creating an agent: the CLI's personal login was discontinued by Google. Gemini agents already created keep working.
-const newAgentProviders = ['claude', 'codex'] as const
+// The `gemini` provider runs Google's Antigravity CLI (the Gemini CLI personal login was discontinued by Google).
+const newAgentProviders = ['claude', 'codex', 'gemini'] as const
+const providerVendors = { claude: 'Anthropic', codex: 'OpenAI', gemini: 'Google' } as const
 
 /**
  * Theme picker: shows only the chosen one; on click opens the list with each theme's colors. "Customize theme…" is always the first option;
@@ -243,6 +250,14 @@ export function SettingsDialog({ profiles, settings, initialTab, close, changed,
   const voices: ReadonlyArray<{ value: VoiceModel; label: string }> = [{ value: 'small', label: td.voiceSmall }, { value: 'large-v3-turbo', label: td.voiceLarge }, { value: 'groq', label: td.voiceGroq }]
   const spacingOptions = messageSpacings.map((item) => ({ ...item, label: item.value === 'compact' ? td.spacingCompact : item.value === 'comfortable' ? td.spacingComfortable : td.spacingWide }))
   useEffect(() => setItems(profiles), [profiles])
+  // Disabled agents: out of every list and picker, kept in a collapsed section here to turn back on.
+  const [disabled, setDisabled] = useState<AgentProfile[]>([]), [showDisabled, setShowDisabled] = useState(false), [toggling, setToggling] = useState<string>()
+  const loadDisabled = (): void => { void window.gearmod.invoke('profiles:disabled', undefined).then(setDisabled).catch(() => undefined) }
+  useEffect(loadDisabled, [profiles])
+  const setAgentEnabled = async (profile: AgentProfile, enabled: boolean): Promise<void> => {
+    setToggling(profile.id); setError('')
+    try { await window.gearmod.invoke('profiles:set-enabled', { profileId: profile.id, enabled }); await changed(); loadDisabled() } catch (reason) { setError(plainError(reason)) } finally { setToggling(undefined) }
+  }
   useEscape(close, !editing)
   const probeAll = (): void => { void window.gearmod.invoke('profiles:probe-all', undefined).then((all) => setStatuses(Object.fromEntries(all.map((probe) => [probe.profileId, probe])))).catch(() => undefined) }
   // An update that finished (here or in the background) changes the installed version: checks again.
@@ -264,7 +279,10 @@ export function SettingsDialog({ profiles, settings, initialTab, close, changed,
     <header><div><div className="eyebrow">{t.common.settings}</div><h2>GearMod</h2></div><button className="x" onClick={close} aria-label={t.common.close}>×</button></header>
     <div className="tabs" role="tablist" style={{ marginBottom: 14 }}>{([['general', td.tabGeneral], ['agents', td.tabAgents], ['skills', td.tabSkills], ['mcp', td.tabMcp], ['tools', td.tabTools], ['shortcuts', td.tabShortcuts], ['about', td.tabAbout]] as const).map(([value, label]) => <button key={value} role="tab" aria-selected={tab === value} className={`tab ${tab === value ? 'on' : ''}`} onClick={() => setTab(value)}>{label}{value === 'agents' && updatesPending && <i className="tab-dot" data-tip={td.agentUpdateTip} />}{value === 'about' && appUpdate?.available && <i className="tab-dot" data-tip={td.appUpdateTip} />}</button>)}</div>
     <div className="settings-dialog-body">{tab === 'agents' && <><p style={{ marginBottom: 12 }}>{td.agentsIntro}</p>
-      <div className="stack" style={{ gap: 8 }}>{items.length === 0 && <div className="emptyBox">{td.noAgents}</div>}{items.map((profile) => { const probe = statuses[profile.id], state = !probe ? 'checking' : probe.authenticated ? 'on' : 'off'; return <div className="ck-line" key={profile.id}><span className="settings-agent-avatar tip" data-tip={!probe ? td.checkingConnection : probe.authenticated ? td.connected : probe.installed ? td.disconnectedNoLogin : td.disconnectedNotInstalled} aria-label={!probe ? td.checkingConnection : probe.authenticated ? td.connected : td.disconnected}><AgentIcon profile={profile} size="lg" tip={false} /><i className={`settings-agent-status ${state}`} aria-hidden="true" /></span><span className="t">{profile.label}<small>{item(profile.provider)}</small>{probe?.account && <small className="acct" data-tip={td.accountTip}>{probe.account}</small>}</span>{newer(profile) && <span className="agupdate" data-tip={td.versionTip(statuses[profile.id]?.version ?? '?', newer(profile) ?? '')}>{td.updateAvailable}<button type="button" className="linklike" onClick={() => setUpdating(profile.provider)}>{td.update}</button></span>}<span className="agtype" data-tip={td.usageTip}>{profile.scope}</span><button className="mini secondary" onClick={() => setEditing(profile)}>{t.common.edit}</button></div> })}</div>
+      <div className="stack" style={{ gap: 8 }}>{items.length === 0 && <div className="emptyBox">{td.noAgents}</div>}{items.map((profile) => { const probe = statuses[profile.id], state = !probe ? 'checking' : probe.authenticated ? 'on' : 'off'; return <div className="ck-line" key={profile.id}><span className="settings-agent-avatar tip" data-tip={!probe ? td.checkingConnection : probe.authenticated ? td.connected : probe.installed ? td.disconnectedNoLogin : td.disconnectedNotInstalled} aria-label={!probe ? td.checkingConnection : probe.authenticated ? td.connected : td.disconnected}><AgentIcon profile={profile} size="lg" tip={false} /><i className={`settings-agent-status ${state}`} aria-hidden="true" /></span><span className="t">{profile.label}<small>{item(profile.provider)}</small>{probe?.account && <small className="acct" data-tip={td.accountTip}>{probe.account}</small>}</span>{newer(profile) && <span className="agupdate" data-tip={td.versionTip(statuses[profile.id]?.version ?? '?', newer(profile) ?? '')}>{td.updateAvailable}<button type="button" className="linklike" onClick={() => setUpdating(profile.provider)}>{td.update}</button></span>}<span className="agtype" data-tip={td.usageTip}>{profile.scope}</span><button className="mini secondary tip" data-tip={td.disableTip} disabled={toggling === profile.id} onClick={() => void setAgentEnabled(profile, false)}>{td.disable}</button><button className="mini secondary" onClick={() => setEditing(profile)}>{t.common.edit}</button></div> })}</div>
+      {disabled.length > 0 && <div className="disabled-agents"><button type="button" className="linklike" aria-expanded={showDisabled} onClick={() => setShowDisabled(!showDisabled)}><Chevron open={showDisabled} /> {td.disabledAgents(disabled.length)}</button>
+        {showDisabled && <div className="stack" style={{ gap: 8, marginTop: 8 }}>{disabled.map((profile) => <div className="ck-line off" key={profile.id}><span className="settings-agent-avatar"><AgentIcon profile={profile} size="lg" tip={false} /></span><span className="t">{profile.label}<small>{item(profile.provider)}</small></span><button className="mini" disabled={toggling === profile.id} onClick={() => void setAgentEnabled(profile, true)}>{td.enable}</button></div>)}</div>}</div>}
+      {error && tab === 'agents' && <p className="error" style={{ marginTop: 10 }}>{error}</p>}
       <button className="bigadd" onClick={() => setEditing('new')}>{td.addAgent}</button></>}
     {tab === 'skills' && <SkillsPanel scope="global" profiles={items} />}
     {tab === 'mcp' && <McpPanel scope="global" available={['claude', 'codex']} />}

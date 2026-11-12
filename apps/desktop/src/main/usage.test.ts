@@ -141,4 +141,23 @@ describe('UsageService', () => {
     expect((await failing.refresh(true)).find((item) => item.profileId === claude.id)!.windows[0]!.usedPercent).toBe(40)
     database.close()
   })
+  it('Antigravity: reads the /usage screen on refresh, Gemini group first and the other groups labeled', async () => {
+    const { root, database } = await setup()
+    const profiles = new ProfileRepository(database, root)
+    const gemini = profiles.create({ provider: 'gemini', label: 'Antigravity', scope: 'x' })
+    let calls = 0
+    const service = new UsageService(database, profiles, undefined, undefined, undefined, undefined, undefined, async () => { calls += 1; return [
+      { id: 'seven_day', remainingPercent: 62.5, resetsInMs: 3 * 86_400_000 }, { id: 'five_hour', remainingPercent: 100, resetsInMs: null },
+      { id: 'CLAUDE AND GPT:seven_day', remainingPercent: 90, resetsInMs: null }, { id: 'GEMINI 4 ARGON:seven_day', remainingPercent: 100, resetsInMs: null }
+    ] })
+    expect((await service.list()).find((item) => item.profileId === gemini.id)!.windows).toEqual([])
+    const item = (await service.refresh(true)).find((entry) => entry.profileId === gemini.id)!
+    expect(item.windows.map((window) => [window.id, window.label, window.usedPercent])).toEqual([
+      ['five_hour', 'Gemini · Sessão de 5 horas', 0], ['seven_day', 'Gemini · Semana', 38],
+      ['CLAUDE AND GPT:seven_day', 'Claude e GPT · Semana', 10], ['GEMINI 4 ARGON:seven_day', 'Gemini 4 Argon · Semana', 0]
+    ])
+    expect(item.windows[1]!.resetsAt).not.toBeNull()
+    await service.refresh(true); expect(calls).toBe(1)
+    database.close()
+  })
 })

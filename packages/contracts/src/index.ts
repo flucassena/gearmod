@@ -90,13 +90,16 @@ export const findCardType = <T extends { id: string; name: string }>(types: read
 export const cardPrioritySchema = z.enum(['low', 'medium', 'high', 'urgent'])
 export const semanticStateSchema = z.enum(['backlog', 'todo', 'doing', 'test', 'done'])
 
-/** Gemini is turned off for now: the adapter code stays in the repository, but no Gemini profile appears or can be created. */
-export const geminiEnabled = false
+/**
+ * Gemini profiles run through Google's Antigravity CLI (`agy`): the provider id stays `gemini` for the stored data, the label is
+ * "Antigravity". Only one Antigravity profile can exist (the CLI keeps a single Google account per OS user).
+ */
+export const geminiEnabled = true
 export const agentProviderSchema = z.enum(['codex', 'claude', 'gemini'])
 export const agentColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/)
 /** Personality colors offered when registering an agent; the color is independent of the system theme. */
 export const agentColorPalette = ['#D97757', '#E5A24B', '#9ccf6f', '#6fc3b2', '#8fb8d6', '#aeb9ff', '#b98fd6', '#e07a9a', '#e8c27a', '#c4d96b', '#5fbf8f', '#4fb8c9', '#6f9bf0', '#8c8cf0', '#d98fd9', '#f08a8a', '#d9a477', '#b5bdb7'] as const
-export const providerLabels: Record<z.infer<typeof agentProviderSchema>, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
+export const providerLabels: Record<z.infer<typeof agentProviderSchema>, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Antigravity' }
 export const defaultAgentColor = (provider: z.infer<typeof agentProviderSchema>): string => (provider === 'claude' ? agentColorPalette[0] : provider === 'gemini' ? '#7BA7FF' : agentColorPalette[5])
 export const themeSchema = z.enum(['green', 'purple', 'blue', 'orange', 'graphite', 'teal', 'rose', 'light-mint', 'light-sky', 'light-lavender', 'light-sand', 'light-rose', 'light-slate'])
 export const languageSchema = z.enum(['pt-BR', 'en'])
@@ -175,9 +178,9 @@ export const permissionModes: Record<'claude' | 'codex' | 'gemini', PermissionMo
   ],
   gemini: [
     { id: 'plan', label: 'Plano', description: 'Só lê e planeja; não altera arquivos.', purposes: ['planning'], recommended: true },
-    { id: 'manual', label: 'Padrão', description: 'Pergunta antes de agir: cada ação pendente aparece no chat para você aprovar ou negar (Gemini CLI em modo ACP).', purposes: ['execution', 'test'], recommended: true },
-    { id: 'accept_edits', label: 'Aceitar edições', description: 'Edita arquivos sem perguntar; comandos de shell são negados.', purposes: ['execution', 'test'] },
-    { id: 'auto', label: 'Automático (yolo)', description: 'Aprova tudo sozinho, inclusive comandos. O Gemini CLI não pede confirmação; use com a worktree do card.', purposes: ['execution', 'test'], dangerous: true }
+    { id: 'manual', label: 'Padrão', description: 'Pergunta antes de rodar comandos: cada um aparece no chat para você aprovar ou negar. Edições na pasta do card e ferramentas MCP rodam sem perguntar.', purposes: ['execution', 'test'], recommended: true },
+    { id: 'accept_edits', label: 'Aceitar edições', description: 'Edita arquivos sem perguntar; comandos de shell pedem aprovação no chat.', purposes: ['execution', 'test'] },
+    { id: 'auto', label: 'Automático (yolo)', description: 'Aprova tudo sozinho, inclusive comandos. O Antigravity não pede confirmação; use com a worktree do card.', purposes: ['execution', 'test'], dangerous: true }
   ],
   codex: [
     { id: 'plan', label: 'Plano', description: 'Somente leitura, só planeja.', purposes: ['planning'], recommended: true },
@@ -487,6 +490,8 @@ export const ipcContracts = {
   , 'profiles:update': { input: z.object({ profileId: uuid, label: z.string().trim().min(1).max(80), scope: z.string().trim().min(1).max(80), color: agentColorSchema.optional(), billingMode: z.enum(['subscription','api','credits','unknown']).optional(), envPassthrough: z.array(z.string().trim().min(1).max(100)).max(50).optional() }).strict(), output: agentProfileSchema }
   , 'profiles:delete': { input: z.object({ profileId: uuid }).strict(), output: z.object({ deleted: z.boolean(), archived: z.boolean() }) }
   , 'profiles:removed': { input: z.undefined(), output: z.array(agentProfileSchema) }
+  , 'profiles:disabled': { input: z.undefined(), output: z.array(agentProfileSchema) }
+  , 'profiles:set-enabled': { input: z.object({ profileId: uuid, enabled: z.boolean() }).strict(), output: agentProfileSchema }
   , 'profiles:probe': { input: z.object({ profileId: uuid }).strict(), output: agentProbeSchema }
   , 'profiles:probe-all': { input: z.undefined(), output: z.array(agentProbeSchema) }
   , 'profiles:detect-provider': { input: z.object({ provider: z.enum(['codex', 'claude', 'gemini']) }).strict(), output: z.object({ installed: z.boolean(), version: z.string().nullable(), error: z.string().nullable() }) }

@@ -18,6 +18,7 @@ import type { TurnStartParams } from './generated/codex-app-server/v2/TurnStartP
 import { redact, redactObject } from './redaction'
 import { applyEnvPolicy } from './env-policy'
 import { tm } from './i18n'
+import { isClaudePlanWindow } from './usage'
 import { backgroundAlive } from './process-tree'
 
 export type AgentEvent = { type: string; payload: Record<string, unknown> }
@@ -237,19 +238,68 @@ async function listCodexModelsLive(profile: AgentProfile, processes: ProcessFact
   } finally { clearTimeout(timer); rpc.stop() }
 }
 
-/** Minimal call to Claude just to read the `rate_limit_event` (usage limit); ends the process as soon as the event arrives. */
-export async function probeClaudeLimits(profile: AgentProfile, processes: ProcessFactory = nodeProcesses, timeoutMs = 90_000): Promise<Record<string, unknown> | null> {
-  const child = processes.start(profile.executablePath || 'claude', ['--print', '--output-format', 'stream-json', '--verbose', '--model', 'haiku', '--no-session-persistence', '--', 'responda apenas: ok'], { cwd: tmpdir(), env: { ...applyEnvPolicy(profile, process.env), CLAUDE_CONFIG_DIR: profile.configDir } })
-  child.stdin.end()
+/**
+ * Asks Claude Code through its stream-json control channel, without any user message (no model call, nothing spent): `initialize`
+ * first (required), then each subtype in turn. Returns each response by subtype; a failure or timeout returns what arrived.
+ */
+export async function claudeControl(profile: AgentProfile, subtypes: string[], processes: ProcessFactory = nodeProcesses, timeoutMs = 30_000): Promise<Record<string, Record<string, unknown>>> {
+  const child = processes.start(profile.executablePath || 'claude', ['--print', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--no-session-persistence'], { cwd: tmpdir(), env: { ...applyEnvPolicy(profile, process.env), CLAUDE_CONFIG_DIR: profile.configDir } })
+  const queue = ['initialize', ...subtypes.filter((subtype) => subtype !== 'initialize')], answers: Record<string, Record<string, unknown>> = {}
+  const ask = (): void => { child.stdin.write(`${JSON.stringify({ type: 'control_request', request_id: `gearmod-${queue[0]}`, request: { subtype: queue[0] } })}\n`) }
+  child.stdin.on('error', () => undefined)
   return new Promise((resolve) => {
     let done = false
-    const finish = (value: Record<string, unknown> | null): void => { if (done) return; done = true; clearTimeout(timer); if (!child.killed) child.kill(); resolve(value) }
-    const timer = setTimeout(() => finish(null), timeoutMs)
+    const finish = (): void => { if (done) return; done = true; clearTimeout(timer); try { child.stdin.end() } catch { /* already closed */ } if (!child.killed) child.kill(); resolve(answers) }
+    const timer = setTimeout(finish, timeoutMs)
     createInterface({ input: child.stdout }).on('line', (line) => {
-      try { const message = JSON.parse(line) as Record<string, unknown>; if (message.type === 'rate_limit_event') finish(message) } catch { /* line that is not JSON */ }
+      let message: { type?: unknown; response?: { subtype?: unknown; request_id?: unknown; response?: unknown } }
+      try { message = JSON.parse(line) } catch { return }
+      if (message.type !== 'control_response' || message.response?.request_id !== `gearmod-${queue[0]}`) return
+      if (message.response.subtype === 'success' && message.response.response && typeof message.response.response === 'object') answers[queue[0]!] = message.response.response as Record<string, unknown>
+      queue.shift()
+      if (queue.length) ask(); else finish()
     })
-    child.on('error', () => finish(null)); child.on('exit', () => finish(null))
+    child.on('error', finish); child.on('exit', finish)
+    ask()
   })
+}
+
+/** `get_usage` windows (`rate_limits.<id>.utilization` in %, `resets_at` ISO) in the shape of the `rate_limit_event` the usage panel stores. */
+export function claudeUsageAsEvent(usage: Record<string, unknown> | undefined): Record<string, unknown> | null {
+  const limits = (usage?.rate_limits ?? null) as Record<string, unknown> | null
+  if (!limits) return null
+  const unifiedWindows: Record<string, { utilization: number; resetsAt?: number }> = {}
+  for (const [id, value] of Object.entries(limits)) {
+    // Only the plan windows (5 h, week, and the week of one model such as `seven_day_opus`); variants like `seven_day_overage_included` repeat the week.
+    if (!isClaudePlanWindow(id)) continue
+    const window = (value ?? null) as { utilization?: unknown; resets_at?: unknown } | null
+    if (!window || typeof window.utilization !== 'number' || !Number.isFinite(window.utilization)) continue
+    const resetsAt = typeof window.resets_at === 'string' ? Date.parse(window.resets_at) : NaN
+    unifiedWindows[id] = { utilization: Math.max(0, window.utilization) / 100, ...(Number.isFinite(resetsAt) ? { resetsAt: Math.round(resetsAt / 1000) } : {}) }
+  }
+  return Object.keys(unifiedWindows).length ? { rate_limit_info: { unifiedWindows } } : null
+}
+
+/** Claude's usage limit, read with `get_usage` (the data behind `/usage`): no prompt, no tokens spent. */
+export async function probeClaudeLimits(profile: AgentProfile, processes: ProcessFactory = nodeProcesses, timeoutMs = 30_000): Promise<Record<string, unknown> | null> {
+  return claudeUsageAsEvent((await claudeControl(profile, ['get_usage'], processes, timeoutMs)).get_usage)
+}
+
+/**
+ * Models of the signed-in Claude account (the `models` of `initialize`, the same list as `/model`): aliases such as `fable` or
+ * `opus` plus pinned versions, with their effort levels. `default` is left out (the picker already has the profile default).
+ */
+export function claudeModelOptions(initialize: Record<string, unknown> | undefined): ModelOption[] {
+  const models = Array.isArray(initialize?.models) ? initialize.models as Array<Record<string, unknown>> : []
+  return models.filter((model) => typeof model.value === 'string' && model.value !== 'default').map((model) => {
+    const efforts = (Array.isArray(model.supportedEffortLevels) ? model.supportedEffortLevels : []).filter(knownEffort)
+    const id = model.value as string
+    return { id, label: typeof model.displayName === 'string' ? model.displayName : id, description: typeof model.description === 'string' ? model.description : '', efforts, recommendedFor: id === 'opus' ? ['planning'] : id === 'sonnet' ? ['execution', 'test'] : [], defaultEffort: efforts.includes('high') && id === 'opus' ? 'high' : efforts.includes('medium') ? 'medium' : efforts[0] ?? null }
+  })
+}
+
+export async function listClaudeModels(profile: AgentProfile, processes: ProcessFactory = nodeProcesses, timeoutMs = 30_000): Promise<ModelOption[]> {
+  return claudeModelOptions((await claudeControl(profile, [], processes, timeoutMs)).initialize)
 }
 
 /** Asks Haiku (a cheap model) for a commit message for the changes; returns only the one-line summary. */

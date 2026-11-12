@@ -1,0 +1,18 @@
+[?25l[10;3HGemini 4 Argon (Medium)[K
+  C:/work/agy-usage
+[K
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>[K
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+? for shortcuts                                                                                  [K[2mGemini 4 Argon · medium[14;3H[?25h[22m[?25l/usage[16;1H> /usage  [2mView model quota usage[22m[K[18;1H  [1m↑/↓[22m Navigate · [1menter[22m Select · [1mtab[22m Complete
+esc to cancel                                                                                    [K[2mGemini 4 Argon · medium[14;9H[?25h[22m[0 q[?25l[14;3H[K[1m[16;1H└ Models & Quota[22m[K[18;1H  Account: user@example.com[K
+[K[1m
+GEMINI MODELS[22m
+  [2mModels within this group: Gemini Flash, Gemini Pro[22m[23;1H  [1mWeekly Limit Remaining[22m[24;5H[██████████████████████████████████████████████████][2m 100.00%[22m[25;5HQuota available[27;1H  [1mFive Hour Limit Remaining[22m[28;5H[██████████████████████████████████████████████████][2m 100.00%[22m[29;5HQuota available[1m[32;1HCLAUDE AND GPT MODELS[22m
+  [2mModels within this group: Claude Opus, Claude Sonnet, GPT-OSS[22m[35;1H  [1mWeekly Limit Remaining[22m[36;5H[██████████████████████████████████████████████████][2m 100.00%[22m[37;5HQuota available[39;1H  [1mFive Hour Limit Remaining[22m[40;5H[██████████████████████████████████████████████████][2m 100.00%[22m[41;5HQuota available[1m[44;1HGEMINI 4 ARGON[22m
+  [2mFor paid Pro plans, Argon quota is separate. Higher Argon quota (included as part of the larger Gemini quota bucket) i[22m[47;1H  [1mGemini 4 Argon Weekly Limit[22m[48;5H[██████████████████████████████████████████████████][2m 100.00%[22m[49;5HQuota available[52;1H  │[2mWithin each group, models share a weekly limit and a 5-hour limit. Quota is[22m
+  │[2mconsumed proportionally to the cost of the tokens. Thus, limits will last[22m
+  │[2mlonger with shorter tasks or using more cost-effective models. The 5-hour[22m
+  │[2mlimit smooths out aggregate demand to fairly distribute global capacity[22m
+  │[2macross all users, while your weekly limit is tied directly to your individual[22m
+  │[2mtier.[22m[59;1H  [1m↑/↓[22m Scroll · [1mpgup/pgdown[22m Page · [1mctrl+end[22m Bottom · [1mctrl+home[22m Top · [1mesc[22m Close[2m[60;98HGemini 4 Argon · medium[22m[9;31H (Google AI Pro)

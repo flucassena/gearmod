@@ -158,6 +158,7 @@ export const shell: typeof source = {
     accountQuotaHint: 'Real provider windows; not attributed to cards.',
     claudeReportsUsage: 'Claude reports usage on each run; run something to see it here.',
     noCodexSessions: 'No Codex sessions with limits yet.',
+    noAntigravityUsage: 'Not read yet. GearMod opens the Antigravity /usage screen hidden (no quota spent); check that it is installed and signed in.',
     assignedTokens: 'Attributed tokens',
     assignedTokensHint: 'Only usage tied to recorded runs and operations.',
     loadingHistory: 'Loading history…',

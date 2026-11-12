@@ -2,15 +2,16 @@ import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promi
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
-import type { AgentProfile, SkillEntry, SkillProviderState, SkillScope } from '@gearmod/contracts'
+import { providerLabels, type AgentProfile, type SkillEntry, type SkillProviderState, type SkillScope } from '@gearmod/contracts'
 import type { AgentAdapter } from './adapters'
 import type { ProfileRepository, ProjectRepository } from './projects'
 import { tm } from './i18n'
 
 type Provider = 'claude' | 'codex' | 'gemini'
 const providers: Provider[] = ['claude', 'codex', 'gemini']
-const globalFolder: Record<Provider, string> = { claude: '.claude', codex: '.codex', gemini: '.gemini' }
-const projectFolder: Record<Provider, string> = { claude: '.claude', codex: '.agents', gemini: '.gemini' }
+// Antigravity (Gemini profiles) reads skills from `~/.gemini/config/skills` and, in the project, from `.agents/skills` (the same folder as Codex).
+const globalFolder: Record<Provider, string> = { claude: '.claude', codex: '.codex', gemini: join('.gemini', 'config') }
+const projectFolder: Record<Provider, string> = { claude: '.claude', codex: '.agents', gemini: '.agents' }
 const nameRule = /^[a-z0-9][a-z0-9-]{0,63}$/
 
 /** `name` and `description` header of a SKILL.md (a YAML subset enough for skills). */
@@ -37,8 +38,8 @@ export function parseSkillMd(text: string): { name: string | null; description: 
 export function convertSkillMd(text: string, from: Provider, to: Provider): string {
   const parsed = parseSkillMd(text), name = parsed.name ?? 'skill'
   const description = parsed.description.replace(/"/g, '\\"')
-  const target = { claude: { memory: 'CLAUDE.md', skills: '.claude/skills', name: 'Claude Code' }, codex: { memory: 'AGENTS.md', skills: '.agents/skills', name: 'Codex' }, gemini: { memory: 'GEMINI.md', skills: '.gemini/skills', name: 'Gemini CLI' } }[to]
-  const swaps: Array<[RegExp, string]> = [[/CLAUDE\.md|AGENTS\.md|GEMINI\.md/g, target.memory], [/\.claude\/skills|\.agents\/skills|\.gemini\/skills/g, target.skills], [/Claude Code|Gemini CLI|Codex/g, target.name]]
+  const target = { claude: { memory: 'CLAUDE.md', skills: '.claude/skills', name: 'Claude Code' }, codex: { memory: 'AGENTS.md', skills: '.agents/skills', name: 'Codex' }, gemini: { memory: 'GEMINI.md', skills: '.agents/skills', name: 'Antigravity' } }[to]
+  const swaps: Array<[RegExp, string]> = [[/CLAUDE\.md|AGENTS\.md|GEMINI\.md/g, target.memory], [/\.claude\/skills|\.agents\/skills|\.gemini\/skills/g, target.skills], [/Claude Code|Gemini CLI|Antigravity|Codex/g, target.name]]
   const body = swaps.reduce((current, [pattern, value]) => current.replace(pattern, value), parsed.body)
   return `---\nname: ${name}\ndescription: "${description}"\n---\n${body.startsWith('\n') ? body : `\n${body}`}`
 }
@@ -93,7 +94,8 @@ export class SkillService {
    */
   private globalBases(provider: Provider): string[] {
     const dirs = [join(this.home, globalFolder[provider], 'skills')]
-    dirs.push(...this.profiles.list().filter((profile) => profile.provider === provider).map((profile) => join(profile.configDir, 'skills')))
+    // Antigravity has no per-profile folder (one account per OS user), so only Claude/Codex profiles add their own.
+    if (provider !== 'gemini') dirs.push(...this.profiles.list().filter((profile) => profile.provider === provider).map((profile) => join(profile.configDir, 'skills')))
     return [...new Set(dirs)]
   }
 
@@ -172,7 +174,7 @@ export class SkillService {
     if (!info) throw new Error(tm().skills.fileOrFolderNotFound)
     const base = input.scope === 'global' ? this.globalBases(input.provider)[0]! : this.projectBase(input.projectId ?? '', input.provider)
     const target = join(base, input.name)
-    if (existsSync(target)) throw new Error(tm().skills.alreadyExists(input.name, input.provider === 'claude' ? 'Claude' : input.provider === 'gemini' ? 'Gemini' : 'Codex'))
+    if (existsSync(target)) throw new Error(tm().skills.alreadyExists(input.name, providerLabels[input.provider]))
     await mkdir(target, { recursive: true })
     if (info.isDirectory()) {
       if (!existsSync(join(source, 'SKILL.md'))) throw new Error(tm().skills.folderHasNoSkillMd)
@@ -193,7 +195,7 @@ export class SkillService {
     if (input.from === input.to) throw new Error(tm().skills.chooseOtherAgent)
     const entry = (await this.list(input.scope, input.projectId)).find((item) => item.name === input.name)
     const sourceDir = entry?.paths[input.from]
-    if (!entry || !sourceDir) throw new Error(tm().skills.notFoundFor(input.name, input.from === 'claude' ? 'Claude' : input.from === 'gemini' ? 'Gemini' : 'Codex'))
+    if (!entry || !sourceDir) throw new Error(tm().skills.notFoundFor(input.name, providerLabels[input.from]))
     if (entry.providers[input.to] !== 'none') throw new Error(tm().skills.skillAlreadyExistsForOther)
     const base = input.scope === 'global' ? this.globalBases(input.to)[0]! : this.projectBase(input.projectId ?? '', input.to)
     const targetDir = join(base, input.name), key = `${input.scope}|${input.projectId ?? ''}|${input.name}|${input.to}`
@@ -215,7 +217,7 @@ export class SkillService {
     this.emit('skills/review-started', { name: input.name })
     try {
       const profile = this.reviewer!.profile(input.reviewProfileId!)
-      const names = { claude: 'Claude Code', codex: 'Codex', gemini: 'Gemini CLI' }
+      const names = { claude: 'Claude Code', codex: 'Codex', gemini: 'Antigravity' }
       const prompt = `Esta skill "${input.name}" foi convertida automaticamente de ${names[input.from]} para ${names[input.to]}. Revise só os arquivos desta pasta: confirme que o SKILL.md tem "name" e "description" válidos para ${names[input.to]}, troque referências a ferramentas, caminhos e convenções de ${names[input.from]} pelas de ${names[input.to]} e corrija o que ficou faltando. Não crie nem altere nada fora desta pasta. Responda com um resumo curto do que mudou.`
       const result = await this.reviewer!.adapters[profile.provider].run({ cwd: targetDir, prompt, sessionId: null, planning: false, profile, model: input.model ?? null, mode: profile.provider === 'claude' ? 'accept_edits' : 'auto', onEvent: () => undefined })
       try { this.ledger?.recordAuxiliary(profile, 'skill-review', result.usage) } catch { /* metrics never block the review */ }

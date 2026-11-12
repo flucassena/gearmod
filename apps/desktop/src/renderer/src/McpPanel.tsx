@@ -10,7 +10,7 @@ import { useT } from './i18n'
 import { EyeIcon, EyeOffIcon, SearchIcon } from './icons'
 
 type Provider = McpServer['providers'][number]
-const providerNames: Record<Provider, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
+const providerNames: Record<Provider, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Antigravity' }
 type Draft = { id?: string; name: string; presetId: string | null; transport: 'stdio' | 'http'; sse: boolean; command: string; argsText: string; url: string; env: Array<{ key: string; value: string; set: boolean }>; headers: Array<{ key: string; value: string; set: boolean }>; providers: Provider[]; enabled: boolean }
 const blank = (providers: Provider[]): Draft => ({ name: '', presetId: null, transport: 'stdio', sse: false, command: '', argsText: '', url: '', env: [], headers: [], providers, enabled: true })
 const fromServer = (server: McpServer): Draft => ({ id: server.id, name: server.name, presetId: server.presetId, transport: server.transport, sse: server.sse, command: server.command, argsText: server.args.join('\n'), url: server.url, env: server.env.map((item) => ({ key: item.key, value: '', set: item.set })), headers: server.headers.map((item) => ({ key: item.key, value: '', set: item.set })), providers: server.providers, enabled: server.enabled })

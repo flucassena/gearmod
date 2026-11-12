@@ -133,7 +133,7 @@ describe('AgentProbeService terminals', () => {
     expect(launch.opened.map(({ command, args }) => ({ command, args }))).toEqual([
       { command: 'npm', args: ['install', '-g', '@openai/codex@latest'] },
       { command: 'claude', args: ['update'] },
-      { command: 'npm', args: ['install', '-g', '@google/gemini-cli@latest'] },
+      { command: 'bash', args: ['-c', 'curl -fsSL https://antigravity.google/cli/install.sh | bash'] },
       { command: resolveCommand(claude.executablePath || claude.provider, launch.opened[3]!.env), args: ['auth', 'login'] },
     ])
     // The login runs with the profile's isolated config directory.

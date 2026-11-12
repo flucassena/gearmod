@@ -13,7 +13,8 @@ function describe(name: string, input: Json): ToolActivity {
 
 /** Files the agent changed (Claude's write tools): used to notice work done in another card's worktree. */
 export function toolEditedFiles(type: string, payload: Json): string[] {
-  if (type === 'gemini/tool_use') { const input = asObject(payload.parameters), file = input.file_path ?? input.path; return ['write_file', 'replace', 'edit'].includes(String(payload.tool_name)) && typeof file === 'string' ? [file] : [] }
+  // Antigravity marks every editing tool with ACP kind `edit` (its names vary: write_file, replace_file_content…).
+  if (type === 'gemini/tool_use') { const input = asObject(payload.parameters), file = input.file_path ?? input.path; return (payload.tool_kind === 'edit' || ['write_file', 'replace', 'edit'].includes(String(payload.tool_name))) && typeof file === 'string' ? [file] : [] }
   if (type !== 'claude/assistant') return []
   const content = asObject(payload.message).content
   return (Array.isArray(content) ? content : []).map(asObject)

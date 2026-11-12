@@ -10,7 +10,7 @@ const roots: string[] = []
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))) })
 const git = { validate: async () => undefined, branches: async () => ['dev'], inspect: async (localPath: string) => ({ localPath, name: 'p', repositories: [] }) }
 
-async function setup(lister?: (profileId: string) => Promise<never[]>) {
+async function setup(lister?: (profileId: string) => Promise<never[]>, claudeLister?: (profileId: string) => Promise<never[]>) {
   const root = await mkdtemp(join(tmpdir(), 'gearmod-cfg-')); roots.push(root)
   const database = new AppDatabase(join(root, 'db.sqlite'), '0.1.0'); await database.open()
   const profiles = new ProfileRepository(database, root)
@@ -19,7 +19,7 @@ async function setup(lister?: (profileId: string) => Promise<never[]>) {
   const projects = new ProjectRepository(database, git), board = new BoardRepository(database, projects)
   const project = await projects.create({ name: 'P', localPath: root, baseBranch: 'dev' })
   const card = board.create({ projectId: project.id, columnId: board.get(project.id).columns[1]!.id, title: 'C', description: '', type: 'task', priority: 'low', acceptanceCriteria: [] })
-  return { database, profiles, claude, codex, card, configs: new AgentConfigRepository(database, board, profiles, lister) }
+  return { database, profiles, claude, codex, card, configs: new AgentConfigRepository(database, board, profiles, lister, undefined, claudeLister) }
 }
 
 describe('AgentConfigRepository', () => {
@@ -61,11 +61,23 @@ describe('AgentConfigRepository', () => {
   it('lists Claude models statically and Codex models through the lister, caching them and surviving failures', async () => {
     let calls = 0
     const { database, claude, codex, configs } = await setup(async () => { calls += 1; throw new Error('sem codex') })
-    expect((await configs.options(claude.id)).models.map((model) => model.id)).toEqual(['opus', 'sonnet', 'haiku'])
+    expect((await configs.options(claude.id)).models.map((model) => model.id)).toEqual(['fable', 'opus', 'sonnet', 'haiku'])
     expect((await configs.options(codex.id)).models).toEqual([]); expect(calls).toBe(1)
     database.close()
     const second = await setup(async () => [{ id: 'gpt-x', label: 'GPT X', description: '', efforts: ['low', 'high'], recommendedFor: ['planning'], defaultEffort: 'high' }] as never)
     expect((await second.configs.options(second.codex.id)).models[0]?.id).toBe('gpt-x'); await second.configs.options(second.codex.id)
     second.database.close()
+  })
+
+  it('Claude: the signed-in account models replace the fixed list (cached); a failure keeps the fixed list and retries', async () => {
+    let calls = 0, fail = true
+    const account = [{ id: 'opus', label: 'Opus 5.5', description: '', efforts: ['high'], recommendedFor: ['planning'], defaultEffort: 'high' }, { id: 'fable', label: 'Fable 5.2', description: '', efforts: ['high'], recommendedFor: [], defaultEffort: 'high' }]
+    const { database, claude, configs } = await setup(undefined, async () => { calls += 1; if (fail) throw new Error('sem login'); return account as never })
+    expect((await configs.options(claude.id)).models.map((model) => model.id)).toEqual(['fable', 'opus', 'sonnet', 'haiku'])
+    fail = false
+    expect((await configs.options(claude.id)).models.map((model) => model.label)).toEqual(['Opus 5.5', 'Fable 5.2'])
+    await configs.options(claude.id)
+    expect(calls).toBe(2)
+    database.close()
   })
 })

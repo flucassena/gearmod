@@ -12,7 +12,8 @@ export function useChatReplies(): { items: ChatReply[]; add(reply: ChatReply): v
   return { items, add, remove: (id) => setItems((current) => current.filter((item) => item.id !== id)), clear: () => setItems([]), restore }
 }
 
-type Anchor = { left: number; top: number }
+/** `top`: opens below that point; `bottom`: opens above it (distance from the bottom of the window). */
+type Anchor = { left: number; top?: number; bottom?: number }
 
 function ReplyPopover({ anchor, close, children, label, dismissOnScroll = true }: { anchor: Anchor; close(): void; children: React.ReactNode; label: string; dismissOnScroll?: boolean }): React.JSX.Element {
   const t = useT(), box = useRef<HTMLDivElement>(null)
@@ -24,7 +25,7 @@ function ReplyPopover({ anchor, close, children, label, dismissOnScroll = true }
     document.addEventListener('pointerdown', away); document.addEventListener('keydown', escape, true); document.addEventListener('scroll', scroll, true); window.addEventListener('resize', close)
     return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', escape, true); document.removeEventListener('scroll', scroll, true); window.removeEventListener('resize', close) }
   }, [close, dismissOnScroll])
-  return createPortal(<div className="chat-reply-popover" ref={box} role="dialog" aria-label={label} style={{ left: anchor.left, top: anchor.top }}>
+  return createPortal(<div className="chat-reply-popover" ref={box} role="dialog" aria-label={label} style={{ left: anchor.left, top: anchor.top, bottom: anchor.bottom }}>
     <button type="button" className="chat-reply-close" aria-label={t.chat.replies.closeReply} onClick={close}><CloseIcon /></button>{children}
   </div>, document.body)
 }
@@ -80,7 +81,7 @@ export function ReplyContextCards({ replies, remove }: { replies: ChatReply[]; r
   if (!replies.length) return null
   return <div className="chat-reply-cards" aria-label={t.chat.replies.addedAsContext}>
     {replies.map((reply) => <div className="chat-reply-card" key={reply.id}>
-      <button type="button" className="chat-reply-card-body" aria-label={t.chat.replies.viewReply(reply.response.slice(0, 100))} onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setOpened({ reply, anchor: { left: rect.left, top: rect.bottom + 6 } }) }}>
+      <button type="button" className="chat-reply-card-body" aria-label={t.chat.replies.viewReply(reply.response.slice(0, 100))} onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setOpened({ reply, anchor: { left: rect.left, bottom: window.innerHeight - rect.top + 6 } }) }}>
         <span className="chat-reply-card-preview">{reply.response}</span><span className="chat-reply-card-label">{t.chat.replies.cardLabel}</span>
       </button>
       {remove && <button type="button" className="attcard-x" aria-label={t.chat.replies.removeReply(reply.quote.slice(0, 80))} onClick={() => { setOpened(undefined); remove(reply.id) }}>×</button>}

@@ -157,6 +157,7 @@ export const shell = {
     accountQuotaHint: 'Janelas reais do provedor; não atribuídas a cards.',
     claudeReportsUsage: 'O Claude informa o uso a cada execução; rode algo para ver aqui.',
     noCodexSessions: 'Sem sessões do Codex com limites ainda.',
+    noAntigravityUsage: 'Ainda sem leitura. O GearMod abre a tela /usage do Antigravity escondida (sem gastar cota); confira se ele está instalado e logado.',
     assignedTokens: 'Tokens atribuídos',
     assignedTokensHint: 'Somente consumo associado a execuções e operações registradas.',
     loadingHistory: 'Carregando histórico…',
