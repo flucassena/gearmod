@@ -23,6 +23,7 @@ import { Switch } from './Switch'
 import { ThemeCustomizerDialog } from './ThemeCustomizerDialog'
 import { applyThemeToRoot, customRef, deriveAccentVars, findCustomTheme, maxCustomThemes } from './customTheme'
 import { setGravatarEnabled } from './gravatarSetting'
+import { recordInitialChatEvent } from './initialChatPref'
 import { DefaultCardTypes } from './CardTypes'
 import { AgentLoginDialog } from './AgentLoginDialog'
 import { toast } from './toasts'
@@ -269,7 +270,7 @@ export function SettingsDialog({ profiles, settings, initialTab, close, changed,
   const latest = useLatestVersions()
   const newer = (profile: AgentProfile): string | null => { const probe = statuses[profile.id], last = latest?.versions[profile.provider as 'claude' | 'codex' | 'gemini']; return probe?.installed && last && isOutdated(probe.version, last) ? last : null }
   const updatesPending = items.some((profile) => newer(profile))
-  const save = async (patch: Partial<AppSettings>): Promise<void> => { try { setError(''); settingsChanged(await window.gearmod.invoke('settings:update', patch)) } catch (reason) { setError(plainError(reason)) } }
+  const save = async (patch: Partial<AppSettings>): Promise<void> => { try { setError(''); const updated = await window.gearmod.invoke('settings:update', patch); settingsChanged(updated); window.dispatchEvent(new CustomEvent(settingsChangedEvent, { detail: updated })) } catch (reason) { setError(plainError(reason)) } }
   const refresh = async (): Promise<void> => { await changed() }
   const [capacity, setCapacity] = useState<{ recommended: number; cores: number; memoryGb: number }>(), [limitDraft, setLimitDraft] = useState<string>()
   useEffect(() => { void window.gearmod.invoke('agents:capacity', undefined).then(setCapacity).catch(() => undefined) }, [])
@@ -295,7 +296,9 @@ export function SettingsDialog({ profiles, settings, initialTab, close, changed,
         <p className="hint">{t.settings.languageHint}</p>
         <div className="f"><span>{td.messageSpacing}</span><Select label={td.messageSpacing} options={spacingOptions} value={messageSpacing} onChange={(value) => { const spacing = value as MessageSpacing; setMessageSpacing(spacing); saveMessageSpacing(spacing) }} /></div>
         <p className="hint">{td.messageSpacingHint}</p></section>
-        <section className="cx-wfcard"><h4>{td.cardBehavior}</h4><Switch style={{ marginRight: 0 }} checked={settings.notificacoes} onChange={(value) => void save({ notificacoes: value })}>{td.notifications}</Switch>
+        <section className="cx-wfcard"><h4>{td.cardBehavior}</h4><Switch style={{ marginRight: 0 }} checked={settings.chatLateralInicial} onChange={(value) => { if (value) recordInitialChatEvent('reenabled'); void save({ chatLateralInicial: value }) }}>{td.initialChat}</Switch>
+        <p className="hint">{td.initialChatHint}</p>
+        <Switch style={{ marginRight: 0 }} checked={settings.notificacoes} onChange={(value) => void save({ notificacoes: value })}>{td.notifications}</Switch>
         <p className="hint">{td.notificationsHint}</p>
         <Switch style={{ marginRight: 0 }} checked={settings.retomarSozinho} onChange={(value) => void save({ retomarSozinho: value })}>{td.autoResume}</Switch>
         <p className="hint">{td.autoResumeHint}</p>

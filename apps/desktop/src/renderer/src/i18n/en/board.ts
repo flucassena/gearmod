@@ -131,6 +131,13 @@ export const board: typeof source = {
       title: (label) => `Archive all cards in ${label ?? 'the column'}?`,
       text: (n) => `${n} cards will leave the board. You can restore them later on the Chats page, under the Archived filter.`,
       ok: 'Archive all'
+    },
+    initialChatSuggest: {
+      eyebrow: 'Side chat',
+      title: 'Stop opening the side chat at start?',
+      text: 'You closed the initial side chat 5 times in a row without sending a message. If you prefer, it will no longer open on its own when you enter a project. You can turn it back on anytime in Settings > General.',
+      ok: 'Turn off automatic opening',
+      disabled: 'Automatic side chat opening turned off'
     }
   },
   newCardDialog: {

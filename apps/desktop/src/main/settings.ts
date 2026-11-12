@@ -2,7 +2,7 @@ import { appSettingsSchema, type AppSettings } from '@gearmod/contracts'
 import type { AppDatabase } from './database'
 
 export const languageFromLocale = (locale: string): AppSettings['idioma'] => (locale.toLowerCase().startsWith('pt') ? 'pt-BR' : 'en')
-const defaults: AppSettings = { tema: 'green', temasPersonalizados: [], idioma: 'pt-BR', voz: 'small', notificacoes: true, retomarSozinho: true, fotosGravatar: false, execucoesSimultaneas: null }
+const defaults: AppSettings = { tema: 'green', temasPersonalizados: [], idioma: 'pt-BR', voz: 'small', notificacoes: true, retomarSozinho: true, fotosGravatar: false, chatLateralInicial: true, execucoesSimultaneas: null }
 /** A `custom:<id>` theme missing from the list (deleted or corrupted) falls back to the default theme. */
 const orphanThemeToDefault = (settings: AppSettings): AppSettings =>
   settings.tema.startsWith('custom:') && !settings.temasPersonalizados.some((t) => `custom:${t.id}` === settings.tema) ? { ...settings, tema: defaults.tema } : settings
@@ -22,7 +22,7 @@ export class SettingsRepository {
     const base = { ...defaults, idioma: languageFromLocale(typeof this.systemLocale === 'function' ? this.systemLocale() : this.systemLocale) }
     const parsed = appSettingsSchema.safeParse({ ...base, ...stored })
     if (parsed.success) return orphanThemeToDefault(parsed.data)
-    return orphanThemeToDefault({ tema: appSettingsSchema.shape.tema.safeParse(stored.tema).data ?? defaults.tema, temasPersonalizados: appSettingsSchema.shape.temasPersonalizados.safeParse(stored.temasPersonalizados).data ?? defaults.temasPersonalizados, idioma: appSettingsSchema.shape.idioma.safeParse(stored.idioma).data ?? base.idioma, voz: appSettingsSchema.shape.voz.safeParse(stored.voz).data ?? defaults.voz, notificacoes: appSettingsSchema.shape.notificacoes.safeParse(stored.notificacoes).data ?? defaults.notificacoes, retomarSozinho: appSettingsSchema.shape.retomarSozinho.safeParse(stored.retomarSozinho).data ?? defaults.retomarSozinho, fotosGravatar: appSettingsSchema.shape.fotosGravatar.safeParse(stored.fotosGravatar).data ?? defaults.fotosGravatar, execucoesSimultaneas: appSettingsSchema.shape.execucoesSimultaneas.safeParse(stored.execucoesSimultaneas).data ?? defaults.execucoesSimultaneas })
+    return orphanThemeToDefault({ tema: appSettingsSchema.shape.tema.safeParse(stored.tema).data ?? defaults.tema, temasPersonalizados: appSettingsSchema.shape.temasPersonalizados.safeParse(stored.temasPersonalizados).data ?? defaults.temasPersonalizados, idioma: appSettingsSchema.shape.idioma.safeParse(stored.idioma).data ?? base.idioma, voz: appSettingsSchema.shape.voz.safeParse(stored.voz).data ?? defaults.voz, notificacoes: appSettingsSchema.shape.notificacoes.safeParse(stored.notificacoes).data ?? defaults.notificacoes, retomarSozinho: appSettingsSchema.shape.retomarSozinho.safeParse(stored.retomarSozinho).data ?? defaults.retomarSozinho, fotosGravatar: appSettingsSchema.shape.fotosGravatar.safeParse(stored.fotosGravatar).data ?? defaults.fotosGravatar, chatLateralInicial: appSettingsSchema.shape.chatLateralInicial.safeParse(stored.chatLateralInicial).data ?? defaults.chatLateralInicial, execucoesSimultaneas: appSettingsSchema.shape.execucoesSimultaneas.safeParse(stored.execucoesSimultaneas).data ?? defaults.execucoesSimultaneas })
   }
 
   update(input: Partial<AppSettings>): AppSettings {
@@ -30,7 +30,7 @@ export class SettingsRepository {
     const upsert = this.database.db.prepare(`INSERT INTO settings(key, json_value, updated_at) VALUES (?, ?, ?)
       ON CONFLICT(key) DO UPDATE SET json_value = excluded.json_value, updated_at = excluded.updated_at`)
     this.database.db.transaction(() => {
-      for (const name of ['tema', 'temasPersonalizados', 'idioma', 'voz', 'notificacoes', 'retomarSozinho', 'fotosGravatar', 'execucoesSimultaneas'] as const) if (input[name] !== undefined) upsert.run(keyOf(name), JSON.stringify(input[name]), now)
+      for (const name of ['tema', 'temasPersonalizados', 'idioma', 'voz', 'notificacoes', 'retomarSozinho', 'fotosGravatar', 'chatLateralInicial', 'execucoesSimultaneas'] as const) if (input[name] !== undefined) upsert.run(keyOf(name), JSON.stringify(input[name]), now)
     })()
     return this.get()
   }

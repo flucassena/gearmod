@@ -35,6 +35,7 @@ import { plainError } from './NoticeDialog'
 import { useT } from './i18n'
 import { useProjectSkills, useSlashSkills } from './SlashSkills'
 import { skillInText } from './skillText'
+import { recordInitialChatEvent } from './initialChatPref'
 
 type Saved = { profileId: string; model: string | null; effort: Effort | null; mode: PermissionMode }
 const savedKey = (projectId: string): string => `gearmod.freeChatAgent.${projectId}`
@@ -45,7 +46,7 @@ const readSaved = (projectId: string): Saved | null => { try { return JSON.parse
  * card (gearmod_create_card) and this same chat becomes its planning chat; then `onConverted` opens the card.
  * With `mode="constitution"` it is the project's Constitution chat; `prompt` sends the first request right on open.
  */
-export function FreeChat({ project, profiles, chat: start, close, onConverted, changed, mode = 'free', prompt: firstPrompt, startConfig, docked = false }: { project: Project; startConfig?: AgentConfig; profiles: AgentProfile[]; chat?: Chat; close(): void; onConverted(cardId: string): void; changed(): void; mode?: 'free' | 'constitution' | 'test-setup'; prompt?: string; docked?: boolean }): React.JSX.Element {
+export function FreeChat({ project, profiles, chat: start, close, onConverted, changed, mode = 'free', prompt: firstPrompt, startConfig, docked = false }: { project: Project; startConfig?: AgentConfig; profiles: AgentProfile[]; chat?: Chat; close(unusedDocked?: boolean): void; onConverted(cardId: string): void; changed(): void; mode?: 'free' | 'constitution' | 'test-setup'; prompt?: string; docked?: boolean }): React.JSX.Element {
   const t = useT(), d = t.chat.dock, f = t.chat.freeChat
   const text = f.modes[mode]
   const { expanded, setExpanded, width, setWidth, dragging, startResize, resetWidth } = useDockSize(docked)
@@ -118,7 +119,11 @@ export function FreeChat({ project, profiles, chat: start, close, onConverted, c
     }
   }), [load, changed, onConverted])
   useStickToBottom(log)
+  const sentFirst = useRef(false), sentMessage = useRef(Boolean(start))
+  const markInitialChatUsed = (): void => { if (docked && !sentMessage.current) { sentMessage.current = true; recordInitialChatEvent('message-sent') } }
+  const closeManual = (): void => close(Boolean(docked && !sentMessage.current && !chatRef.current && messages.length === 0))
   const deliver = async (prompt: string, queuedFiles?: string[]): Promise<void> => {
+    markInitialChatUsed()
     const files = queuedFiles ?? attach.take()
     try {
       setError('')
@@ -133,11 +138,11 @@ export function FreeChat({ project, profiles, chat: start, close, onConverted, c
   const cancel = async (): Promise<void> => { if (runId.current) await window.gearmod.invoke('agents:cancel', { runId: runId.current }).catch((reason: unknown) => setError(plainError(reason))) }
   const later = useQueuedMessage(busy, deliver)
   // Request that came from outside (e.g. applying a change suggested in the Constitution): sent once on open.
-  const sentFirst = useRef(false)
-  useEffect(() => { if (firstPrompt && !sentFirst.current && profileId) { sentFirst.current = true; if (busy) later.queue(firstPrompt); else void deliver(firstPrompt) } }, [firstPrompt, profileId])
+  useEffect(() => { if (firstPrompt && !sentFirst.current && profileId) { sentFirst.current = true; markInitialChatUsed(); if (busy) later.queue(firstPrompt); else void deliver(firstPrompt) } }, [firstPrompt, profileId])
   const send = async (): Promise<void> => {
     const prompt = withChatReplies(input, replies.items) || (attach.files.length ? 'Veja os arquivos anexados.' : ''); if (!prompt) return
     if (prompt.length + (busy && later.queued ? later.queued.length + 2 : 0) > 100_000) { setError(d.messageTooLong); return }
+    markInitialChatUsed()
     setInput(''); replies.clear()
     if (busy) later.queue(prompt, attach.take()); else await deliver(prompt)
   }
@@ -158,7 +163,7 @@ export function FreeChat({ project, profiles, chat: start, close, onConverted, c
     <FileOpenContext.Provider value={openFile}><QuestionAnswerContext.Provider value={answerQuestions}>
     <div className="dock-in" style={expanded ? undefined : { width }}>
       <div className="dock-head" draggable={Boolean(chat?.id) && !pop} onDoubleClick={(event) => { if (!(event.target as HTMLElement).closest('button,input,textarea,.dock-tools')) setExpanded(!expanded) }} onDragStart={(event) => { if ((event.target as HTMLElement).closest('button,input,textarea,.dock-tools')) { event.preventDefault(); return }; event.preventDefault(); void detachChat({ x: Math.round(event.screenX), y: Math.round(event.screenY) }) }}><div className="top"><div><div className="headrow"><div className="eyebrow">{text.eyebrow}</div></div><h2>{mode !== 'free' ? text.title : chat?.title || text.title}</h2><div className="ctxline"><span className="ctxchip">{text.chip}</span></div></div>
-        <div className="dock-tools"><div className="dock-tools-wide"><ChatSearch messages={messages} log={log} request={chatSearch.request} />{chat?.id && <PopMenu target={{ kind: 'chat', projectId: project.id, chatId: chat.id }} />}<button type="button" className="ibtn tip" data-tip={expanded ? d.backToCorner : d.expandFull} aria-label={expanded ? d.backToCorner : d.expandFull} onClick={() => setExpanded(!expanded)}>{expanded ? <CollapseIcon /> : <ExpandIcon />}</button><button className="x" aria-label={d.closeChat} onClick={close}><CloseIcon /></button></div><div className="dock-tools-compact"><ChatMoreMenu searchRequest={chatSearch.request} messages={messages} log={log} projectId={project.id} chatId={chat?.id} expand={() => setExpanded(true)} close={close} /><button className="x" aria-label={d.closeChat} onClick={close}><CloseIcon /></button></div></div></div></div>
+        <div className="dock-tools"><div className="dock-tools-wide"><ChatSearch messages={messages} log={log} request={chatSearch.request} />{chat?.id && <PopMenu target={{ kind: 'chat', projectId: project.id, chatId: chat.id }} />}<button type="button" className="ibtn tip" data-tip={expanded ? d.backToCorner : d.expandFull} aria-label={expanded ? d.backToCorner : d.expandFull} onClick={() => setExpanded(!expanded)}>{expanded ? <CollapseIcon /> : <ExpandIcon />}</button><button className="x" aria-label={d.closeChat} onClick={closeManual}><CloseIcon /></button></div><div className="dock-tools-compact"><ChatMoreMenu searchRequest={chatSearch.request} messages={messages} log={log} projectId={project.id} chatId={chat?.id} expand={() => setExpanded(true)} close={closeManual} /><button className="x" aria-label={d.closeChat} onClick={closeManual}><CloseIcon /></button></div></div></div></div>
       <div className="chatlog" ref={log}>
         {!messages.length && !live && !busy && (mode === 'free' ? <PlanHero projectName={project.name} talk pick={(prompt) => { setInput(prompt); window.requestAnimationFrame(() => { const area = mention.ref.current; if (area) { area.focus(); area.setSelectionRange(prompt.length, prompt.length) } }) }} /> : <div className="msg sys">{text.empty}</div>)}
         <ChatMessageList messages={messages} busy={busy} />

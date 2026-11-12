@@ -102,6 +102,8 @@ export const settings: typeof source = {
     spacingWide: 'Wide',
     notifications: 'System notifications',
     notificationsHint: 'Notifies you when a card finishes, the plan is ready or something needs you, while GearMod is in the background. Clicking the notification opens the card chat.',
+    initialChat: 'Open the side chat when opening a project',
+    initialChatHint: 'When on, opens the free chat docked to the board when you enter a project with an agent. You can still open a chat anytime with the + button or the Chats tab.',
     gitPhotos: 'Show author photos on the Git page (Gravatar)',
     gitPhotosHint: 'Off by default. When on, the app sends gravatar.com a hash of each author email to fetch the photo.',
     autoResume: 'Resume automatically when the usage limit resets',

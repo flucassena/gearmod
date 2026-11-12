@@ -33,6 +33,8 @@ import { Select } from './Select'
 import { useT } from './i18n'
 import { CardTypePill, cardTypeOptions } from './CardTypes'
 import { plainSummary as plain } from './cardText'
+import { recordInitialChatEvent } from './initialChatPref'
+import { settingsChangedEvent } from './SettingsDialog'
 
 
 type State = 'backlog' | 'todo' | 'doing' | 'test' | 'done'
@@ -173,7 +175,7 @@ function ViewDockDropPreview({ databaseEnabled }: { databaseEnabled: boolean }):
   </div>
 }
 
-export function Board({ board, profiles, history, refresh, onProjectConfig, openSettings, freeRequest, freeHandled, constitutionRequest, constitutionHandled, openTarget, targetHandled, slots }: { slots?: { view: HTMLElement | null; gear: HTMLElement | null; tray?: HTMLElement | null }; board: ProjectBoard; profiles: AgentProfile[]; history: AgentProfile[]; refresh(): Promise<void>; onProjectConfig(tab?: 'general' | 'git'): void; openSettings(): void; freeRequest?: { projectId: string; at: number }; freeHandled(): void; constitutionRequest?: { projectId: string; prompt?: string; at: number; mode?: 'constitution' | 'test-setup'; config?: AgentConfig }; constitutionHandled(): void; openTarget?: { projectId: string; cardId: string | null; chatId: string | null; purpose: string | null }; targetHandled(): void }): React.JSX.Element {
+export function Board({ board, profiles, history, openInitialChat, refresh, onProjectConfig, openSettings, freeRequest, freeHandled, constitutionRequest, constitutionHandled, openTarget, targetHandled, slots }: { slots?: { view: HTMLElement | null; gear: HTMLElement | null; tray?: HTMLElement | null }; board: ProjectBoard; profiles: AgentProfile[]; history: AgentProfile[]; openInitialChat?: boolean; refresh(): Promise<void>; onProjectConfig(tab?: 'general' | 'git'): void; openSettings(): void; freeRequest?: { projectId: string; at: number }; freeHandled(): void; constitutionRequest?: { projectId: string; prompt?: string; at: number; mode?: 'constitution' | 'test-setup'; config?: AgentConfig }; constitutionHandled(): void; openTarget?: { projectId: string; cardId: string | null; chatId: string | null; purpose: string | null }; targetHandled(): void }): React.JSX.Element {
   const t = useT().board
   const [draft, setDraft] = useState<Draft>(), [chatCard, setChatCardState] = useState<Card>(), [chatPurpose, setChatPurpose] = useState<AgentPurpose>('planning'), [starting, setStartingState] = useState<{ card: Card; purpose: 'execution' | 'test'; retry?: boolean }>(), [choosing, setChoosing] = useState<string>(), [stopping, setStopping] = useState<Card>(), [finalizing, setFinalizing] = useState<Card>(), [cleanup, setCleanup] = useState<Card>(), [pendingCard, setPendingCard] = useState<Card>(), [assessing, setAssessing] = useState<Card>()
   /** Sends the developer each already-authorized card change that has not been sent yet. */
@@ -211,7 +213,7 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
   useEffect(() => { if (chatCard && !board.cards.some((item) => item.id === chatCard.id)) setChatCardState(undefined) }, [board.cards, chatCard])
   // Planning opened without a card: the card is only created on the first message (ensureCard); closing without writing creates nothing.
   const [draftPlan, setDraftPlan] = useState<{ columnId: string; start?: StartChoice }>(), [chatInstance, setChatInstance] = useState(0)
-  const [freeChat, setFreeChat] = useState<{ chat?: Chat; key: number; mode?: 'free' | 'constitution' | 'test-setup'; prompt?: string; docked?: boolean; config?: AgentConfig }>(), [openAfterRefresh, setOpenAfterRefresh] = useState<string>()
+  const [freeChat, setFreeChat] = useState<{ chat?: Chat; key: number; mode?: 'free' | 'constitution' | 'test-setup'; prompt?: string; docked?: boolean; config?: AgentConfig }>(), [openAfterRefresh, setOpenAfterRefresh] = useState<string>(), [suggestDisableInitialChat, setSuggestDisableInitialChat] = useState(false)
   const setChatCard = (card: Card | undefined, purpose?: AgentPurpose): void => {
     const open = (next: AgentPurpose): void => { setChatCardState(card); setDraftPlan(undefined); setFreeChat(undefined); setChatPurpose(next); setChatInstance((value) => value + 1) }
     if (!card) { setChatCardState(undefined); setDraftPlan(undefined); return }
@@ -223,10 +225,10 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
   // First view of the board: the planning chat open beside it (only in the main window, with an agent allowed, and nothing else open in the dock).
   const planOpened = useRef(false), hasAgent = allowed.length > 0
   useEffect(() => {
-    if (planOpened.current || pop || !hasAgent) return
+    if (planOpened.current || pop || !hasAgent || openInitialChat === undefined) return
     planOpened.current = true
-    setFreeChat((current) => current ?? { key: Date.now(), docked: true })
-  }, [hasAgent])
+    if (openInitialChat) setFreeChat((current) => current ?? { key: Date.now(), docked: true })
+  }, [hasAgent, openInitialChat])
   // Project "+" in the sidebar: opens a new free chat in this project as soon as its board loads.
   useEffect(() => {
     if (!freeRequest || freeRequest.projectId !== board.project.id) return
@@ -361,9 +363,10 @@ export function Board({ board, profiles, history, refresh, onProjectConfig, open
     {foreign && <ConfirmDialog eyebrow={t.view.foreign.eyebrow} title={t.view.foreign.title} text={t.view.foreign.text(foreign.ownerTitle)} ok={t.view.foreign.ok} cancel={() => setForeign(undefined)} confirm={() => { const info = foreign; setForeign(undefined); void window.gearmod.invoke('worktrees:link', { cardId: info.cardId, fromCardId: info.ownerCardId }).then(() => refresh()).catch((reason: unknown) => say(plainError(reason), 'error')) }} />}
     {archivingColumn && <ConfirmDialog eyebrow={t.view.archiveColumn.eyebrow} title={t.view.archiveColumn.title(board.columns.find((column) => column.id === archivingColumn)?.label)} text={t.view.archiveColumn.text(active.filter((card) => card.columnId === archivingColumn).length)} ok={t.view.archiveColumn.ok} cancel={() => setArchivingColumn(undefined)} confirm={() => { const id = archivingColumn; setArchivingColumn(undefined); void archiveColumn(id) }} />}
     {deleting && <DeleteCardDialog title={deleting.title || t.newCard} cancel={() => setDeleting(undefined)} confirm={(deleteArtifacts) => { const card = deleting; setDeleting(undefined); void window.gearmod.invoke('cards:delete', { cardId: card.id, deleteArtifacts }).then(() => { say(t.view.cardDeleted); return refresh() }).catch((reason: unknown) => say(plainError(reason), 'error')) }} />}
+    {suggestDisableInitialChat && <ConfirmDialog eyebrow={t.view.initialChatSuggest.eyebrow} title={t.view.initialChatSuggest.title} text={t.view.initialChatSuggest.text} ok={t.view.initialChatSuggest.ok} cancel={() => { setSuggestDisableInitialChat(false); recordInitialChatEvent('declined') }} confirm={() => { setSuggestDisableInitialChat(false); recordInitialChatEvent('confirmed'); void window.gearmod.invoke('settings:update', { chatLateralInicial: false }).then((updated) => { window.dispatchEvent(new CustomEvent(settingsChangedEvent, { detail: updated })); say(t.view.initialChatSuggest.disabled) }).catch((reason: unknown) => say(plainError(reason), 'error')) }} />}
     </main>
     {chatCard && allowed.length === 0 && <NoAgentDialog project={board.project} profiles={profiles} close={() => setChatCard(undefined)} allowed={() => void refresh()} openSettings={() => { setChatCard(undefined); openSettings() }} />}
-    {freeChat && allowed.length > 0 && <FreeChat key={freeChat.key} docked={freeChat.docked} mode={freeChat.mode} prompt={freeChat.prompt} startConfig={freeChat.config} project={board.project} profiles={allowed} chat={freeChat.chat} close={() => { setFreeChat(undefined) }} changed={() => void refresh()} onConverted={(cardId) => { void refresh().then(() => setOpenAfterRefresh(cardId)) }} />}
+    {freeChat && allowed.length > 0 && <FreeChat key={freeChat.key} docked={freeChat.docked} mode={freeChat.mode} prompt={freeChat.prompt} startConfig={freeChat.config} project={board.project} profiles={allowed} chat={freeChat.chat} close={(unusedDocked) => { setFreeChat(undefined); if (unusedDocked && recordInitialChatEvent('closed-unused').shouldPrompt) setSuggestDisableInitialChat(true) }} changed={() => void refresh()} onConverted={(cardId) => { void refresh().then(() => setOpenAfterRefresh(cardId)) }} />}
     {freeChat && allowed.length === 0 && <NoAgentDialog project={board.project} profiles={profiles} close={() => setFreeChat(undefined)} allowed={() => void refresh()} openSettings={() => { setFreeChat(undefined); openSettings() }} />}
     {draftPlan && allowed.length === 0 && <NoAgentDialog project={board.project} profiles={profiles} close={() => setDraftPlan(undefined)} allowed={() => void refresh()} openSettings={() => { setDraftPlan(undefined); openSettings() }} />}
     {(chatCard || draftPlan) && allowed.length > 0 && <CardChat key={`chat-${chatInstance}-${chatPurpose}`} project={board.project} card={chatCard ? fresh(chatCard) : draftCard(board, draftPlan!.columnId)} board={board} profiles={history} columnLabel={chatCard ? columnLabel(chatCard) : board.columns.find((column) => column.id === draftPlan?.columnId)?.label ?? ''} mode={chatPurpose} onSwitch={setChatPurpose} close={() => { setChatCard(undefined); setDraftPlan(undefined); setGitCardId(undefined) }} openEdit={(card) => setDraft(edit(card))} openChat={(card) => setChatCard(card)} initialView={gitCardId === chatCard?.id ? 'git' : 'chat'} openRules={() => onProjectConfig('git')} openGraph={(id) => { setChatCardState(undefined); setGitCardId(undefined); setChatsOpen(false); setGitOpen(true); setGitFocus({ cardId: id, at: Date.now() }) }}

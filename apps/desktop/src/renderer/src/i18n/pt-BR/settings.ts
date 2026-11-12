@@ -101,6 +101,8 @@ export const settings = {
     spacingWide: 'Amplo',
     notifications: 'Notificações do sistema',
     notificationsHint: 'Avisa quando um card termina, o plano fica pronto ou algo precisa de você, com o GearMod em segundo plano. Tocar na notificação abre o chat do card.',
+    initialChat: 'Abrir o chat lateral ao abrir um projeto',
+    initialChatHint: 'Quando ligado, abre o chat livre acoplado ao quadro ao entrar em um projeto com agente. Você ainda pode abrir um chat quando quiser pelo botão + ou pela aba Chats.',
     gitPhotos: 'Mostrar fotos dos autores na página Git (Gravatar)',
     gitPhotosHint: 'Desligado por padrão. Ligado, o app envia ao gravatar.com um hash do e-mail de cada autor para buscar a foto.',
     autoResume: 'Retomar sozinho quando o limite de uso voltar',

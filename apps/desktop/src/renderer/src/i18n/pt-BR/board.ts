@@ -131,6 +131,13 @@ export const board = {
       title: (label?: string) => `Arquivar todos os cards de ${label ?? 'a coluna'}?`,
       text: (n: number) => `${n} cards saem do quadro. Dá para restaurar depois na página Chats, no filtro Arquivados.`,
       ok: 'Arquivar todos'
+    },
+    initialChatSuggest: {
+      eyebrow: 'Chat lateral',
+      title: 'Parar de abrir o chat lateral no início?',
+      text: 'Você fechou o chat lateral inicial 5 vezes seguidas sem enviar mensagens. Se preferir, ele deixa de abrir sozinho ao entrar em um projeto. Você pode reativar quando quiser em Configurações > Geral.',
+      ok: 'Desativar abertura automática',
+      disabled: 'Abertura automática do chat lateral desativada'
     }
   },
   newCardDialog: {
