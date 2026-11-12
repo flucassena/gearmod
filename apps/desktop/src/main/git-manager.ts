@@ -806,6 +806,8 @@ ${diff}`
    * The local branch is only deleted if `deleteBranch`; otherwise it keeps the commits that were not pushed.
    * `force` deletes the branch even with commits that are not in the base (the user confirmed losing them).
    */
+  /** Called before a card folder is moved or deleted, so the app lets go of what it holds open inside it (file watchers, the code index): an open handle keeps Windows from moving the folder. */
+  beforeFolderRemoved?: (path: string) => Promise<void> | void
   /** Called after a card's worktree was deleted (or partly deleted): every open window refreshes the card. */
   onWorktreeDeleted?: (cardId: string) => void
 
@@ -838,7 +840,13 @@ ${diff}`
     for (const member of members) {
       const branch = info.repos.find((repo) => repo.name === basename(member.repoPath))?.branch ?? member.branch
       const parked = join(trash, `${basename(member.path)}-${Date.now()}`)
-      const moved = await mkdir(trash, { recursive: true }).then(() => rename(member.path, parked)).then(() => true, () => false)
+      try { await this.beforeFolderRemoved?.(member.path) } catch { /* releasing is best effort */ }
+      // A program that just let go (or an indexer/antivirus scanning the folder) can still hold it for a moment: tries a few times before giving up.
+      let moved = false
+      for (let attempt = 0; attempt < 4 && !moved; attempt++) {
+        if (attempt) await new Promise((done) => setTimeout(done, 300))
+        moved = await mkdir(trash, { recursive: true }).then(() => rename(member.path, parked)).then(() => true, () => false)
+      }
       // Never `git worktree remove`: on Windows Git follows the junctions in node_modules and empties the packages they point to.
       if (!moved) await rmTree(member.path).catch(() => undefined)
       await this.tryRun(member.repoPath, ['worktree', 'prune'])

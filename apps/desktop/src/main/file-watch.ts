@@ -1,4 +1,5 @@
 import { watch, existsSync, type FSWatcher } from 'node:fs'
+import { resolve, sep } from 'node:path'
 
 type Emit = (eventType: string, payload: Record<string, unknown>) => void
 interface Watched { watcher: FSWatcher | null; timer: NodeJS.Timeout | null }
@@ -17,6 +18,21 @@ export class FileWatchService {
     for (const [path, item] of group) if (!wanted.has(path)) { this.stop(item); group.delete(path) }
     for (const path of wanted) if (!group.has(path)) { const item: Watched = { watcher: null, timer: null }; group.set(path, item); this.start(path, item) }
     if (group.size) this.groups.set(watchId, group); else this.groups.delete(watchId)
+  }
+
+  /**
+   * Lets go of every watched file inside a folder that is about to be moved or deleted: on Windows an open watcher inside a folder keeps it from being
+   * renamed or removed. A screen that still shows one of those files starts watching it again the next time it sends its list. Returns how many were released.
+   */
+  release(folder: string): number {
+    const key = (value: string): string => { const full = resolve(value); return process.platform === 'win32' ? full.toLowerCase() : full }
+    const base = key(folder)
+    let released = 0
+    for (const [id, group] of this.groups) {
+      for (const [path, item] of group) { const at = key(path); if (at === base || at.startsWith(base + sep)) { this.stop(item); group.delete(path); released++ } }
+      if (!group.size) this.groups.delete(id)
+    }
+    return released
   }
 
   dispose(): void { for (const group of this.groups.values()) for (const item of group.values()) this.stop(item); this.groups.clear() }

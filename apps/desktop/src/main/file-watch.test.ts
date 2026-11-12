@@ -1,4 +1,4 @@
-import { mkdtemp, rename, rm, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rename, rm, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -35,6 +35,21 @@ describe('FileWatchService', () => {
     service.watch('janela', [file]); service.watch('janela', [])
     await writeFile(file, 'y'); await new Promise((resolve) => setTimeout(resolve, 200))
     expect(events).toEqual([])
+    service.dispose()
+  })
+  it('release lets go of the watched files inside a folder so the folder can be moved (Windows keeps a folder with an open watcher in place)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gearmod-watch-')); dirs.push(dir)
+    const inside = join(dir, 'worktree', 'src'), other = join(dir, 'other')
+    await mkdir(inside, { recursive: true }); await mkdir(other)
+    const a = join(inside, 'a.txt'), b = join(other, 'b.txt'); await writeFile(a, 'um'); await writeFile(b, 'um')
+    const events: Array<Record<string, unknown>> = [], service = new FileWatchService((_type, payload) => events.push(payload), 40)
+    service.watch('janela', [a, b])
+    expect(service.release(join(dir, 'worktree'))).toBe(1)
+    // Released: the folder moves, a change inside it is no longer reported, and the file outside is still watched.
+    await rename(join(dir, 'worktree'), join(dir, 'trash'))
+    await writeFile(b, 'dois'); await collect(events, 1)
+    expect(events).toEqual([{ path: b }])
+    expect(service.release(join(dir, 'worktree'))).toBe(0)
     service.dispose()
   })
 })
