@@ -195,7 +195,7 @@ export const permissionModes: Record<'claude' | 'codex' | 'gemini', PermissionMo
     { id: 'bypass', label: 'Ignorar permissões', description: 'Sem sandbox e sem aprovações. Use só em ambiente descartável.', purposes: ['execution', 'test'], dangerous: true }
   ]
 }
-export const agentPermissionSchema = z.object({ id: uuid, runId: uuid, chatId: uuid, provider: z.enum(['claude', 'codex', 'gemini']), kind: z.string(), details: z.record(z.string(), z.unknown()) })
+export const agentPermissionSchema = z.object({ id: uuid, runId: uuid, chatId: uuid, provider: z.enum(['claude', 'codex', 'gemini']), kind: z.string(), details: z.record(z.string(), z.unknown()), planning: z.boolean().optional() })
 export type AgentPermission = z.infer<typeof agentPermissionSchema>
 export const defaultPermissionMode = (provider: 'claude' | 'codex' | 'gemini', purpose: z.infer<typeof agentPurposeSchema>): PermissionMode => (purpose === 'planning' ? 'plan' : provider === 'claude' ? 'accept_edits' : provider === 'gemini' ? 'manual' : 'auto')
 
@@ -682,7 +682,9 @@ export const ipcContracts = {
   , 'messages:list': { input: z.object({ chatId: uuid }).strict(), output: z.array(chatMessageSchema) }
   , 'runs:live': { input: z.object({ chatId: uuid }).strict(), output: z.object({ runId: uuid, text: z.string(), seq: z.number().int() }).nullable() }
   , 'agents:permissions': { input: z.object({ chatId: uuid }).strict(), output: z.array(agentPermissionSchema) }
-  , 'agents:permission-decide': { input: z.object({ runId: uuid, requestId: uuid, allow: z.boolean() }).strict(), output: z.object({ decided: z.boolean() }) }
+  , 'agents:permission-decide': { input: z.object({ runId: uuid, requestId: uuid, allow: z.boolean(), always: z.boolean().optional() }).strict(), output: z.object({ decided: z.boolean() }) }
+  , 'agents:permission-auto': { input: z.object({ chatId: uuid }).strict(), output: z.object({ enabled: z.boolean() }) }
+  , 'agents:permission-auto-off': { input: z.object({ chatId: uuid }).strict(), output: z.object({ enabled: z.boolean() }) }
   , 'agents:start': { input: z.object({ chatId: uuid, prompt: z.string().trim().min(1).max(100_000), planning: z.boolean(), attachments: z.array(z.string().min(1).max(2048)).max(20).optional(), choice: z.object({ model: z.string().trim().max(120).nullable().optional(), effort: effortSchema.nullable().optional(), mode: permissionModeSchema.optional() }).strict().optional() }).strict(), output: runSchema }
   , 'files:preview': { input: z.object({ path: z.string() }), output: z.string().nullable() }
   , 'files:open': { input: z.object({ path: z.string().max(2048) }).strict(), output: z.object({ opened: z.literal(true) }) }

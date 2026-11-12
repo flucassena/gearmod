@@ -7,31 +7,37 @@ import { tr, useT } from './i18n'
 
 export function AgentPermissions({ chatId }: { chatId?: string }): React.JSX.Element | null {
   const t = useT()
-  const [requests, setRequests] = useState<AgentPermission[]>([]), [error, setError] = useState(''), [busy, setBusy] = useState<string>()
+  const [requests, setRequests] = useState<AgentPermission[]>([]), [error, setError] = useState(''), [busy, setBusy] = useState<string>(), [auto, setAuto] = useState(false)
   useEffect(() => {
-    setRequests([]); setError('')
+    setRequests([]); setError(''); setAuto(false)
     if (!chatId) return
     let disposed = false, revision = 0
     const load = (): void => {
       const current = ++revision
       void window.gearmod.invoke('agents:permissions', { chatId }).then((items) => { if (!disposed && current === revision) setRequests(items) }).catch((reason: unknown) => { if (!disposed) setError(plainError(reason)) })
+      void window.gearmod.invoke('agents:permission-auto', { chatId }).then((state) => { if (!disposed && current === revision) setAuto(state.enabled) }).catch(() => undefined)
     }
     const off = window.gearmod.onRunEvent((event) => { if (event.eventType.startsWith('gearmod/permission-') && event.payload.chatId === chatId) load() })
     load()
     return () => { disposed = true; off() }
   }, [chatId])
-  const decide = async (request: AgentPermission, allow: boolean): Promise<void> => {
+  const stopAuto = async (): Promise<void> => {
+    if (!chatId) return
+    try { await window.gearmod.invoke('agents:permission-auto-off', { chatId }); setAuto(false) } catch (reason) { setError(plainError(reason)) }
+  }
+  const decide = async (request: AgentPermission, allow: boolean, always = false): Promise<void> => {
     setBusy(request.id); setError('')
     try {
-      const result = await window.gearmod.invoke('agents:permission-decide', { runId: request.runId, requestId: request.id, allow })
+      const result = await window.gearmod.invoke('agents:permission-decide', { runId: request.runId, requestId: request.id, allow, ...(always ? { always: true } : {}) })
+      if (always && result.decided) setAuto(true)
       setRequests((items) => items.filter((item) => item.id !== request.id))
       if (!result.decided) setError(t.chat.permission.alreadyAnswered)
     } catch (reason) { setError(plainError(reason)) } finally { setBusy(undefined) }
   }
-  if (!requests.length && !error) return null
-  return <div aria-live="polite">{requests.map((request) => <article className="msg system perm" key={request.id}>
+  if (!requests.length && !error && !auto) return null
+  return <div aria-live="polite">{auto && <p className="msg system perm" role="status">{t.chat.permission.autoOn}<button type="button" className="mini secondary" onClick={() => void stopAuto()}>{t.chat.permission.autoOff}</button></p>}{requests.map((request) => <article className="msg system perm" key={request.id}>
     <PermissionAction request={request} />
-    <div className="cx-actions"><button type="button" className="mini" disabled={Boolean(busy)} onClick={() => void decide(request, true)}>{t.chat.permission.approveAction}</button><button type="button" className="mini secondary" disabled={Boolean(busy)} onClick={() => void decide(request, false)}>{t.chat.permission.deny}</button></div>
+    <div className="cx-actions"><button type="button" className="mini" disabled={Boolean(busy)} onClick={() => void decide(request, true)}>{t.chat.permission.approveAction}</button>{request.kind !== 'ExitPlanMode' && <button type="button" className="mini" title={t.chat.permission.allowAlwaysHint} disabled={Boolean(busy)} onClick={() => void decide(request, true, true)}>{t.chat.permission.allowAlways}</button>}<button type="button" className="mini secondary" disabled={Boolean(busy)} onClick={() => void decide(request, false)}>{t.chat.permission.deny}</button></div>
   </article>)}{error && <p role="alert">{error}</p>}</div>
 }
 

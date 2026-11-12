@@ -36,6 +36,10 @@ export const chat: typeof source = {
   permission: {
     alreadyAnswered: 'This request was already answered or the run has ended.',
     approveAction: 'Approve this action',
+    allowAlways: 'Allow everything from now on',
+    allowAlwaysHint: 'GearMod approves the next requests of this conversation on its own, without asking again. You can turn it off at any time.',
+    autoOn: 'Automatic approval is on: GearMod approves the requests of this conversation without asking. ',
+    autoOff: 'Turn off',
     deny: 'Deny',
     usesPreviousOutput: 'uses the previous output',
     toolTitles: { execute: 'Run command', edit: 'Edit file', read: 'Read file', delete: 'Delete', move: 'Move or rename', search: 'Search', fetch: 'Access the web', think: 'Reason' },

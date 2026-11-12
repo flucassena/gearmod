@@ -633,7 +633,9 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
     }
     , 'files:choose': () => services.chooseFiles()
     , 'agents:permissions': (input: { chatId: string }) => services.orchestrator.permissions.list(input.chatId)
-    , 'agents:permission-decide': (input: { runId: string; requestId: string; allow: boolean }) => ({ decided: services.orchestrator.permissions.decide(input.runId, input.requestId, input.allow) })
+    , 'agents:permission-decide': (input: { runId: string; requestId: string; allow: boolean; always?: boolean }) => ({ decided: services.orchestrator.permissions.decide(input.runId, input.requestId, input.allow, input.always === true) })
+    , 'agents:permission-auto': (input: { chatId: string }) => ({ enabled: services.orchestrator.permissions.autoAllowed(input.chatId) })
+    , 'agents:permission-auto-off': (input: { chatId: string }) => { services.orchestrator.permissions.stopAuto(input.chatId); return { enabled: false } }
     , 'agents:cancel': (input: { runId: string }) => ({ cancelled: services.orchestrator.cancel(input.runId) })
     , 'agents:run-now': (input: { runId: string }) => ({ started: services.orchestrator.runNow(input.runId) })
     , 'agents:capacity': () => ({ ...services.orchestrator.capacity(), recommended: recommendedConcurrency(), ...machineInfo() })

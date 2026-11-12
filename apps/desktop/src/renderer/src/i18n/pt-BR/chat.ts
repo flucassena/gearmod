@@ -35,6 +35,10 @@ export const chat = {
   permission: {
     alreadyAnswered: 'Esta solicitação já foi respondida ou a execução encerrou.',
     approveAction: 'Aprovar esta ação',
+    allowAlways: 'Permitir tudo daqui pra frente',
+    allowAlwaysHint: 'O GearMod aprova sozinho os próximos pedidos desta conversa, sem perguntar de novo. Você pode desligar quando quiser.',
+    autoOn: 'Aprovação automática ligada: o GearMod aprova os pedidos desta conversa sem perguntar. ',
+    autoOff: 'Desligar',
     deny: 'Negar',
     usesPreviousOutput: 'usa a saída anterior',
     toolTitles: { execute: 'Executar comando', edit: 'Editar arquivo', read: 'Ler arquivo', delete: 'Apagar', move: 'Mover ou renomear', search: 'Buscar', fetch: 'Acessar a web', think: 'Raciocinar' },
