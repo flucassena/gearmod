@@ -1,3 +1,4 @@
+import { cardIdOf, stateChangingChannels } from './card-state-events'
 import { machineInfo, recommendedConcurrency } from './capacity'
 import { inlineDetailAvatars, inlineListAvatars } from './avatar-inline'
 import { homedir } from 'node:os'
@@ -71,6 +72,8 @@ export interface IpcMainLike {
 }
 
 interface Services {
+  /** Tells every window that a card's state changed (what waits for the user, the Git dot...). Called right after the user's own state-changing actions. */
+  cardChanged?: (cardId: string | null) => void
   database: AppDatabase
   backups: BackupService
   notes: NoteRepository
@@ -767,6 +770,7 @@ export function registerIpc(ipcMain: IpcMainLike, services: Services): () => voi
       const contract = ipcContracts[channel]
       const input = contract.input.parse(rawInput)
       const output = await handlers[channel](input as never)
+      if (stateChangingChannels.has(channel)) { try { services.cardChanged?.(cardIdOf(input, output)) } catch { /* only a refresh */ } }
       return contract.output.parse(output) as IpcOutput<typeof channel>
     })
   }
