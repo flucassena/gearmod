@@ -806,7 +806,14 @@ ${diff}`
    * The local branch is only deleted if `deleteBranch`; otherwise it keeps the commits that were not pushed.
    * `force` deletes the branch even with commits that are not in the base (the user confirmed losing them).
    */
+  /** Called after a card's worktree was deleted (or partly deleted): every open window refreshes the card. */
+  onWorktreeDeleted?: (cardId: string) => void
+
   async deleteWorktree(projectId: string, cardId: string, deleteBranch: boolean, sourceId?: string, force = false): Promise<{ output: string; keptBranches: string[] }> {
+    try { return await this.removeWorktree(projectId, cardId, deleteBranch, sourceId, force) } finally { try { this.onWorktreeDeleted?.(cardId) } catch { /* only a refresh */ } }
+  }
+
+  private async removeWorktree(projectId: string, cardId: string, deleteBranch: boolean, sourceId: string | undefined, force: boolean): Promise<{ output: string; keptBranches: string[] }> {
     const members = this.worktreeMembers(projectId, cardId, sourceId)
     const worktree = this.database.db.prepare(`SELECT id, path, external FROM worktrees WHERE card_id = ? AND cleanup_state != 'removed' ORDER BY created_at DESC LIMIT 1`).get(cardId) as { id: string; path: string; external: number } | undefined
     if (!members.length || !worktree) throw new Error(tm().git.cardHasNoWorktree)

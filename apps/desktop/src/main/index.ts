@@ -124,6 +124,8 @@ const policy = new PolicyEngine(database)
 const gitManager = new GitManager(database, undefined, undefined, approvals, (path) => fileActions.trashItem(path), join(dataDir, 'git-undo'))
 gitManager.conventions = new CommitConventionStore(join(dataDir, 'commit-conventions.json'))
 gitManager.onFolderRemoved = (path) => { void codeIndex.forget(path).catch(() => undefined) }
+// Deleting a card's worktree changes its branch chip, the board tile and the card's Git tab in every window, not only where it was deleted.
+gitManager.onWorktreeDeleted = (cardId) => { pushEvent('gearmod/card-updated', { cardId, type: 'card' }) }
 const gitAccounts = new GitAccounts(database, new SecretStore(join(dataDir, 'git-accounts.bin'), safeStorage))
 const pullRequests = new PullRequestService(database, undefined, undefined, gitAccounts)
 const history = new CardHistoryService(database, dataDir)
