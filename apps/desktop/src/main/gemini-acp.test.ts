@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
@@ -210,7 +211,9 @@ describe('Antigravity protocol pieces', () => {
     expect(toolParameters({ CommandLine: 'git status' })).toMatchObject({ command: 'git status' })
   })
   it('extra folders and MCP format', () => {
-    expect(acpArgs({ attachments: ['C:\\a\\x.png', 'C:\\a\\y.png'], addDirs: ['C:\\b'], mode: 'manual', planning: false })).toEqual(['acp', '--add-dir', 'C:\\b', '--add-dir', 'C:\\a'])
+    // Paths built for the running system: a `C:\` path is not a folder path on Linux or macOS, where `dirname` would not split it.
+    const a = join('base', 'a'), b = join('base', 'b')
+    expect(acpArgs({ attachments: [join(a, 'x.png'), join(a, 'y.png')], addDirs: [b], mode: 'manual', planning: false })).toEqual(['acp', '--add-dir', b, '--add-dir', a])
     expect(acpArgs({ mode: 'auto', planning: true })).toEqual(['acp'])
     expect(acpMcpServers([{ name: 'api', transport: 'http', url: 'https://h/mcp', headers: { Authorization: 'z' } } as never])).toEqual([{ type: 'http', name: 'api', url: 'https://h/mcp', headers: [{ name: 'Authorization', value: 'z' }] }])
   })
