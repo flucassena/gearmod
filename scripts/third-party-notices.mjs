@@ -6,7 +6,7 @@
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
 const desktop = join(root, 'apps', 'desktop')
@@ -36,17 +36,28 @@ const entries = []
 for (const group of Object.values(licenses)) {
   for (const pkg of group) for (const version of pkg.versions) if (wanted.has(`${pkg.name}@${version}`)) entries.push({ name: pkg.name, version, license: pkg.license, path: pkg.paths?.[pkg.versions.indexOf(version)] ?? pkg.paths?.[0] })
 }
+// Rust crates compiled into the native MCP relay (apps/desktop/native/gearmod-mcp). Without cargo they are left out, with a warning.
+const crate = join(desktop, 'native', 'gearmod-mcp', 'Cargo.toml')
+try {
+  const metadata = JSON.parse(execFileSync('cargo', ['metadata', '--format-version', '1', '--locked', '--manifest-path', crate], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }))
+  const nodes = new Map(metadata.resolve.nodes.map((node) => [node.id, node]))
+  const used = new Set(), visitCrate = (id) => { if (used.has(id)) return; used.add(id); for (const dep of nodes.get(id)?.deps ?? []) if (dep.dep_kinds.some((kind) => kind.kind === null)) visitCrate(dep.pkg) }
+  visitCrate(metadata.resolve.root)
+  for (const pkg of metadata.packages) if (used.has(pkg.id) && pkg.id !== metadata.resolve.root) entries.push({ name: `${pkg.name} (Rust crate)`, version: pkg.version, license: pkg.license ?? 'see its repository', path: dirname(pkg.manifest_path), rust: true })
+} catch (error) { console.warn(`Rust crates of the MCP relay left out (cargo metadata failed: ${error instanceof Error ? error.message.split('\n')[0] : error})`) }
 entries.sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version))
 
-const licenseFile = (dir) => {
+const licenseFile = (dir, rust = false) => {
   if (!dir || !existsSync(dir)) return ''
-  const file = readdirSync(dir).find((name) => /^(licen[cs]e|copying|notice)(\.|$)/i.test(name))
+  // Rust crates usually ship LICENSE-MIT and LICENSE-APACHE (dual license): the MIT text is the one reproduced.
+  const names = readdirSync(dir)
+  const file = (rust && names.find((name) => /^licen[cs]e-mit(\.|$)/i.test(name))) || names.find((name) => /^(licen[cs]e|copying|notice)(\.|$)/i.test(name)) || (rust ? names.find((name) => /^(licen[cs]e|copying|unlicense)[-.]/i.test(name)) : undefined)
   return file ? readFileSync(join(dir, file), 'utf8').trim() : ''
 }
 const texts = new Map()
 let body = ''
 for (const entry of entries) {
-  const text = licenseFile(entry.path)
+  const text = licenseFile(entry.path, entry.rust)
   const key = text ? createHash('sha256').update(text).digest('hex').slice(0, 12) : ''
   if (text && !texts.has(key)) texts.set(key, text)
   body += `- **${entry.name}** ${entry.version} — ${entry.license}${key ? ` (text ${key})` : ' (no license file in the package; see its repository)'}\n`

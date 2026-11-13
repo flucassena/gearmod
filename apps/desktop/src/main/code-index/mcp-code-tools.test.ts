@@ -19,6 +19,8 @@ afterEach(async () => { for (const close of closers.splice(0)) await close(); aw
 const temp = async (): Promise<string> => { const dir = await mkdtemp(join(tmpdir(), 'gearmod-code-mcp-')); dirs.push(dir); return dir }
 const git = { validate: async () => undefined, branches: async () => ['dev'], inspect: async (localPath: string) => ({ localPath, name: 'p', repositories: [] }) }
 const serverScript = join(__dirname, '..', '..', '..', 'resources', 'gearmod-mcp', 'server.mjs')
+// GEARMOD_MCP_BINARY=<path of native/gearmod-mcp build> runs these same tests against the native relay (`pnpm test:mcp-native`).
+const relay = process.env.GEARMOD_MCP_BINARY ? { serverBinary: process.env.GEARMOD_MCP_BINARY } : {}
 
 function fakeHost(): HostProcess {
   const listeners: Array<(message: HostMessage) => void> = []
@@ -58,7 +60,7 @@ async function setup(on: { value: boolean } = { value: true }) {
   const card = board.create({ projectId: project.id, columnId: board.get(project.id).columns[1]!.id, title: 'Card', description: '', type: 'task', priority: 'medium', acceptanceCriteria: [] })
   const codeIndex = new CodeIndexService({ dataDir: data, fork: fakeHost })
   const asked: Array<{ cardId: string | null; chatId: string }> = []
-  const bridge = new McpBridge({ board, context: new AgentContextService(board, new SettingsRepository(database), null), serverScript, runtime: process.execPath, codeIndex, codeRoots: (run) => { asked.push(run); return [root] }, codeEnabled: () => on.value })
+  const bridge = new McpBridge({ board, context: new AgentContextService(board, new SettingsRepository(database), null), serverScript, runtime: process.execPath, ...relay, codeIndex, codeRoots: (run) => { asked.push(run); return [root] }, codeEnabled: () => on.value })
   await bridge.listen()
   closers.push(async () => { await bridge.close(); codeIndex.dispose(); database.close() })
   return { bridge, card, asked }

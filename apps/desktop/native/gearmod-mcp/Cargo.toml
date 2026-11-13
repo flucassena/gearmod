@@ -1,0 +1,16 @@
+[package]
+name = "gearmod-mcp"
+version = "1.0.0"
+edition = "2021"
+description = "GearMod MCP server: a stdio relay between the agent and the GearMod app over a local named pipe / Unix socket"
+publish = false
+
+[dependencies]
+serde_json = "1"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

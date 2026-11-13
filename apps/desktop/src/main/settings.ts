@@ -2,6 +2,11 @@ import { appSettingsSchema, type AppSettings } from '@gearmod/contracts'
 import type { AppDatabase } from './database'
 
 export const languageFromLocale = (locale: string): AppSettings['idioma'] => (locale.toLowerCase().startsWith('pt') ? 'pt-BR' : 'en')
+/**
+ * Chromium locale file (`locales/<name>.pak`) of each app language. The package only carries these (`electronLanguages` in
+ * package.json, checked by a test): a new app language must add its file there too.
+ */
+export const chromiumLocales: Record<AppSettings['idioma'], string> = { 'pt-BR': 'pt-BR', en: 'en-US' }
 const defaults: AppSettings = { tema: 'green', temasPersonalizados: [], idioma: 'pt-BR', voz: 'small', notificacoes: true, retomarSozinho: true, fotosGravatar: false, chatLateralInicial: true, execucoesSimultaneas: null }
 /** A `custom:<id>` theme missing from the list (deleted or corrupted) falls back to the default theme. */
 const orphanThemeToDefault = (settings: AppSettings): AppSettings =>

@@ -21,10 +21,14 @@
     "test": "vitest run",
     "posttest": "pnpm run rebuild:native",
     "prebuild": "pnpm run rebuild:native",
-    "build": "electron-vite build",
+    "build": "node scripts/build-mcp.mjs && electron-vite build",
+    "build:mcp": "node scripts/build-mcp.mjs",
+    "pretest:mcp-native": "pnpm rebuild better-sqlite3",
+    "test:mcp-native": "node scripts/test-mcp-native.mjs",
+    "posttest:mcp-native": "pnpm run rebuild:native",
     "dist": "pnpm run build && electron-builder --win nsis",
     "dist:linux": "pnpm run build && electron-rebuild -f -o node-pty && electron-builder --linux AppImage deb",
-    "dist:mac": "pnpm run build && electron-rebuild -f -a arm64 -o better-sqlite3,node-pty && electron-builder --mac --arm64 && electron-rebuild -f -a x64 -o better-sqlite3,node-pty && electron-builder --mac --x64 && pnpm run rebuild:native"
+    "dist:mac": "pnpm run build && electron-rebuild -f -a arm64 -o better-sqlite3,node-pty && node scripts/build-mcp.mjs --arch arm64 && electron-builder --mac --arm64 && electron-rebuild -f -a x64 -o better-sqlite3,node-pty && node scripts/build-mcp.mjs --arch x64 && electron-builder --mac --x64 && pnpm run rebuild:native"
   },
   "dependencies": {
     "@gearmod/contracts": "workspace:*",
@@ -85,6 +89,10 @@
     "appId": "dev.gearmod.desktop",
     "productName": "GearMod",
     "asar": true,
+    "electronLanguages": [
+      "en-US",
+      "pt-BR"
+    ],
     "npmRebuild": false,
     "asarUnpack": [
       "node_modules/better-sqlite3/**",

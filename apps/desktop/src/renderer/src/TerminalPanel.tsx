@@ -23,7 +23,7 @@ import { findFileLinks, linkTarget } from './terminalLinks'
 const absolute = (path: string): boolean => /^[A-Za-z]:[\\/]|^[\\/]/.test(path)
 
 function Screen({ tab, visible }: { tab: TerminalTab; visible: boolean }): React.JSX.Element {
-  const t = useT(), box = useRef<HTMLDivElement>(null), screen = useRef<Terminal | null>(null), consumed = useRef(''), fit = useRef<FitAddon | null>(null), search = useRef<SearchAddon | null>(null), field = useRef<HTMLInputElement>(null)
+  const t = useT(), box = useRef<HTMLDivElement>(null), screen = useRef<Terminal | null>(null), consumed = useRef(''), fit = useRef<FitAddon | null>(null), search = useRef<SearchAddon | null>(null), webgl = useRef<WebglAddon | null>(null), field = useRef<HTMLInputElement>(null)
   const [finding, setFinding] = useState(false), [focusTick, setFocusTick] = useState(0), [needle, setNeedle] = useState(''), [options, setOptions] = useState<FindOptions>({ caseSensitive: false, wholeWord: false, regex: false }), [results, setResults] = useState({ index: -1, count: 0 }), [background, setBackground] = useState(() => terminalTheme().theme.background)
   const state = useRef({ needle, options }); state.current = { needle, options }
   const run = (forward: boolean, incremental = false): void => {
@@ -43,8 +43,6 @@ function Screen({ tab, visible }: { tab: TerminalTab; visible: boolean }): React
     xterm.loadAddon(new WebLinksAddon((event, uri) => { if (event.ctrlKey || event.metaKey) void window.gearmod.invoke('app:open-link', { url: uri }).catch((reason: unknown) => toast.error(tr().files.terminal.openLinkFailed, plainError(reason))) }, { hover: () => { container.title = tr().files.terminal.linkHint }, leave: () => { container.title = '' } }))
     xterm.loadAddon(new Unicode11Addon()); xterm.open(container)
     xterm.unicode.activeVersion = '11'
-    // Graphics card acceleration: if support is missing or the context is lost, it carries on in the default renderer, without notice.
-    try { const gl = new WebglAddon(); gl.onContextLoss(() => { try { gl.dispose() } catch { /* já descartado */ } }); xterm.loadAddon(gl) } catch { /* default renderer */ }
     screen.current = xterm; fit.current = addon; search.current = finder; consumed.current = ''
     const results$ = finder.onDidChangeResults((event) => setResults({ index: event.resultIndex, count: event.resultCount }))
     const files = xterm.registerLinkProvider({ provideLinks: (line, callback) => {
@@ -68,8 +66,24 @@ function Screen({ tab, visible }: { tab: TerminalTab; visible: boolean }): React
     // Light/dark theme (or another app theme): the document attribute changes and the terminal repaints.
     const repaint = (): void => { const next = terminalTheme(); xterm.options.theme = next.theme; setBackground(next.theme.background) }
     const themes = new MutationObserver(repaint); themes.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style', 'class'] }); repaint()
-    return () => { themes.disconnect(); observer.disconnect(); input.dispose(); results$.dispose(); files.dispose(); xterm.dispose(); screen.current = null; fit.current = null; search.current = null }
+    return () => { themes.disconnect(); observer.disconnect(); input.dispose(); results$.dispose(); files.dispose(); xterm.dispose(); screen.current = null; fit.current = null; search.current = null; webgl.current = null }
   }, [tab.id])
+  // Graphics card acceleration only for the tab on screen: each WebGL context (glyph atlas, buffers) costs memory in the GPU process,
+  // and hidden tabs don't draw. Without support, or when the context is lost, it carries on in the default renderer, without notice.
+  useEffect(() => {
+    const xterm = screen.current
+    if (!xterm) return
+    if (visible && !webgl.current) {
+      try {
+        const gl = new WebglAddon()
+        gl.onContextLoss(() => { try { gl.dispose() } catch { /* já descartado */ } if (webgl.current === gl) webgl.current = null })
+        xterm.loadAddon(gl); webgl.current = gl
+      } catch { /* default renderer */ }
+    } else if (!visible && webgl.current) {
+      try { webgl.current.dispose() } catch { /* já descartado */ }
+      webgl.current = null
+    }
+  }, [visible, tab.id])
   useEffect(() => { if (!screen.current) return; if (tab.text.startsWith(consumed.current)) screen.current.write(tab.text.slice(consumed.current.length)); else { screen.current.reset(); screen.current.write(tab.text) } consumed.current = tab.text }, [tab.text])
   useEffect(() => { if (visible) window.setTimeout(() => { fit.current?.fit(); screen.current?.focus() }, 0) }, [visible])
   const paste = (event: React.MouseEvent): void => {

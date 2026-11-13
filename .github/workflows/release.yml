@@ -46,6 +46,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable  # native MCP relay (apps/desktop/native/gearmod-mcp)
       - name: Git identity (some tests commit in temporary repositories)
         run: |
           git config --global user.email "ci@example.invalid"
@@ -83,6 +84,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable  # native MCP relay (apps/desktop/native/gearmod-mcp)
       - name: Git identity (some tests commit in temporary repositories)
         run: |
           git config --global user.email "ci@example.invalid"
@@ -123,6 +125,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable  # native MCP relay (apps/desktop/native/gearmod-mcp)
       - name: Git identity (some tests commit in temporary repositories)
         run: |
           git config --global user.email "ci@example.invalid"

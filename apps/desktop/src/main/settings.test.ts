@@ -1,10 +1,12 @@
+import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { languageSchema } from '@gearmod/contracts'
 import { afterEach, describe, expect, it } from 'vitest'
 import { AppDatabase } from './database'
 import { ProfileRepository } from './projects'
-import { SettingsRepository } from './settings'
+import { chromiumLocales, languageFromLocale, SettingsRepository } from './settings'
 
 const roots: string[] = []
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))) })
@@ -111,5 +113,18 @@ describe('agent color', () => {
       VALUES ('30000000-0000-4000-8000-000000000001', 'claude', 'Antigo', 'Pessoal', ?, NULL, 1, 'x', 'x')`).run(root)
     expect(new ProfileRepository(database, root).list()[0]?.color).toMatch(/^#[0-9a-fA-F]{6}$/)
     database.close()
+  })
+})
+
+describe('Chromium locales in the package', () => {
+  it('carries exactly the locale file of each app language (add a new language to electronLanguages in package.json)', () => {
+    const pkg = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')) as { build: { electronLanguages: string[] } }
+    expect([...pkg.build.electronLanguages].sort()).toEqual(languageSchema.options.map((language) => chromiumLocales[language]).sort())
+  })
+
+  it('maps OS languages to the app language', () => {
+    expect(languageFromLocale('pt-PT')).toBe('pt-BR')
+    expect(languageFromLocale('pt-BR')).toBe('pt-BR')
+    expect(languageFromLocale('de-DE')).toBe('en')
   })
 })

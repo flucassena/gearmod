@@ -28,3 +28,8 @@ coverage/
 # Written by the Pages deploy
 site/releases.json
 site/release-notes/
+
+# Native MCP relay: cargo output and the copy `pnpm build:mcp` puts next to server.mjs for the package
+/apps/desktop/native/gearmod-mcp/target/
+/apps/desktop/resources/gearmod-mcp/gearmod-mcp
+/apps/desktop/resources/gearmod-mcp/gearmod-mcp.exe

@@ -2,7 +2,7 @@ import { pngToIco, tintIcon } from './brandIcon'
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, safeStorage, screen, shell, Tray, utilityProcess, type OpenDialogOptions } from 'electron'
 import { existsSync, statSync } from 'node:fs'
 import { chmod, copyFile, mkdir, rename, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { oppositePlacement, placementBounds, popoutQuery, type PopoutTarget, type WindowPlacement } from './windows'
@@ -25,7 +25,7 @@ import { McpRegistry } from './mcp-registry'
 import { GeminiCliAdapter } from './gemini-adapter'
 import { NoteRepository } from './repository'
 import { recommendedConcurrency } from './capacity'
-import { SettingsRepository } from './settings'
+import { languageFromLocale, SettingsRepository } from './settings'
 import { AgentContextService } from './agent-context'
 import { McpBridge } from './mcp-bridge'
 import { AgentWriteback } from './agent-writeback'
@@ -100,7 +100,9 @@ const agentProbes = new AgentProbeService(profiles)
 const projects = new ProjectRepository(database, git)
 const board = new BoardRepository(database, projects)
 const notes = new NoteRepository(database)
-const settings = new SettingsRepository(database, () => app.getLocale())
+// The system language comes from the OS, not from Chromium's locale files: the package only carries the app's languages (`electronLanguages`).
+const systemLocale = (): string => app.getPreferredSystemLanguages()[0] ?? app.getLocale()
+const settings = new SettingsRepository(database, systemLocale)
 const conversations = new ConversationRepository(database)
 const cardAttachments = new CardAttachmentRepository(database, backups.attachmentsDir)
 const constitution = new ConstitutionRepository(database)
@@ -169,9 +171,11 @@ board.setOnDone((cardId) => { void cardUsageExport.export(cardId).catch(() => co
 const usage = new UsageService(database, profiles, (profile) => probeClaudeLimits(profile), undefined, (profile) => readCodexQuota(profile), usageLedger, undefined, (profile) => { const env = applyEnvPolicy(profile, process.env); return readAntigravityUsage(resolveCommand('agy', env), env) })
 const appIcon = join(app.isPackaged ? process.resourcesPath : app.getAppPath(), app.isPackaged ? 'tray' : 'resources/tray', 'app.png')
 const mcpServerScript = join(app.isPackaged ? process.resourcesPath : app.getAppPath(), app.isPackaged ? 'gearmod-mcp' : 'resources/gearmod-mcp', 'server.mjs')
+// Native MCP relay (native/gearmod-mcp, copied next to server.mjs by `pnpm build:mcp`); without it, server.mjs on Electron as Node.
+const mcpServerBinary = [join(dirname(mcpServerScript), process.platform === 'win32' ? 'gearmod-mcp.exe' : 'gearmod-mcp')].find((path) => existsSync(path))
 const collab = new CollaborationService(database, board, conversations, agentConfigs, (cardId) => { BrowserWindow.getAllWindows().forEach((window) => window.webContents.send('runs:event-pushed', { runId: '', eventType: 'gearmod/card-updated', payload: { cardId, type: 'document' } })); watchWaiting(cardId) }, checklists)
 // S05, behind the flag (default off until soak, Q-05): an immediate agent move becomes a pending approval request.
-const mcpBridge = new McpBridge({ board, context: agentContext, serverScript: mcpServerScript, testCommand: { repos: (projectId) => quality.repoCommands(projectId), setRepo: (projectId, sourceId, input) => quality.setRepoCommand(projectId, sourceId, input), findRepo: (projectId, ref) => quality.findRepo(projectId, ref), suggest: (cardId) => quality.detectCommand(cardId).command }, collab, conversations, constitution, checklists, git: gitManager, history, approvals, policy, sddResolver, sddWriter, planReady: (cardId) => exportPlanArtifacts(history, board, cardId), prepareWorktree: (cardId) => worktrees.prepare(cardId), trimWorktree: async (cardId, keep) => {
+const mcpBridge = new McpBridge({ board, context: agentContext, serverScript: mcpServerScript, serverBinary: mcpServerBinary, testCommand: { repos: (projectId) => quality.repoCommands(projectId), setRepo: (projectId, sourceId, input) => quality.setRepoCommand(projectId, sourceId, input), findRepo: (projectId, ref) => quality.findRepo(projectId, ref), suggest: (cardId) => quality.detectCommand(cardId).command }, collab, conversations, constitution, checklists, git: gitManager, history, approvals, policy, sddResolver, sddWriter, planReady: (cardId) => exportPlanArtifacts(history, board, cardId), prepareWorktree: (cardId) => worktrees.prepare(cardId), trimWorktree: async (cardId, keep) => {
   // The SDD repository never leaves: the card's documents live in it.
   const card = board.card(cardId), sdd = await sddResolver.locate({ projectId: card.projectId, cardId }).then((location) => location.sourceId, () => null)
   return worktrees.trim(cardId, sdd ? [...new Set([...keep, sdd])] : keep)
@@ -557,7 +561,7 @@ app.whenReady().then(async () => {
 }).catch((error: unknown) => {
   console.error('GearMod startup failed', error)
   // Settings may not have been read (database closed): use the saved language if possible, otherwise the system's.
-  try { setMainLocale(settings.get().idioma) } catch { setMainLocale(app.getLocale().toLowerCase().startsWith('pt') ? 'pt-BR' : 'en') }
+  try { setMainLocale(settings.get().idioma) } catch { setMainLocale(languageFromLocale(systemLocale())) }
   const detail = error instanceof Error ? error.message : String(error)
   const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : ''
   const corrupt = /^SQLITE_(CORRUPT|NOTADB)/.test(code) || /integrity check failed|malformed|not a database/i.test(detail)

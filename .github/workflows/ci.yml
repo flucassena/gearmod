@@ -62,6 +62,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable  # native MCP relay (apps/desktop/native/gearmod-mcp)
       - name: Git identity (some tests commit in temporary repositories)
         run: |
           git config --global user.email "ci@example.invalid"
@@ -70,6 +71,10 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - name: The MCP tests also pass on the native relay
+        run: |
+          pnpm --filter @gearmod/desktop build:mcp
+          pnpm --filter @gearmod/desktop test:mcp-native
 
   installer:
     needs: check
@@ -82,11 +87,15 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable  # native MCP relay (apps/desktop/native/gearmod-mcp)
       - run: pnpm install --frozen-lockfile
       - run: pnpm dist
         env:
           # No signing certificate yet: the installer is built unsigned.
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: The native MCP relay is in the Windows package
+        shell: pwsh
+        run: if (-not (Test-Path apps/desktop/dist/win-unpacked/resources/gearmod-mcp/gearmod-mcp.exe)) { throw 'gearmod-mcp.exe missing from the package' }
       - uses: actions/upload-artifact@v7
         with:
           name: GearMod-Setup
@@ -104,11 +113,14 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable  # native MCP relay (apps/desktop/native/gearmod-mcp)
       - run: pnpm install --frozen-lockfile
       - run: pnpm dist:linux
       - name: The in-app terminal (node-pty) is in the Linux package
         # There is no prebuilt node-pty for Linux: without its pty.node the agent login and the terminals fail to start.
         run: test -f apps/desktop/dist/linux-unpacked/resources/app.asar.unpacked/node_modules/node-pty/build/Release/pty.node
+      - name: The native MCP relay is in the Linux package
+        run: test -x apps/desktop/dist/linux-unpacked/resources/gearmod-mcp/gearmod-mcp
       - uses: actions/upload-artifact@v7
         with:
           name: GearMod-Linux
@@ -129,6 +141,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable  # native MCP relay (apps/desktop/native/gearmod-mcp)
       - run: pnpm install --frozen-lockfile
       - name: Build the Mac disk images
         # The end of the output also goes to an annotation, so the reason for a failure can be read without opening the log.
@@ -146,6 +159,8 @@ jobs:
             for module in node-pty/build/Release/pty.node better-sqlite3/build/Release/better_sqlite3.node; do
               file "$unpacked/$module" | tee /dev/stderr | grep -q "$arch" || { echo "::error::$module is not built for $arch in $folder"; exit 1; }
             done
+            relay="apps/desktop/dist/$folder/GearMod.app/Contents/Resources/gearmod-mcp/gearmod-mcp"
+            file "$relay" | tee /dev/stderr | grep -q "$arch" || { echo "::error::the MCP relay is not built for $arch in $folder"; exit 1; }
           done
       - uses: actions/upload-artifact@v7
         with:

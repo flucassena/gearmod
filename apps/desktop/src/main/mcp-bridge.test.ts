@@ -27,6 +27,8 @@ const closers: Array<() => Promise<void>> = []
 afterEach(async () => { await Promise.all(closers.splice(0).map((close) => close())); await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))) })
 const git = { validate: async () => undefined, branches: async () => ['dev'], inspect: async (localPath: string) => ({ localPath, name: 'p', repositories: [] }) }
 const serverScript = join(__dirname, '..', '..', 'resources', 'gearmod-mcp', 'server.mjs')
+// GEARMOD_MCP_BINARY=<path of native/gearmod-mcp build> runs these same tests against the native relay (`pnpm test:mcp-native`).
+const relay = process.env.GEARMOD_MCP_BINARY ? { serverBinary: process.env.GEARMOD_MCP_BINARY } : {}
 
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'gearmod-mcp-')); roots.push(root)
@@ -36,7 +38,7 @@ async function setup() {
   const columns = board.get(project.id).columns
   const card = board.create({ projectId: project.id, columnId: columns[0]!.id, title: 'MCP', description: 'Resumo', type: 'task', priority: 'medium', acceptanceCriteria: [] })
   const context = new AgentContextService(board, new SettingsRepository(database), null)
-  const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath }); await bridge.listen()
+  const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, ...relay }); await bridge.listen()
   closers.push(async () => { await bridge.close(); database.close() })
   return { board, bridge, card, columns, project, database, projects, root }
 }
@@ -54,12 +56,22 @@ function mcpClient(endpoint: { command: string; args: string[]; env: Record<stri
 }
 
 describe('GearMod MCP server', () => {
+  it('answers an unknown tool with a protocol error, a finished run with a tool error, and runs the native relay when the package has it', async () => {
+    const { bridge, card } = await setup()
+    const endpoint = bridge.register('run-relay', card.id, () => undefined, { id: 'chat', purpose: 'execution' })
+    expect(endpoint.command).toBe(process.env.GEARMOD_MCP_BINARY ?? process.execPath)
+    const client = mcpClient(endpoint)
+    expect((await client.request('tools/call', { name: 'gearmod_does_not_exist', arguments: {} })).error).toMatchObject({ code: -32602, message: 'Unknown tool: gearmod_does_not_exist' })
+    bridge.finish('run-relay')
+    expect((await client.call('gearmod_card_context', {})).isError).toBe(true)
+    expect((await client.request('tools/list')).error).toMatchObject({ code: -32603 })
+  })
   it('does not write parallel documents or finish Spec Kit planning through MCP or markers', async () => {
     const { board, card, database, root } = await setup()
     const history = new CardHistoryService(database, root)
     history.selectWorkflow(card.id, 'sdd', { actor: 'user' }, '', 'user', 'speckit')
     const context = new AgentContextService(board, new SettingsRepository(database), null)
-    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, history })
+    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, ...relay, history })
     await bridge.listen(); closers.push(() => bridge.close())
     const client = mcpClient(bridge.register('run-speckit', card.id, () => undefined, { id: 'chat', purpose: 'planning' }))
     expect((await client.call('gearmod_write_document', { tipo: 'especificacao', markdown: '# Spec' })).isError).toBe(true)
@@ -72,7 +84,7 @@ describe('GearMod MCP server', () => {
     const { board, card, project, database } = await setup()
     const quality = new QualityService(database, { get: () => undefined } as unknown as WorktreeService)
     const context = new AgentContextService(board, new SettingsRepository(database), null)
-    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, testCommand: { repos: (id) => quality.repoCommands(id), setRepo: (id, sourceId, input) => quality.setRepoCommand(id, sourceId, input), findRepo: (id, ref) => quality.findRepo(id, ref), suggest: () => 'pnpm test' } })
+    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, ...relay, testCommand: { repos: (id) => quality.repoCommands(id), setRepo: (id, sourceId, input) => quality.setRepoCommand(id, sourceId, input), findRepo: (id, ref) => quality.findRepo(id, ref), suggest: () => 'pnpm test' } })
     await bridge.listen(); closers.push(() => bridge.close())
     const changes: CardChange[] = []
     const client = mcpClient(bridge.register('run-cmd', card.id, (change) => changes.push(change), { id: 'chat', purpose: 'execution' }))
@@ -95,11 +107,36 @@ describe('GearMod MCP server', () => {
     const listed = (await client.call('gearmod_test_command', {})).content[0]!.text
     expect(listed).toContain('"Jest" — npm test -- --watchAll=false'); expect(listed).toContain('docs: no automated tests')
   })
+  it('tells the agent that the tool list changed when the free chat becomes the planning chat of a new card', async () => {
+    const { board, project, database } = await setup()
+    const context = new AgentContextService(board, new SettingsRepository(database), null)
+    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, ...relay, conversations: { projectOf: () => project.id, convertToPlanning: () => undefined } })
+    await bridge.listen(); closers.push(() => bridge.close())
+    const endpoint = bridge.register('run-free', null, () => undefined, { id: 'chat-free', purpose: 'free' })
+    const child = spawn(endpoint.command, endpoint.args, { env: { ...process.env, ...endpoint.env, ELECTRON_RUN_AS_NODE: '' }, stdio: ['pipe', 'pipe', 'pipe'] })
+    closers.push(async () => { child.kill() })
+    const pending = new Map<number, (message: Record<string, unknown>) => void>(), notifications: string[] = []
+    createInterface({ input: child.stdout }).on('line', (line) => { const message = JSON.parse(line) as { id?: number; method?: string }; if (message.id === undefined) notifications.push(String(message.method)); else pending.get(message.id)?.(message as Record<string, unknown>) })
+    let id = 0
+    const request = (method: string, params?: unknown) => new Promise<Record<string, unknown>>((resolve) => { id += 1; pending.set(id, resolve); child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}
+`) })
+    const names = async () => ((await request('tools/list')).result as { tools: Array<{ name: string }> }).tools.map((tool) => tool.name)
+    expect((await request('initialize', {})).result).toMatchObject({ capabilities: { tools: { listChanged: true } } })
+    expect(await names()).not.toContain('gearmod_write_document')
+    const created = (await request('tools/call', { name: 'gearmod_create_card', arguments: { titulo: 'Novo card' } })).result as { isError: boolean }
+    expect(created.isError).toBe(false)
+    await expect.poll(() => notifications).toContain('notifications/tools/list_changed')
+    expect(await names()).toEqual(expect.arrayContaining(['gearmod_write_document', 'gearmod_finish_planning']))
+    // a call that keeps the role does not announce anything
+    notifications.length = 0
+    await request('tools/call', { name: 'gearmod_card_context', arguments: {} })
+    expect(notifications).toEqual([])
+  })
   it('proposes the Constitution without writing before approval', async () => {
     const { board, card, project, database } = await setup()
     const approvals = new ApprovalService(database)
     const context = new AgentContextService(board, new SettingsRepository(database), null)
-    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, conversations: { projectOf: () => project.id, convertToPlanning: () => undefined }, approvals,
+    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, ...relay, conversations: { projectOf: () => project.id, convertToPlanning: () => undefined }, approvals,
       sddResolver: { constitution: async () => ({ path: '.gearmod/constitution.md', content: 'antes', blobSha: 'abc', baseBlobSha: 'abc', headBlobSha: 'abc', state: 'in-sync', method: 'native', via: 'ref' }), locate: async () => ({ repo: 'repo', rootAbs: 'repo', ref: 'main', via: 'ref', sourceId: project.id, method: 'native', worktreeBranch: null }) } })
     await bridge.listen(); closers.push(() => bridge.close())
     const client = mcpClient(bridge.register('run-proposal', card.id, () => undefined, { id: 'chat', purpose: 'constitution' }))
@@ -176,7 +213,7 @@ describe('GearMod MCP server', () => {
     const history = new CardHistoryService(database, root)
     history.setConfig(project.id, { ...defaultWorkflowConfig, policy: { rules: [{ action: 'move', decision: 'deny' }, { action: 'choose-workflow', decision: 'deny' }] } })
     const approvals = new ApprovalService(database), policy = new PolicyEngine(database)
-    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, approvals, policy, history }); await bridge.listen()
+    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, ...relay, approvals, policy, history }); await bridge.listen()
     closers.push(async () => { await bridge.close(); database.close() })
     const client = mcpClient(bridge.register('run-1', card.id, () => undefined))
     await client.request('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'test', version: '1' } })
@@ -202,7 +239,7 @@ describe('GearMod MCP server', () => {
     const history = new CardHistoryService(database, root)
     history.setConfig(project.id, { ...defaultWorkflowConfig, policy: { rules: [{ action: 'move', decision: 'ask' }] } })
     const approvals = new ApprovalService(database), policy = new PolicyEngine(database)
-    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, approvals, policy, history }); await bridge.listen()
+    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, ...relay, approvals, policy, history }); await bridge.listen()
     closers.push(async () => { await bridge.close(); database.close() })
     const client = mcpClient(bridge.register('run-1', card.id, () => undefined))
     await client.request('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'test', version: '1' } })
@@ -223,7 +260,7 @@ describe('GearMod MCP server', () => {
     const card = board.create({ projectId: project.id, columnId: columns[0]!.id, title: 'MCP', description: 'Resumo', type: 'task', priority: 'medium', acceptanceCriteria: [] })
     const context = new AgentContextService(board, new SettingsRepository(database), null)
     const approvals = new ApprovalService(database)
-    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, approvals, agentMoveApproval: true }); await bridge.listen()
+    const bridge = new McpBridge({ board, context, serverScript, runtime: process.execPath, ...relay, approvals, agentMoveApproval: true }); await bridge.listen()
     closers.push(async () => { await bridge.close(); database.close() })
     const client = mcpClient(bridge.register('run-1', card.id, () => undefined))
     await client.request('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'test', version: '1' } })
@@ -305,7 +342,7 @@ describe('collaboration tools', () => {
     const planning = conversations.createChat({ projectId: project.id, cardId: card.id, purpose: 'planning', profileId: profile.id })
     const started: FollowUp[] = []
     const collab = new CollaborationService(database, board, conversations, new AgentConfigRepository(database, board, profiles)); collab.setStarter((action) => { started.push(action) })
-    const bridge = new McpBridge({ board, context: new AgentContextService(board, new SettingsRepository(database), null), serverScript, runtime: process.execPath, collab }); await bridge.listen()
+    const bridge = new McpBridge({ board, context: new AgentContextService(board, new SettingsRepository(database), null), serverScript, runtime: process.execPath, ...relay, collab }); await bridge.listen()
     closers.push(async () => { await bridge.close(); database.close() })
     const developer = mcpClient(bridge.register('r-dev', card.id, () => undefined, { id: dev.id, purpose: 'execution' }))
     expect((await developer.call('gearmod_ask_planner', { pergunta: 'Qual lib de datas?' })).content[0]!.text).toContain('D001')
@@ -331,7 +368,7 @@ describe('collaboration tools', () => {
     projects.setProfiles(project.id, [profile])
     const dev = conversations.createChat({ projectId: project.id, cardId: card.id, purpose: 'execution', profileId: profile }), plan = conversations.createChat({ projectId: project.id, cardId: card.id, purpose: 'planning', profileId: profile })
     const asked: Array<Record<string, unknown>> = [], changes: CardChange[] = []
-    const bridge = new McpBridge({ board, context: new AgentContextService(board, new SettingsRepository(database), null), serverScript, runtime: process.execPath, git: { agentCommit: async (input) => { asked.push(input); if (input.message === 'recusa') throw new Error('Commit do agente desligado na branch main'); return { rule: 'ask', text: 'Pedido de commit registrado.' } } } }); await bridge.listen()
+    const bridge = new McpBridge({ board, context: new AgentContextService(board, new SettingsRepository(database), null), serverScript, runtime: process.execPath, ...relay, git: { agentCommit: async (input) => { asked.push(input); if (input.message === 'recusa') throw new Error('Commit do agente desligado na branch main'); return { rule: 'ask', text: 'Pedido de commit registrado.' } } } }); await bridge.listen()
     closers.push(async () => { await bridge.close() })
     const developer = mcpClient(bridge.register('r-dev', card.id, (change) => changes.push(change), { id: dev.id, purpose: 'execution' }))
     const ok = await developer.call('gearmod_request_commit', { mensagem: 'Cria a tela', arquivos: ['a.txt'], repositorio: 'repo' })
@@ -352,7 +389,7 @@ describe('collaboration tools', () => {
     projects.setProfiles(project.id, [profile])
     const dev = conversations.createChat({ projectId: project.id, cardId: card.id, purpose: 'execution', profileId: profile })
     const calls: Array<{ projectId: string; input: Record<string, unknown> }> = []
-    const bridge = new McpBridge({ board, conversations, context: new AgentContextService(board, new SettingsRepository(database), null), serverScript, runtime: process.execPath, conventions: { commitConvention: async (projectId, input) => { calls.push({ projectId, input }); if (input.repo === 'nope') throw new Error('Unknown repository "nope"'); return input.description ? 'Saved.' : 'Commit message convention of repo' } } }); await bridge.listen()
+    const bridge = new McpBridge({ board, conversations, context: new AgentContextService(board, new SettingsRepository(database), null), serverScript, runtime: process.execPath, ...relay, conventions: { commitConvention: async (projectId, input) => { calls.push({ projectId, input }); if (input.repo === 'nope') throw new Error('Unknown repository "nope"'); return input.description ? 'Saved.' : 'Commit message convention of repo' } } }); await bridge.listen()
     closers.push(async () => { await bridge.close() })
     const developer = mcpClient(bridge.register('r-conv', card.id, () => undefined, { id: dev.id, purpose: 'execution' }))
     expect((await developer.call('gearmod_commit_convention', {})).content[0]!.text).toContain('Commit message convention')

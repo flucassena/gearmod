@@ -12,6 +12,7 @@
   "main/index.ts": 1,
   "main/mcp-bridge.ts": 1,
   "main/mcp-registry.ts": 1,
+  "main/mcp-tools.ts": 4,
   "main/migrations.ts": 4,
   "main/orchestrator.ts": 2,
   "main/skills.ts": 1,

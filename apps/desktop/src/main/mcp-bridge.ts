@@ -18,14 +18,16 @@ import type { PolicyEngine } from './policy'
 import type { SddResolver } from './sdd/sdd-resolver'
 import type { SddWriter } from './sdd/sdd-writer'
 import type { CodeIndexService } from './code-index/service'
+import { isMcpTool, mcpToolsFor } from './mcp-tools'
 import { findCardType } from '@gearmod/contracts'
 import { assessmentTriggerSchema, complexityDimensions, decisionKindSchema, dimensionScoresSchema, evidenceSchema, levelLabels, workflowKindSchema, workflowLabels, type Evidence } from '@gearmod/contracts'
 
 export interface McpEndpoint { command: string; args: string[]; env: Record<string, string> }
 export type CardChange = { type: 'document'; kind: CardDocumentKind } | { type: 'task' } | { type: 'moved'; column: string } | { type: 'card' } | { type: 'converted'; cardId: string; chatId: string } | { type: 'constitution' } | { type: 'checklist' } | { type: 'commit' }
-interface RunState { runId: string; cardId: string | null; chatId: string; purpose: ChatPurpose; written: Set<CardDocumentKind>; pendingMove: string | null; notify(change: CardChange): void }
+/** `codeIndex`: whether the project had the code index on when the run started (the gearmod_code_* tools are listed only then). */
+interface RunState { runId: string; cardId: string | null; chatId: string; purpose: ChatPurpose; codeIndex: boolean; written: Set<CardDocumentKind>; pendingMove: string | null; notify(change: CardChange): void }
 export interface RunReport { written: CardDocumentKind[]; pendingMove: string | null }
-type Reply = { ok: true; text: string } | { ok: false; error: string }
+type Reply = ({ ok: true; text: string } | { ok: false; error: string }) & { listChanged?: boolean }
 
 const historyTools = new Set(['gearmod_assess_complexity', 'gearmod_choose_workflow', 'gearmod_record_decision', 'gearmod_record_understanding', 'gearmod_record_exploration'])
 const cardTypeError = (types: Array<{ id: string; name: string }>): string => `tipo must be one of the project's card types: ${types.map((item) => `${item.id} (${item.name})`).join(', ')}. The short workflow is not a type: choose it with gearmod_choose_workflow (fluxo light).`
@@ -43,7 +45,7 @@ export class McpBridge {
   private readonly dir: string
   readonly socketPath: string
 
-  constructor(private readonly deps: { board: BoardRepository; context: Pick<AgentContextService, 'block' | 'skillInstructions'>; serverScript: string; runtime?: string; collab?: CollaborationService; conversations?: Pick<ConversationRepository, 'projectOf' | 'convertToPlanning'>; constitution?: Pick<ConstitutionRepository, 'get' | 'write' | 'propose'>; checklists?: Pick<ChecklistRepository, 'write' | 'get'>; git?: Pick<GitManager, 'agentCommit'>; conventions?: Pick<GitManager, 'commitConvention'>; history?: CardHistoryService; approvals?: ApprovalService; policy?: PolicyEngine; sddResolver?: Pick<SddResolver, 'constitution' | 'locate'>; sddWriter?: Pick<SddWriter, 'write'>; planReady?: (cardId: string) => { notices: string[] }; prepareWorktree?: (cardId: string) => Promise<unknown>; trimWorktree?: (cardId: string, keep: string[]) => Promise<{ removed: string[]; kept: Array<{ name: string; reason: string }> }>; repositories?: (cardId: string) => Array<{ path: string; status: string }>; agentMoveApproval?: boolean; codeIndex?: Pick<CodeIndexService, 'tool' | 'isTool' | 'prewarm'>; codeRoots?: (run: { cardId: string | null; chatId: string }) => string[]; codeEnabled?: (run: { cardId: string | null; chatId: string }) => boolean; testCommand?: { repos(projectId: string): Array<{ sourceId: string; repo: string; command: string; name: string; applicable: boolean }>; setRepo(projectId: string, sourceId: string, input: { command: string; name: string; applicable: boolean }): unknown; findRepo(projectId: string, ref: string): { id: string; name: string } | undefined; suggest(cardId: string): string } }) {
+  constructor(private readonly deps: { board: BoardRepository; context: Pick<AgentContextService, 'block' | 'skillInstructions'>; serverScript: string; serverBinary?: string; runtime?: string; collab?: CollaborationService; conversations?: Pick<ConversationRepository, 'projectOf' | 'convertToPlanning'>; constitution?: Pick<ConstitutionRepository, 'get' | 'write' | 'propose'>; checklists?: Pick<ChecklistRepository, 'write' | 'get'>; git?: Pick<GitManager, 'agentCommit'>; conventions?: Pick<GitManager, 'commitConvention'>; history?: CardHistoryService; approvals?: ApprovalService; policy?: PolicyEngine; sddResolver?: Pick<SddResolver, 'constitution' | 'locate'>; sddWriter?: Pick<SddWriter, 'write'>; planReady?: (cardId: string) => { notices: string[] }; prepareWorktree?: (cardId: string) => Promise<unknown>; trimWorktree?: (cardId: string, keep: string[]) => Promise<{ removed: string[]; kept: Array<{ name: string; reason: string }> }>; repositories?: (cardId: string) => Array<{ path: string; status: string }>; agentMoveApproval?: boolean; codeIndex?: Pick<CodeIndexService, 'tool' | 'isTool' | 'prewarm'>; codeRoots?: (run: { cardId: string | null; chatId: string }) => string[]; codeEnabled?: (run: { cardId: string | null; chatId: string }) => boolean; testCommand?: { repos(projectId: string): Array<{ sourceId: string; repo: string; command: string; name: string; applicable: boolean }>; setRepo(projectId: string, sourceId: string, input: { command: string; name: string; applicable: boolean }): unknown; findRepo(projectId: string, ref: string): { id: string; name: string } | undefined; suggest(cardId: string): string } }) {
     const id = randomBytes(6).toString('hex')
     this.dir = join(tmpdir(), `gearmod-${id}`)
     this.socketPath = process.platform === 'win32' ? `\\\\.\\pipe\\gearmod-${id}` : join(this.dir, 'mcp.sock')
@@ -59,7 +61,16 @@ export class McpBridge {
         const answer = (reply: Reply): void => { socket.end(`${JSON.stringify(reply)}
 `) }
         const fail = (error: unknown): void => answer({ ok: false, error: error instanceof Error ? error.message : String(error) })
-        try { const request = JSON.parse(buffer.slice(0, end)) as { token?: string; tool?: string; args?: Record<string, unknown> }; Promise.resolve(this.handle(request.token ?? '', request.tool ?? '', request.args ?? {})).then(answer, fail) }
+        try {
+          const request = JSON.parse(buffer.slice(0, end)) as { token?: string; list?: boolean; tool?: string; args?: Record<string, unknown> }
+          // The MCP server is only a relay: it asks for the tool list of its run and forwards each call.
+          if (request.list) { const run = this.runs.get(request.token ?? ''); socket.end(`${JSON.stringify(run ? { ok: true, tools: mcpToolsFor(run.purpose, run.codeIndex) } : { ok: false, error: 'Unknown run, or it has already ended.' })}\n`); return }
+          if (!isMcpTool(request.tool ?? '')) { socket.end(`${JSON.stringify({ ok: false, unknown: true, error: `Unknown tool: ${String(request.tool)}` })}\n`); return }
+          // When the call changes the conversation role (free chat → planning with gearmod_create_card), the relay tells the agent that
+          // the tool list changed (notifications/tools/list_changed), so it gets the planning tools in this same turn.
+          const run = this.runs.get(request.token ?? ''), before = run?.purpose
+          Promise.resolve(this.handle(request.token ?? '', request.tool ?? '', request.args ?? {})).then((reply) => answer(run && run.purpose !== before ? { ...reply, listChanged: true } : reply), fail)
+        }
         catch (error) { fail(error) }
       })
       socket.on('error', () => undefined)
@@ -122,11 +133,14 @@ export class McpBridge {
 
   register(runId: string, cardId: string | null, notify: (change: CardChange) => void, chat: { id: string; purpose: ChatPurpose } = { id: '', purpose: 'execution' }): McpEndpoint {
     const token = randomBytes(24).toString('hex')
-    this.runs.set(token, { runId, cardId, chatId: chat.id, purpose: chat.purpose, written: new Set(), pendingMove: null, notify })
     // the code index of this conversation's folders starts getting ready while the agent boots; if turned off in the project, the tools disappear
     const codeOn = this.codeOn({ cardId, chatId: chat.id })
+    this.runs.set(token, { runId, cardId, chatId: chat.id, purpose: chat.purpose, codeIndex: codeOn, written: new Set(), pendingMove: null, notify })
     if (codeOn && chat.purpose !== 'constitution') { try { this.deps.codeIndex?.prewarm(this.deps.codeRoots?.({ cardId, chatId: chat.id }) ?? []) } catch { /* no folders yet */ } }
-    return { command: this.deps.runtime ?? process.execPath, args: [this.deps.serverScript], env: { ELECTRON_RUN_AS_NODE: '1', GEARMOD_SOCKET: this.socketPath, GEARMOD_TOKEN: token, GEARMOD_PURPOSE: chat.purpose, GEARMOD_CODE_INDEX: codeOn ? '1' : '0' } }
+    const env = { GEARMOD_SOCKET: this.socketPath, GEARMOD_TOKEN: token }
+    // The native relay (a few MB) when the package has it; otherwise the same relay in JavaScript on Electron running as Node (~30 MB per agent).
+    if (this.deps.serverBinary) return { command: this.deps.serverBinary, args: [], env }
+    return { command: this.deps.runtime ?? process.execPath, args: [this.deps.serverScript], env: { ...env, ELECTRON_RUN_AS_NODE: '1' } }
   }
 
   finish(runId: string): RunReport {
